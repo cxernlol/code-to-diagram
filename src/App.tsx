@@ -1059,7 +1059,7 @@ function App() {
           </div>
           <div className="canvas-status">
             {supportedMovement
-              ? <span id="node-movement-help">Scroll to zoom; drag empty space to pan. Drag a box or use arrow keys to move it.</span>
+              ? <span id="node-movement-help">{data.settings.scrollMode === "zoom" ? "Scroll to zoom" : "Scroll to pan; Ctrl+scroll to zoom"}; drag empty space to pan. Drag a box or use arrow keys to move it.</span>
               : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
           </div>
           <DiagramCanvas

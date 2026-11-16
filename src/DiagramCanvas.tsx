@@ -576,7 +576,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       ref={viewportRef}
       style={{ backgroundColor: settings.canvasColor }}
       role="group"
-      aria-label="Diagram preview. Scroll to zoom, drag empty space to pan, and drag a node to move it."
+      aria-label={`Diagram preview. ${settings.scrollMode === "zoom" ? "Scroll to zoom" : "Scroll to pan; Ctrl+scroll to zoom"}, drag empty space to pan, and drag a node to move it.`}
     >
       <div
         className="diagram-graphic"

@@ -65,6 +65,10 @@ test("zooms with the toolbar and wheel and keeps the dotted grid in sync", async
   await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await page.mouse.wheel(0, -120);
   await expect.poll(() => graphic.getAttribute("style")).not.toBe(afterButtonZoom);
+
+  await page.locator('summary[aria-label="Pan and zoom settings"]').click();
+  await page.getByLabel("Scroll behavior").selectOption("pan");
+  await expect(viewport).toHaveAttribute("aria-label", /Ctrl\+scroll to zoom/);
 });
 
 test("creates structured tabs only after every Mermaid block validates", async ({ page }) => {
