@@ -635,7 +635,6 @@ summary:focus-visible,
   inline-size: max-content;
   block-size: max-content;
   transform-origin: 0 0;
-  will-change: transform;
 }
 
 .diagram-graphic svg {
