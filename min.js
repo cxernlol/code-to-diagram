@@ -134,8 +134,6 @@
   };
 
   
-  
-  
   const $ = (id) => document.getElementById(id);
 
   function slugify(text) {
@@ -143,8 +141,6 @@
       .replace(/\s+/g, "-").replace(/[^\w-]+/g, "").replace(/--+/g, "-") || "diagram";
   }
 
-  
-  
   
   function toast(msg, type = "info", ms = 3200) {
     let wrap = $("toast") || document.querySelector(".toast-container");
@@ -446,6 +442,7 @@
 
   let dragModeActive = false;
   let nodePositions = {};   
+  const DRAG_SENSITIVITY = 0.5;
 
   
   const NODE_SELECTORS = [
@@ -479,10 +476,10 @@
   }
 
   function getBaseTransform(el) {
-    
-    const existing = el.getAttribute("transform") || "";
-    
-    return existing.replace(/ms-translate\([^)]*\)/g, "").trim();
+    if (el._msBaseTransform === undefined) {
+      el._msBaseTransform = el.getAttribute("transform") || "";
+    }
+    return el._msBaseTransform;
   }
 
   function applyNodePositions() {
@@ -538,8 +535,8 @@
         const dxScreen = e.clientX - drag.startX;
         const dyScreen = e.clientY - drag.startY;
         const svgScale = VP.k; 
-        nodePositions[key].dx = drag.origDx + dxScreen / svgScale;
-        nodePositions[key].dy = drag.origDy + dyScreen / svgScale;
+        nodePositions[key].dx = drag.origDx + (dxScreen * DRAG_SENSITIVITY) / svgScale;
+        nodePositions[key].dy = drag.origDy + (dyScreen * DRAG_SENSITIVITY) / svgScale;
 
         const base = getBaseTransform(el);
         el.setAttribute("transform",
@@ -592,14 +589,14 @@
     nodePositions = {};
     
     const nodes = getDraggableNodes();
-    nodes.forEach((el) => {
+    nodes.forEach((el, i) => {
+      nodePositions[nodeKey(el, i)] = { dx: 0, dy: 0 };
       const base = getBaseTransform(el);
       if (base) {
         el.setAttribute("transform", base);
       } else {
         el.removeAttribute("transform");
       }
-      el._msDragBound = false;
     });
     if (dragModeActive) {
       toggleDragMode(); 

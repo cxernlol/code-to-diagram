@@ -1,0 +1,118 @@
+import type { StudioSettings } from "../types";
+
+export type DiagramType =
+  | "flowchart"
+  | "class"
+  | "state"
+  | "er"
+  | "sequence"
+  | "gantt"
+  | "mindmap"
+  | "pie"
+  | "journey"
+  | "other";
+
+export interface MermaidResult {
+  svg: string;
+  type: DiagramType;
+}
+
+export function parseMermaidSvg(markup: string): SVGSVGElement {
+  const parsed = new DOMParser().parseFromString(markup, "image/svg+xml");
+  const svg = parsed.documentElement;
+  if (!(svg instanceof SVGSVGElement) || parsed.querySelector("parsererror")) {
+    throw new Error("Mermaid returned an invalid SVG diagram.");
+  }
+  svg.querySelectorAll("script, foreignObject, iframe, object, embed").forEach((element) => {
+    element.remove();
+  });
+  [svg, ...Array.from(svg.querySelectorAll("*"))].forEach((element) => {
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim();
+      if (name.startsWith("on")) element.removeAttribute(attribute.name);
+      if (
+        (name === "href" || name === "xlink:href") &&
+        value !== "" &&
+        !value.startsWith("#")
+      ) {
+        element.removeAttribute(attribute.name);
+      }
+      if (name === "style" && /url\((?!\s*['"]?#)/i.test(value)) {
+        element.removeAttribute(attribute.name);
+      }
+    });
+  });
+  svg.querySelectorAll("style").forEach((style) => {
+    if (/@import|url\((?!\s*['"]?#)/i.test(style.textContent ?? "")) style.remove();
+  });
+  return document.importNode(svg, true);
+}
+
+let renderSequence = 0;
+let renderQueue: Promise<void> = Promise.resolve();
+
+export function detectDiagramType(source: string): DiagramType {
+  const firstLine = source.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0]?.trim() ?? "";
+  if (/^(flowchart|graph)\b/i.test(firstLine)) return "flowchart";
+  if (/^classDiagram\b/i.test(firstLine)) return "class";
+  if (/^stateDiagram(?:-v2)?\b/i.test(firstLine)) return "state";
+  if (/^erDiagram\b/i.test(firstLine)) return "er";
+  if (/^sequenceDiagram\b/i.test(firstLine)) return "sequence";
+  if (/^gantt\b/i.test(firstLine)) return "gantt";
+  if (/^mindmap\b/i.test(firstLine)) return "mindmap";
+  if (/^pie\b/i.test(firstLine)) return "pie";
+  if (/^journey\b/i.test(firstLine)) return "journey";
+  return "other";
+}
+
+export function renderMermaid(source: string, settings: StudioSettings): Promise<MermaidResult> {
+  const sequence = ++renderSequence;
+  const type = detectDiagramType(source);
+  const result = renderQueue.then(async () => {
+    if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
+    const color = (value: string, fallback: string) =>
+      /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(value) ? value : fallback;
+    window.mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      look: settings.look === "handDrawn" ? "handDrawn" : "classic",
+      theme: ["default", "dark", "forest", "neutral"].includes(settings.theme)
+        ? settings.theme
+        : "default",
+      htmlLabels: false,
+      themeVariables: {
+        primaryColor: color(settings.primaryColor, "#6366f1"),
+        primaryTextColor: color(settings.textColor, "#ffffff"),
+        primaryBorderColor: color(settings.lineColor, "#334155"),
+        lineColor: color(settings.lineColor, "#334155"),
+        background: color(settings.canvasColor, "#ffffff"),
+        fontFamily: settings.font.replace(/[;{}<>]/g, ""),
+      },
+    });
+    const rendered = await window.mermaid.render(`sgs-${sequence}`, source);
+    if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
+    return { svg: rendered.svg, type };
+  });
+  renderQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+export function parseMermaid(source: string): Promise<void> {
+  const result = renderQueue.then(async () => {
+    window.mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      htmlLabels: false,
+    });
+    await window.mermaid.parse(source);
+  });
+  renderQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+export function getMermaidErrorLine(error: unknown): number | undefined {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/line\s+(\d+)/i);
+  return match ? Number(match[1]) : undefined;
+}
