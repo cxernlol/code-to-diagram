@@ -33,7 +33,7 @@ type RoomMessage =
       devices: number;
     }
   | { type: "heartbeat"; devices: number }
-  | { type: "room-full"; maxDevices: number }
+  | { type: "room-full"; targetDeviceId?: string; maxDevices: number }
   | { type: "room-ended" };
 
 export function createRoomId(): string {
@@ -105,7 +105,11 @@ export function startHostRoom(
     if (closed || !msg || typeof msg !== "object") return;
     if (msg.type === "join") {
       if (!guests.has(msg.deviceId) && 1 + guests.size >= MAX_ROOM_DEVICES) {
-        sendToGuest(conn, { type: "room-full", maxDevices: MAX_ROOM_DEVICES });
+        sendToGuest(conn, {
+          type: "room-full",
+          targetDeviceId: msg.deviceId,
+          maxDevices: MAX_ROOM_DEVICES,
+        });
         if (conn) {
           window.setTimeout(() => conn.close(), 50);
         }
@@ -312,7 +316,9 @@ export function joinHostRoom(
       joined = true;
       lastHostSeen = Date.now();
     } else if (msg.type === "room-full") {
-      endSession(`Room is full (maximum ${msg.maxDevices} devices).`, true);
+      if (!msg.targetDeviceId || msg.targetDeviceId === deviceId) {
+        endSession(`Room is full (maximum ${msg.maxDevices} devices).`, true);
+      }
     } else if (msg.type === "room-ended") {
       endSession("Host closed the browser or ended the room.");
     }
