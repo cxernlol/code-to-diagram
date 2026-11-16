@@ -30,6 +30,10 @@ function readTranslation(transform: string | null): Position {
   return { x: Number(match?.[1] ?? 0), y: Number(match?.[2] ?? 0) };
 }
 
+function cssTransform(transform: ZoomTransform): string {
+  return `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`;
+}
+
 function stableNodeId(id: string): string {
   return id.match(/^[^-]+-(.+)-\d+$/)?.[1] ?? id;
 }
@@ -183,11 +187,17 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const spaceDown = useRef(false);
   const [svgMarkup, setSvgMarkup] = useState("");
   const [rendering, setRendering] = useState(true);
+  const [viewTransform, setViewTransform] = useState(zoomIdentity);
 
   settingsRef.current = settings;
   const applyTransform = useCallback((transform: ZoomTransform) => {
     transformRef.current = transform;
-    if (graphicRef.current) graphicRef.current.style.transform = transform.toString();
+    setViewTransform(transform);
+    if (viewportRef.current) {
+      const gridSize = Math.max(12, Math.min(32, 20 * transform.k));
+      viewportRef.current.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+      viewportRef.current.style.backgroundPosition = `${transform.x % gridSize}px ${transform.y % gridSize}px`;
+    }
   }, []);
 
   const fit = useCallback(() => {
@@ -566,12 +576,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       ref={viewportRef}
       style={{ backgroundColor: settings.canvasColor }}
       role="group"
-      aria-label="Diagram preview. Drag a node to move it; drag the empty canvas to pan."
+      aria-label="Diagram preview. Scroll to zoom, drag empty space to pan, and drag a node to move it."
     >
       <div
         className="diagram-graphic"
         ref={graphicRef}
-        style={{ fontFamily: settings.font }}
+        style={{ fontFamily: settings.font, transform: cssTransform(viewTransform) }}
       />
       {rendering && <div className="render-indicator" aria-live="polite">Rendering…</div>}
       {!svgMarkup && !rendering && (

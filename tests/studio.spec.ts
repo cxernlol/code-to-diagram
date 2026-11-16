@@ -4,10 +4,10 @@ test("moves one flowchart node and keeps its connectors attached", async ({ page
   await page.goto("/");
   const node = page.locator('[data-sgs-node="Check"]');
   await expect(node).toBeVisible();
-  await expect(page.getByText("flowchart", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Diagram preview" }).getByText("flowchart", { exact: true })).toBeVisible();
 
   const beforeTransform = await node.getAttribute("transform");
-  const edge = page.locator("g.edgePath path").first();
+  const edge = page.locator(".diagram-graphic path.flowchart-link").first();
   const beforePath = await edge.getAttribute("d");
   const bounds = await node.boundingBox();
   if (!bounds) throw new Error("The Check node has no visible bounds.");
@@ -21,6 +21,7 @@ test("moves one flowchart node and keeps its connectors attached", async ({ page
   await expect.poll(() => edge.getAttribute("d")).not.toBe(beforePath);
   const movedTransform = await node.getAttribute("transform");
   await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.locator(".save-status")).toContainText("Saved");
   await page.reload();
   await expect(page.locator('[data-sgs-node="Check"]')).toHaveAttribute("transform", movedTransform ?? "");
 });
@@ -42,8 +43,28 @@ test("migrates the legacy workspace without removing its recovery copy", async (
   await expect(page.getByRole("tab", { name: "Legacy diagram" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Mermaid diagram source" })).toContainText("Saved --> Work");
   expect(await page.evaluate(() => localStorage.getItem("mstudio2"))).toBe(legacy);
-  await page.getByRole("button", { name: "Version history" }).click();
+  await page.locator('summary[aria-label="Version history"]').click();
   await expect(page.getByText("Earlier edit")).toBeVisible();
+});
+
+test("zooms with the toolbar and wheel and keeps the dotted grid in sync", async ({ page }) => {
+  await page.goto("/");
+  const graphic = page.locator(".diagram-graphic");
+  const viewport = page.locator(".diagram-viewport");
+  await expect(page.locator('[data-sgs-node="Check"]')).toBeVisible();
+
+  const initialTransform = await graphic.getAttribute("style");
+  const initialGridSize = await viewport.evaluate((element) => element.style.backgroundSize);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect.poll(() => graphic.getAttribute("style")).not.toBe(initialTransform);
+  await expect.poll(() => viewport.evaluate((element) => element.style.backgroundSize)).not.toBe(initialGridSize);
+
+  const afterButtonZoom = await graphic.getAttribute("style");
+  const bounds = await viewport.boundingBox();
+  if (!bounds) throw new Error("The diagram preview has no visible bounds.");
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.wheel(0, -120);
+  await expect.poll(() => graphic.getAttribute("style")).not.toBe(afterButtonZoom);
 });
 
 test("creates structured tabs only after every Mermaid block validates", async ({ page }) => {

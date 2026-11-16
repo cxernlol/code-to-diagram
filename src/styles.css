@@ -17,7 +17,7 @@
   --accent: #ad612e;
   --accent-soft: #f5e8dc;
   --selection: #dce8e2;
-  --grid-dot: #c9d4cf;
+  --grid-dot: #b7c5bf;
   --mono: "Cascadia Code", "Cascadia Mono", Consolas, monospace;
   --radius: 5px;
   --shadow: 0 18px 60px rgb(22 43 47 / 22%);
@@ -617,7 +617,7 @@ summary:focus-visible,
   min-block-size: 0;
   overflow: hidden;
   touch-action: none;
-  background-image: radial-gradient(var(--grid-dot) 0.65px, transparent 0.65px);
+  background-image: radial-gradient(var(--grid-dot) 0.8px, transparent 0.8px);
   background-position: 8px 8px;
   background-size: 20px 20px;
   cursor: grab;
