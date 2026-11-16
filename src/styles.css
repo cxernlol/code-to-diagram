@@ -1190,7 +1190,7 @@ summary:focus-visible,
   gap: 12px;
 }
 
-.settings-grid input:not([type="color"]),
+.settings-grid input:not([type="color"]):not([type="checkbox"]),
 .settings-grid select {
   inline-size: 100%;
   min-block-size: 34px;
@@ -1241,6 +1241,20 @@ summary:focus-visible,
 
 .settings-grid .wide-field {
   grid-column: 1 / -1;
+}
+
+.settings-grid label.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-grid input[type="checkbox"] {
+  inline-size: 15px;
+  block-size: 15px;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .form-note {
