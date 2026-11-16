@@ -22,6 +22,7 @@ export interface DiagramCanvasHandle {
 interface DiagramCanvasProps {
   document: DiagramDocument;
   settings: StudioSettings;
+  readOnly?: boolean;
   onLayoutChange: (layout: Record<string, Position>) => void;
   onNodeMoved: (id: string) => void;
   onNodeSelect?: (id: string) => void;
@@ -57,8 +58,8 @@ function boundsInRoot(svg: SVGSVGElement, element: SVGGraphicsElement) {
   const shape =
     element.matches?.("g.node, [data-sgs-node]")
       ? element.querySelector<SVGGraphicsElement>(
-          ":scope > .basic.label-container, :scope > polygon, :scope > circle, :scope > ellipse, :scope > rect, :scope > g.node > .basic.label-container, :scope > g.node > polygon, :scope > g.node > circle, :scope > g.node > ellipse, :scope > g.node > rect",
-        )
+        ":scope > .basic.label-container, :scope > polygon, :scope > circle, :scope > ellipse, :scope > rect, :scope > g.node > .basic.label-container, :scope > g.node > polygon, :scope > g.node > circle, :scope > g.node > ellipse, :scope > g.node > rect",
+      )
       : null;
   const target = shape ?? element;
   const box = target.getBBox();
@@ -133,7 +134,7 @@ type Face = "top" | "bottom" | "left" | "right";
 function isDiamondNode(element: Element): boolean {
   return Boolean(
     element.matches?.("g.node, [data-sgs-node]") &&
-      element.querySelector(":scope > polygon, :scope > g.node > polygon"),
+    element.querySelector(":scope > polygon, :scope > g.node > polygon"),
   );
 }
 
@@ -455,11 +456,13 @@ function routeEdge(
     sourceFace,
     sourceDiamond ? 0 : sourceOffset,
   );
+
   const { point: end, normal: endNormal } = portOnFace(
     targetBounds,
     targetFace,
     targetDiamond ? 0 : targetOffset,
   );
+
   if (
     startNormal.y !== 0 &&
     endNormal.y !== 0 &&
@@ -481,6 +484,7 @@ function routeEdge(
     else if (targetDiamond && !sourceDiamond) start.y = end.y;
     else end.y = start.y;
   }
+
   const rawGap =
     startNormal.x !== 0 && endNormal.x !== 0
       ? Math.abs(end.x - start.x)
@@ -492,10 +496,12 @@ function routeEdge(
     x: start.x + startNormal.x * stub,
     y: start.y + startNormal.y * stub,
   };
+
   const endStub = {
     x: end.x + endNormal.x * stub,
     y: end.y + endNormal.y * stub,
   };
+
   const obstacles = allNodes
     .filter((node) => node.id !== source.dataset.sgsNode && node.id !== target.dataset.sgsNode)
     .map((node) => boundsInRoot(svg, node.wrapper));
@@ -513,6 +519,7 @@ function routeEdge(
     ...obstacles.flatMap((box) => [box.x - 24, box.x + box.width + 24]),
     ...endpointBoxes.flatMap((box) => [box.x - 24, box.x + box.width + 24]),
   ]);
+
   const yCandidates = new Set([
     midY,
     midY - 18,
@@ -524,6 +531,7 @@ function routeEdge(
     ...obstacles.flatMap((box) => [box.y - 24, box.y + box.height + 24]),
     ...endpointBoxes.flatMap((box) => [box.y - 24, box.y + box.height + 24]),
   ]);
+
   const candidates = [
     ...Array.from(yCandidates, (y) => [
       start,
@@ -541,6 +549,7 @@ function routeEdge(
       endStub,
       end,
     ]),
+
     [start, startStub, { x: endStub.x, y: startStub.y }, endStub, end],
     [start, startStub, { x: startStub.x, y: endStub.y }, endStub, end],
   ].map(simplifyOrthogonal);
@@ -550,16 +559,18 @@ function routeEdge(
         a.y > box.y - pad &&
         a.y < box.y + box.height + pad &&
         Math.max(Math.min(a.x, b.x), box.x - pad) <
-          Math.min(Math.max(a.x, b.x), box.x + box.width + pad)
+        Math.min(Math.max(a.x, b.x), box.x + box.width + pad)
       );
+
     }
     return (
       a.x > box.x - pad &&
       a.x < box.x + box.width + pad &&
       Math.max(Math.min(a.y, b.y), box.y - pad) <
-        Math.min(Math.max(a.y, b.y), box.y + box.height + pad)
+      Math.min(Math.max(a.y, b.y), box.y + box.height + pad)
     );
   };
+
   const score = (points: Position[]) => {
     let length = 0;
     let collisions = 0;
@@ -570,10 +581,12 @@ function routeEdge(
       const dotStart = (first.x - start.x) * startNormal.x + (first.y - start.y) * startNormal.y;
       if (dotStart < 4) collisions += 50;
     }
+
     if (lastPrev) {
       const dotEnd = (lastPrev.x - end.x) * endNormal.x + (lastPrev.y - end.y) * endNormal.y;
       if (dotEnd < 4) collisions += 50;
     }
+
     for (let index = 1; index < points.length; index += 1) {
       const a = points[index - 1];
       const b = points[index];
@@ -586,9 +599,11 @@ function routeEdge(
         if (dot < -0.01) collisions += 100;
         collisions += blocked(a, b, sourceBounds, -1) ? 1 : 0;
       }
+
       if (index < points.length - 1) {
         collisions += blocked(a, b, targetBounds, -1) ? 1 : 0;
       }
+
       if (index > 1 && index < points.length - 1) {
         const isHoriz = Math.abs(a.y - b.y) < 0.01;
         if (isHoriz) {
@@ -601,6 +616,7 @@ function routeEdge(
           if (blocked(a, b, targetBounds, 26)) overlapPenalty += 35;
         }
       }
+
       const isHoriz = Math.abs(a.y - b.y) < 0.01;
       for (const used of usedSegments) {
         const usedHoriz = Math.abs(used.a.y - used.b.y) < 0.01;
@@ -707,7 +723,7 @@ function routeEdge(
 }
 
 export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>(function DiagramCanvas(
-  { document, settings, onLayoutChange, onNodeMoved, onNodeSelect, onToolChange, onRenderError, onTypeChange },
+  { document, settings, readOnly = false, onLayoutChange, onNodeMoved, onNodeSelect, onToolChange, onRenderError, onTypeChange },
   ref,
 ) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -716,6 +732,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const transformRef = useRef<ZoomTransform>(zoomIdentity);
   const zoomFrameRef = useRef<number | undefined>(undefined);
   const settingsRef = useRef(settings);
+  const readOnlyRef = useRef(readOnly);
   const onLayoutChangeRef = useRef(onLayoutChange);
   const onNodeMovedRef = useRef(onNodeMoved);
   const onNodeSelectRef = useRef(onNodeSelect);
@@ -728,6 +745,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const [toolMode, setToolMode] = useState<"move" | "hand">("move");
 
   settingsRef.current = settings;
+  readOnlyRef.current = readOnly;
   onLayoutChangeRef.current = onLayoutChange;
   onNodeMovedRef.current = onNodeMoved;
   onNodeSelectRef.current = onNodeSelect;
@@ -1676,7 +1694,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     edges.forEach((edge) => {
       let pointerStart: { id: number; x: number; y: number; offset: Position } | undefined;
       const onPointerDown = (event: PointerEvent) => {
-        if (event.button !== 0 || spaceDown.current || toolModeRef.current === "hand") return;
+        if (readOnlyRef.current || event.button !== 0 || spaceDown.current || toolModeRef.current === "hand") return;
         event.preventDefault();
         event.stopPropagation();
         pointerStart = {
@@ -1724,7 +1742,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         finishDrag(edge.id);
       };
       const onKeyDown = (event: KeyboardEvent) => {
-        if (toolModeRef.current === "hand") return;
+        if (readOnlyRef.current || toolModeRef.current === "hand") return;
         if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
         event.preventDefault();
         const step = settingsRef.current.snapEnabled && !event.altKey
@@ -1753,6 +1771,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       let pointerStart: { id: number; x: number; y: number; position: Position } | undefined;
       const onPointerDown = (event: PointerEvent) => {
         if (
+          readOnlyRef.current ||
           event.button !== 0 ||
           spaceDown.current ||
           toolModeRef.current === "hand"
@@ -1807,7 +1826,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         onNodeSelectRef.current?.(node.id);
       };
       const onKeyDown = (event: KeyboardEvent) => {
-        if (toolModeRef.current === "hand") return;
+        if (readOnlyRef.current || toolModeRef.current === "hand") return;
         if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
         event.preventDefault();
         const snap = settingsRef.current.snapEnabled && !event.altKey;

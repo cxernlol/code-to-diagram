@@ -228,6 +228,7 @@ function App() {
   const [roomMode, setRoomMode] = useState<"none" | "host" | "guest">("none");
   const [roomDevices, setRoomDevices] = useState(1);
   const [roomNotice, setRoomNotice] = useState("");
+  const [endedRoomDocIds, setEndedRoomDocIds] = useState<Set<string>>(() => new Set());
   const hostRoomRef = useRef<HostRoomSession | null>(null);
   const guestRoomRef = useRef<GuestRoomSession | null>(null);
   const roomDocIdRef = useRef<string>("");
@@ -286,25 +287,25 @@ function App() {
 
   const changeCode = useCallback(
     (code: string) => {
-      if (!activeDocument || activeDocument.code === code) return;
+      if (!activeDocument || activeDocument.code === code || endedRoomDocIds.has(activeDocument.id)) return;
       const before = snapshot(activeDocument);
       const after = { ...before, code };
       rememberEdit(activeDocument.id, before, after, "code");
       updateDocument(activeDocument.id, (document) => ({ ...document, code }));
     },
-    [activeDocument, rememberEdit, updateDocument],
+    [activeDocument, endedRoomDocIds, rememberEdit, updateDocument],
   );
 
   const changeLayout = useCallback(
     (layout: Record<string, Position>) => {
-      if (!activeDocument) return;
+      if (!activeDocument || endedRoomDocIds.has(activeDocument.id)) return;
       const before = snapshot(activeDocument);
       if (JSON.stringify(before.layout) === JSON.stringify(layout)) return;
       const after = { ...before, layout };
       rememberEdit(activeDocument.id, before, after, "layout");
       updateDocument(activeDocument.id, (document) => ({ ...document, layout }));
     },
-    [activeDocument, rememberEdit, updateDocument],
+    [activeDocument, endedRoomDocIds, rememberEdit, updateDocument],
   );
 
   const changeSettings = useCallback(
@@ -452,7 +453,10 @@ function App() {
           onEnded: (reason) => {
             guestRoomRef.current = null;
             setRoomMode("none");
-            setRoomNotice(reason);
+            if (roomDocIdRef.current) {
+              setEndedRoomDocIds((prev) => new Set(prev).add(roomDocIdRef.current));
+            }
+            setRoomNotice(`${reason} Editing is locked; you can still export SVG, PNG, or source.`);
             if (window.location.hash.startsWith("#room=")) {
               history.replaceState(null, "", `${window.location.pathname}${window.location.search}#app`);
             }
@@ -1078,6 +1082,7 @@ function App() {
 
   const supportedMovement = ["flowchart", "class", "state", "er"].includes(diagramType);
   const codeFormat = detectCodeFormat(activeDocument.code);
+  const isReadOnlySnapshot = endedRoomDocIds.has(activeDocument.id);
 
   return (
     <main className="studio" style={{ "--split": `${data.settings.splitPercent}%` } as CSSProperties}>
@@ -1312,6 +1317,7 @@ function App() {
                 className="format-convert-select"
                 aria-label="Convert code format"
                 title="Translate current code to another format"
+                disabled={isReadOnlySnapshot}
                 value=""
                 onChange={(event) => {
                   const target = event.target.value as CodeFormat | "";
@@ -1337,8 +1343,8 @@ function App() {
             </div>
             <div className="pane-actions">
               <button className="icon-button compact" aria-label="Download source file" title="Download source file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={isReadOnlySnapshot} onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={isReadOnlySnapshot} onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
               <details className="history-menu">
                 <summary aria-label="Version history"><RotateCcw aria-hidden="true" size={15} /></summary>
                 <div className="history-popover">
@@ -1356,6 +1362,7 @@ function App() {
             <CodeEditor
               ref={editorRef}
               value={activeDocument.code}
+              readOnly={isReadOnlySnapshot}
               error={renderError}
               onChange={changeCode}
               onUndo={undo}
@@ -1383,19 +1390,19 @@ function App() {
               placeholder="Describe the change you want. Leave blank for a structured cleanup."
             />
             <div className="ai-buttons">
-              <button className="button primary" type="button" disabled={aiBusy} onClick={() => { setAiMode("refine"); void runAi("refine"); }}>
+              <button className="button primary" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine"); }}>
                 <Wand2 aria-hidden="true" size={15} /> Refine
               </button>
-              <button className="button secondary" type="button" disabled={aiBusy} onClick={() => { setAiMode("structured"); void runAi("structured"); }}>
+              <button className="button secondary" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("structured"); void runAi("structured"); }}>
                 <GitBranch aria-hidden="true" size={15} /> Structure
               </button>
-              <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
+              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
                 Fix syntax
               </button>
-              <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
+              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
                 Style it
               </button>
-              <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
+              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
                 Tidy
               </button>
               <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("explain"); void runAi("explain"); }}>
@@ -1471,7 +1478,7 @@ function App() {
                 className="icon-button compact"
                 aria-label="Arrange nodes in grid"
                 title="Arrange nodes in grid"
-                disabled={!supportedMovement}
+                disabled={!supportedMovement || isReadOnlySnapshot}
                 onClick={() => canvasRef.current?.arrangeGrid()}
               >
                 <LayoutGrid aria-hidden="true" size={15} />
@@ -1480,7 +1487,7 @@ function App() {
                 className="icon-button compact"
                 aria-label="Reset node positions to automatic layout"
                 title="Reset node positions"
-                disabled={!Object.keys(activeDocument.layout).length}
+                disabled={!Object.keys(activeDocument.layout).length || isReadOnlySnapshot}
                 onClick={() => {
                   changeLayout({});
                   requestAnimationFrame(() => canvasRef.current?.fit());
@@ -1511,14 +1518,17 @@ function App() {
             </div>
           </div>
           <div className="canvas-status">
-            {supportedMovement
-              ? <span id="node-movement-help">V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Arrow keys: nudge a box. Alt: bypass grid.</span>
-              : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
+            {isReadOnlySnapshot
+              ? "Room ended by host. Read-only snapshot: export SVG, PNG, or source."
+              : supportedMovement
+                ? <span id="node-movement-help">V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Arrow keys: nudge a box. Alt: bypass grid.</span>
+                : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
           </div>
           <DiagramCanvas
             ref={canvasRef}
             document={activeDocument}
             settings={data.settings}
+            readOnly={isReadOnlySnapshot}
             onLayoutChange={changeLayout}
             onNodeMoved={announceNodeMoved}
             onNodeSelect={(id) => {

@@ -679,4 +679,8 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
 
   await host.close();
   await expect(guests[0]!.getByText(/Host closed the browser or ended the room/i)).toBeVisible();
+  await expect(guests[0]!.getByRole("button", { name: "Arrange nodes in grid" })).toBeDisabled();
+  await expect(guests[0]!.getByLabel("Convert code format")).toBeDisabled();
+  await expect(guests[0]!.getByRole("button", { name: "Export SVG" })).toBeEnabled();
+  await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
 });

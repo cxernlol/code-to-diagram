@@ -10,7 +10,7 @@ import {
   StreamLanguage,
 } from "@codemirror/language";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import {
   EditorView,
   highlightActiveLine,
@@ -86,6 +86,7 @@ export interface CodeEditorHandle {
 
 export interface CodeEditorProps {
   value: string;
+  readOnly?: boolean;
   error?: { message: string; line?: number };
   onChange: (value: string) => void;
   onUndo: () => boolean;
@@ -93,16 +94,19 @@ export interface CodeEditorProps {
 }
 
 export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor(
-  { value, error, onChange, onUndo, onRedo },
+  { value, readOnly = false, error, onChange, onUndo, onRedo },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const readOnlyCompartment = useRef(new Compartment());
+  const readOnlyRef = useRef(readOnly);
   const callbackRef = useRef({ onChange, onUndo, onRedo });
   const suppressChange = useRef(false);
   const valueRef = useRef(value);
 
   callbackRef.current = { onChange, onUndo, onRedo };
+  readOnlyRef.current = readOnly;
   valueRef.current = value;
 
   useImperativeHandle(
@@ -148,6 +152,10 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
       state: EditorState.create({
         doc: valueRef.current,
         extensions: [
+          readOnlyCompartment.current.of([
+            EditorState.readOnly.of(readOnlyRef.current),
+            EditorView.editable.of(!readOnlyRef.current),
+          ]),
           lineNumbers(),
           foldGutter(),
           highlightActiveLineGutter(),
@@ -230,6 +238,17 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
       viewRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: readOnlyCompartment.current.reconfigure([
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
+      ]),
+    });
+  }, [readOnly]);
 
   useEffect(() => {
     const view = viewRef.current;
