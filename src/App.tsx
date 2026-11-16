@@ -1111,12 +1111,14 @@ function App() {
             <Share2 aria-hidden="true" size={17} />
           </button>
           <button
-            className={`icon-button${roomMode !== "none" ? " room-active" : ""}`}
+            className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
+            type="button"
             title={roomMode === "host" ? `Live room (${roomDevices}/${MAX_ROOM_DEVICES} devices)` : "Host live room (max 5 devices)"}
             aria-label={roomMode === "host" ? "Copy live room link" : "Host live room (max 5 devices)"}
             onClick={() => void startLiveRoom()}
           >
-            <Users aria-hidden="true" size={17} />
+            <Users aria-hidden="true" size={15} />
+            <span>{roomMode === "none" ? "Share live" : `Live ${roomDevices}/${MAX_ROOM_DEVICES}`}</span>
           </button>
           <button className="icon-button" title="Export SVG" aria-label="Export SVG" onClick={saveSvg}>
             <FileImage aria-hidden="true" size={17} />

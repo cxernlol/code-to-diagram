@@ -926,9 +926,32 @@ summary:focus-visible,
   border-block-end: 1px solid var(--border);
 }
 
+.live-share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 30px;
+  padding: 0 10px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: var(--radius);
+  color: #f3f6f3;
+  background: rgb(255 255 255 / 8%);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.live-share-button:hover {
+  border-color: rgb(255 255 255 / 42%);
+  background: rgb(255 255 255 / 14%);
+}
+
+.live-share-button.room-active,
 .icon-button.room-active {
+  border-color: #e5b47c;
   color: #e5b47c;
-  background: rgb(255 255 255 / 16%);
+  background: rgb(229 180 124 / 14%);
 }
 
 .error-banner span:first-child,
