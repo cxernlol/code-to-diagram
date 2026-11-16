@@ -100,6 +100,7 @@ export const TEMPLATES: Record<string, string> = {
   Fix --> Check
   Process --> Output[/Output/]
   Output --> Done([Done])`,
+
   Sequence: `sequenceDiagram
   autonumber
   actor User
@@ -109,6 +110,7 @@ export const TEMPLATES: Record<string, string> = {
   App->>DB: Query
   DB-->>App: Data
   App-->>User: Response`,
+
   Class: `classDiagram
   class Animal {
     +String name
@@ -125,12 +127,14 @@ export const TEMPLATES: Record<string, string> = {
   }
   Animal <|-- Dog
   Animal <|-- Cat`,
+
   State: `stateDiagram-v2
   [*] --> Idle
   Idle --> Running : start()
   Running --> Paused : pause()
   Paused --> Running : resume()
   Running --> [*] : stop()`,
+
   ER: `erDiagram
   USER ||--o{ ORDER : places
   ORDER ||--|{ ITEM : contains
@@ -143,6 +147,7 @@ export const TEMPLATES: Record<string, string> = {
     int id PK
     date created_at
   }`,
+
   Gantt: `gantt
   title Project Roadmap
   dateFormat YYYY-MM-DD
@@ -152,6 +157,7 @@ export const TEMPLATES: Record<string, string> = {
   section Phase 2
   Testing  :test, after dev, 5d
   Release  :crit, rel, after test, 2d`,
+
   Mindmap: `mindmap
   root((Project))
     Planning
@@ -163,12 +169,14 @@ export const TEMPLATES: Record<string, string> = {
     Delivery
       Deployment
       Monitoring`,
+
   Pie: `pie showData
   title Resource Allocation
   "Development" : 45
   "Testing" : 25
   "Design" : 20
   "Docs" : 10`,
+
   Journey: `journey
   title User Onboarding
   section Discovery
@@ -180,6 +188,7 @@ export const TEMPLATES: Record<string, string> = {
   section Usage
     First diagram: 5: User
     Share: 5: User`,
+
   "Git Graph": `gitGraph
   commit id: "Initial"
   branch feature
@@ -189,6 +198,7 @@ export const TEMPLATES: Record<string, string> = {
   checkout main
   merge feature id: "Merge feature"
   commit id: "Release" tag: "v1.0"`,
+
   "C4 Architecture": `C4Context
   title System Context
   Person(user, "User", "Creates diagrams.")
@@ -196,6 +206,7 @@ export const TEMPLATES: Record<string, string> = {
   System_Ext(ai, "AI API", "Diagram generation.")
   Rel(user, app, "Uses")
   Rel(app, ai, "Requests completions")`,
+
   "Requirement Diagram": `requirementDiagram
   requirement req_render {
     id: REQ-01
@@ -207,6 +218,54 @@ export const TEMPLATES: Record<string, string> = {
     type: module
   }
   renderer - satisfies -> req_render`,
+
+  "DOT Graph": `digraph ServiceFlow {
+  rankdir=LR;
+  Client [label="Web Client"];
+  API [label="API Gateway", shape=diamond];
+  Auth [label="Auth Service"];
+  DB [label="Database", shape=cylinder];
+  Client -> API [label="HTTPS"];
+  API -> Auth [label="Verify"];
+  API -> DB [label="Query"];
+}`,
+
+  "PlantUML Class": `@startuml
+class Account {
+  +String email
+  +login()
+}
+class Workspace {
+  +String title
+  +exportSvg()
+}
+Account "1" --> "*" Workspace : owns
+@enduml`,
+
+  "D2 Flow": `direction: right
+Browser -> Compiler: source code
+Compiler -> Canvas: Mermaid AST
+Canvas -> Export: SVG or PNG`,
+
+  "SQL Schema": `CREATE TABLE users (
+  id INT PRIMARY KEY,
+  email VARCHAR(255)
+);
+CREATE TABLE projects (
+  id INT PRIMARY KEY,
+  user_id INT REFERENCES users(id),
+  name VARCHAR(120)
+);`,
+
+  "TypeScript Types": `interface User {
+  id: string;
+  email: string;
+}
+interface Diagram {
+  id: string;
+  owner: User;
+  nodes: number;
+}`,
 };
 
 export function createDocument(

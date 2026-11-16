@@ -36,11 +36,12 @@ export function HomePage({ onStart }: HomePageProps) {
       <main className="home-main">
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
-            <p className="home-eyebrow">Local-first Mermaid workbench</p>
-            <h1 id="home-title">Write Mermaid diagrams. Drag boxes and lines into place.</h1>
+            <p className="home-eyebrow">Local-first code to diagrams</p>
+            <h1 id="home-title">Write code. Drag boxes and lines into place.</h1>
             <p className="home-lead">
-              Edit source code beside a live canvas where every node and connector can be
-              repositioned by hand. Your work stays in your browser with no account required.
+              Paste Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, or TypeScript interfaces and
+              reposition every node and connector by hand. Your work stays in your browser with no
+              account required.
             </p>
             <div className="home-cta-row">
               <button className="button primary home-cta-start" type="button" onClick={onStart}>

@@ -58,6 +58,11 @@ import {
   getSharedPayload,
 } from "./export";
 
+import {
+  detectCodeFormat,
+  FORMAT_EXTENSIONS,
+  FORMAT_LABELS,
+} from "./lib/formats";
 import { detectDiagramType, type DiagramType } from "./lib/mermaid";
 import {
   broadcastDocumentChange,
@@ -772,8 +777,10 @@ function App() {
 
   const saveMmd = () => {
     if (!activeDocument) return;
-    downloadText(`${activeDocument.name.replace(/[\\/:*?"<>|]/g, "-")}.mmd`, activeDocument.code);
-    setNotice("Mermaid file downloaded.");
+    const format = detectCodeFormat(activeDocument.code);
+    const ext = FORMAT_EXTENSIONS[format];
+    downloadText(`${activeDocument.name.replace(/[\\/:*?"<>|]/g, "-")}.${ext}`, activeDocument.code);
+    setNotice(`${FORMAT_LABELS[format]} file downloaded.`);
   };
 
   const saveSvg = () => {
@@ -872,6 +879,7 @@ function App() {
   }
 
   const supportedMovement = ["flowchart", "class", "state", "er"].includes(diagramType);
+  const codeFormat = detectCodeFormat(activeDocument.code);
 
   return (
     <main className="studio" style={{ "--split": `${data.settings.splitPercent}%` } as CSSProperties}>
@@ -897,7 +905,7 @@ function App() {
           <button className="icon-button" title="Open Mermaid or Markdown file" aria-label="Open Mermaid or Markdown file" onClick={() => fileInput.current?.click()}>
             <FolderOpen aria-hidden="true" size={17} />
           </button>
-          <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,text/plain,text/markdown" onChange={(event) => void importFile(event)} />
+          <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,text/plain,text/markdown" onChange={(event) => void importFile(event)} />
           <button className="icon-button" title="Copy source" aria-label="Copy Mermaid source" onClick={() => void copyCode()}>
             <Clipboard aria-hidden="true" size={17} />
           </button>
@@ -1066,10 +1074,10 @@ function App() {
                 <Code2 aria-hidden="true" size={15} />
               </button>
               <span>Source</span>
-              <span className="language-chip">Mermaid</span>
+              <span className="language-chip">{FORMAT_LABELS[codeFormat]}</span>
             </div>
             <div className="pane-actions">
-              <button className="icon-button compact" aria-label="Download .mmd file" title="Download .mmd file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Download source file" title="Download source file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
               <details className="history-menu">

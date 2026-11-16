@@ -30,7 +30,7 @@ async function expectEdgeEndsAtNodes(edge: Locator): Promise<void> {
 
 test("shows the home page with Start and GitHub links and opens the diagram app on Start", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Write Mermaid diagrams/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Write code\. Drag boxes and lines into place\./i })).toBeVisible();
   const githubLinks = page.getByRole("link", { name: /GitHub/i });
   await expect(githubLinks.first()).toHaveAttribute("href", "https://github.com/cxernlol/sgs-chify");
 
@@ -39,7 +39,7 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   await expect(page.locator('[data-sgs-node="Check"]')).toBeVisible();
 
   await page.getByRole("button", { name: "SGS Studio home" }).click();
-  await expect(page.getByRole("heading", { name: /Write Mermaid diagrams/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Write code\. Drag boxes and lines into place\./i })).toBeVisible();
 });
 
 test("moves one flowchart node and keeps its connectors attached", async ({ page }) => {
@@ -602,4 +602,24 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   const pngHeight = pngBytes.readUInt32BE(20);
   expect(pngWidth).toBeGreaterThan(1000);
   expect(pngHeight).toBeGreaterThan(1000);
+});
+
+test("renders DOT, PlantUML, D2, SQL DDL, and TypeScript code into interactive diagrams", async ({ page }) => {
+  await page.goto("/#app");
+  const cases = [
+    { template: "DOT Graph", chip: "Graphviz DOT", text: "API Gateway", node: "API" },
+    { template: "PlantUML Class", chip: "PlantUML", text: "Workspace", node: "Workspace" },
+    { template: "D2 Flow", chip: "D2", text: "Compiler", node: "Compiler" },
+    { template: "SQL Schema", chip: "SQL DDL", text: "projects" },
+    { template: "TypeScript Types", chip: "TypeScript", text: "Diagram", node: "Diagram" },
+  ];
+
+  for (const item of cases) {
+    await page.getByLabel("Start from a template").selectOption({ label: item.template });
+    await expect(page.locator(".language-chip")).toHaveText(item.chip);
+    await expect(page.locator(".diagram-graphic")).toContainText(item.text);
+    if (item.node) {
+      await expect(page.locator(`[data-sgs-node="${item.node}"]`)).toBeVisible();
+    }
+  }
 });

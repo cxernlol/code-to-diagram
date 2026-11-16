@@ -1,4 +1,5 @@
 import type { StudioSettings } from "../types";
+import { toMermaidSource } from "./formats";
 
 export type DiagramType =
   | "flowchart"
@@ -96,7 +97,8 @@ async function ensureMermaid(): Promise<typeof window.mermaid> {
 }
 
 export function detectDiagramType(source: string): DiagramType {
-  const firstLine = source.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0]?.trim() ?? "";
+  const normalized = toMermaidSource(source).mermaid;
+  const firstLine = normalized.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0]?.trim() ?? "";
   if (/^(flowchart|graph)\b/i.test(firstLine)) return "flowchart";
   if (/^classDiagram\b/i.test(firstLine)) return "class";
   if (/^stateDiagram(?:-v2)?\b/i.test(firstLine)) return "state";
@@ -161,7 +163,8 @@ export function resolveDiagramPalette(
 
 export function renderMermaid(source: string, settings: StudioSettings): Promise<MermaidResult> {
   const sequence = ++renderSequence;
-  const type = detectDiagramType(source);
+  const compiled = toMermaidSource(source).mermaid;
+  const type = detectDiagramType(compiled);
   const result = renderQueue.then(async () => {
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
     const { primaryColor, textColor, lineColor, canvasColor } = resolveDiagramPalette(settings);
@@ -175,6 +178,7 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
       flowchart: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68, padding: 16 },
       class: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68, diagramPadding: 16 },
       state: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68 },
+
       themeCSS: `
         .node > rect, .node > circle, .node > ellipse, .node > polygon, .node > path, .node .basic.label-container, g.classGroup rect, .basic.label-container > path:first-child, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
         .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }
@@ -184,6 +188,7 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
         .edgeLabel p, .edgeTerminals p { margin: 0; padding: 0; }
         foreignObject { overflow: visible; }
       `,
+
       themeVariables: {
         darkMode: relativeLuminance(canvasColor) < 0.25,
         primaryColor,
@@ -205,7 +210,8 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
         fontFamily: settings.font.replace(/[;{}<>]/g, ""),
       },
     });
-    const rendered = await mermaid.render(`sgs-${sequence}`, source);
+
+    const rendered = await mermaid.render(`sgs-${sequence}`, compiled);
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
     return { svg: rendered.svg, type };
   });
@@ -214,9 +220,10 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
 }
 
 export function parseMermaid(source: string): Promise<void> {
+  const compiled = toMermaidSource(source).mermaid;
   const result = renderQueue.then(async () => {
     const mermaid = await ensureMermaid();
-    await mermaid.parse(source);
+    await mermaid.parse(compiled);
   });
   renderQueue = result.then(() => undefined, () => undefined);
   return result;
