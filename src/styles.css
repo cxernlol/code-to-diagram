@@ -1100,6 +1100,11 @@ summary:focus-visible,
   box-shadow: var(--shadow);
 }
 
+.settings-dialog[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
 .settings-dialog::backdrop {
   overflow: hidden;
   background: rgb(16 34 37 / 54%);
@@ -1136,24 +1141,47 @@ summary:focus-visible,
 
 .settings-content {
   display: grid;
-  gap: 18px;
-  max-block-size: calc(88dvh - 70px);
+  gap: 14px;
+  min-block-size: 0;
   overflow: auto;
-  padding: 17px 19px 19px;
+  padding: 16px 19px;
 }
 
-.settings-content fieldset {
+.settings-card {
   min-inline-size: 0;
   margin: 0;
-  padding: 0;
-  border: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-chrome);
 }
 
-.settings-content legend {
-  margin-block-end: 11px;
-  color: #48605f;
+.settings-card legend {
+  padding-inline: 6px;
+  color: var(--ink);
   font-size: 12px;
   font-weight: 700;
+}
+
+.settings-preview-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-block-end: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background-image: radial-gradient(var(--grid-dot) 0.8px, transparent 0.8px);
+  background-size: 16px 16px;
+}
+
+.swatch-node {
+  padding: 6px 14px;
+  border: 1.5px solid;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .settings-grid {
@@ -1174,13 +1202,41 @@ summary:focus-visible,
   font-size: 12px;
 }
 
-.settings-grid input[type="color"] {
-  inline-size: 100%;
+.color-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-block-size: 34px;
-  padding: 3px;
+  padding: 3px 8px 3px 4px;
   border: 1px solid var(--border-strong);
   border-radius: 4px;
   background: white;
+}
+
+.color-input-row input[type="color"] {
+  inline-size: 30px;
+  block-size: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.color-input-row code {
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.password-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.password-input-row input {
+  flex: 1;
 }
 
 .settings-grid .wide-field {
@@ -1206,8 +1262,11 @@ summary:focus-visible,
 }
 
 .dialog-footer {
-  justify-content: flex-end;
-  padding-block-start: 4px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 19px;
+  border-block-start: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .toast {

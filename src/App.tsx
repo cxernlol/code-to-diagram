@@ -6,6 +6,8 @@ import {
   Clipboard,
   Code2,
   Download,
+  Eye,
+  EyeOff,
   FileImage,
   FolderOpen,
   GitBranch,
@@ -224,6 +226,7 @@ function App() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState("");
   const [testStatus, setTestStatus] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [roomMode, setRoomMode] = useState<"none" | "host" | "guest">("none");
   const [roomDevices, setRoomDevices] = useState(1);
@@ -1593,12 +1596,44 @@ function App() {
         onClose={() => setSettingsOpen(false)}
       >
         <div className="dialog-heading">
-          <div><h2 id="settings-title">Studio settings</h2><p>Appearance, movement, and AI provider.</p></div>
+          <div><h2 id="settings-title">Studio settings</h2><p>Diagram appearance, theme presets, and AI provider.</p></div>
           <button className="icon-button" type="button" aria-label="Close settings" onClick={() => settingsDialog.current?.close()}><X aria-hidden="true" size={17} /></button>
         </div>
         <div className="settings-content">
-          <fieldset>
+          <fieldset className="settings-card">
             <legend>Diagram appearance</legend>
+            <div
+              className="settings-preview-swatch"
+              aria-hidden="true"
+              style={{ backgroundColor: data.settings.canvasColor }}
+            >
+              <div
+                className="swatch-node"
+                style={{
+                  backgroundColor: data.settings.primaryColor,
+                  borderColor: data.settings.lineColor,
+                  color: data.settings.textColor,
+                  fontFamily: data.settings.font,
+                }}
+              >
+                Node A
+              </div>
+              <svg width="44" height="16" viewBox="0 0 44 16">
+                <line x1="2" y1="8" x2="36" y2="8" stroke={data.settings.lineColor} strokeWidth="1.8" />
+                <polygon points="34,3 42,8 34,13" fill={data.settings.lineColor} />
+              </svg>
+              <div
+                className="swatch-node"
+                style={{
+                  backgroundColor: data.settings.primaryColor,
+                  borderColor: data.settings.lineColor,
+                  color: data.settings.textColor,
+                  fontFamily: data.settings.font,
+                }}
+              >
+                Node B
+              </div>
+            </div>
             <div className="settings-grid">
               <label>Theme
                 <select
@@ -1617,14 +1652,34 @@ function App() {
                   <option value="classic">Classic</option><option value="handDrawn">Hand drawn</option>
                 </select>
               </label>
-              <label>Primary color <input type="color" value={data.settings.primaryColor} onChange={(event) => changeSettings({ primaryColor: event.target.value })} /></label>
-              <label>Node text <input type="color" value={data.settings.textColor} onChange={(event) => changeSettings({ textColor: event.target.value })} /></label>
-              <label>Connectors <input type="color" value={data.settings.lineColor} onChange={(event) => changeSettings({ lineColor: event.target.value })} /></label>
-              <label>Canvas <input type="color" value={data.settings.canvasColor} onChange={(event) => changeSettings({ canvasColor: event.target.value })} /></label>
+              <label>Primary color
+                <span className="color-input-row">
+                  <input type="color" value={data.settings.primaryColor} onChange={(event) => changeSettings({ primaryColor: event.target.value })} />
+                  <code>{data.settings.primaryColor}</code>
+                </span>
+              </label>
+              <label>Node text
+                <span className="color-input-row">
+                  <input type="color" value={data.settings.textColor} onChange={(event) => changeSettings({ textColor: event.target.value })} />
+                  <code>{data.settings.textColor}</code>
+                </span>
+              </label>
+              <label>Connectors
+                <span className="color-input-row">
+                  <input type="color" value={data.settings.lineColor} onChange={(event) => changeSettings({ lineColor: event.target.value })} />
+                  <code>{data.settings.lineColor}</code>
+                </span>
+              </label>
+              <label>Canvas
+                <span className="color-input-row">
+                  <input type="color" value={data.settings.canvasColor} onChange={(event) => changeSettings({ canvasColor: event.target.value })} />
+                  <code>{data.settings.canvasColor}</code>
+                </span>
+              </label>
               <label className="wide-field">Diagram font<input value={data.settings.font} onChange={(event) => changeSettings({ font: event.target.value })} /></label>
             </div>
           </fieldset>
-          <fieldset>
+          <fieldset className="settings-card">
             <legend>AI provider</legend>
             <div className="settings-grid">
               <label>Provider
@@ -1643,13 +1698,31 @@ function App() {
                   {Object.entries(PROVIDERS).map(([id, provider]) => <option key={id} value={id}>{provider.label}</option>)}
                 </select>
               </label>
-              <label>Model<input value={data.settings.provider.model} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, model: event.target.value } })} /></label>
+              <label>Model<input value={data.settings.provider.model} placeholder="Model ID" onChange={(event) => changeSettings({ provider: { ...data.settings.provider, model: event.target.value } })} /></label>
               <label className="wide-field">Compatible API base URL<input type="url" value={data.settings.provider.baseUrl} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, baseUrl: event.target.value } })} /></label>
-              <label className="wide-field">API key<input type="password" autoComplete="off" value={data.credentials.apiKey} onChange={(event) => {
-                const current = dataRef.current;
-                if (current) updateData({ ...current, credentials: { apiKey: event.target.value } });
-              }} /></label>
-              <label>Temperature<input type="number" min="0" max="2" step="0.1" value={data.settings.provider.temperature ?? ""} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, temperature: event.target.value === "" ? null : Number(event.target.value) } })} /></label>
+              <label className="wide-field">API key
+                <span className="password-input-row">
+                  <input
+                    type={showApiKey ? "text" : "password"}
+                    autoComplete="off"
+                    placeholder="sk-..."
+                    value={data.credentials.apiKey}
+                    onChange={(event) => {
+                      const current = dataRef.current;
+                      if (current) updateData({ ...current, credentials: { apiKey: event.target.value } });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="icon-button compact"
+                    aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                    onClick={() => setShowApiKey((v) => !v)}
+                  >
+                    {showApiKey ? <EyeOff aria-hidden="true" size={14} /> : <Eye aria-hidden="true" size={14} />}
+                  </button>
+                </span>
+              </label>
+              <label>Temperature<input type="number" min="0" max="2" step="0.1" placeholder="Default" value={data.settings.provider.temperature ?? ""} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, temperature: event.target.value === "" ? null : Number(event.target.value) } })} /></label>
             </div>
             <p id="provider-privacy" className="form-note">AI requests include the diagram, prompt, and API key, and go directly to the selected provider. Some endpoints block browser requests with CORS. Provider charges are separate from SGS Studio.</p>
             <div className="settings-actions">
@@ -1657,9 +1730,19 @@ function App() {
               <span role="status">{testStatus}</span>
             </div>
           </fieldset>
-          <div className="dialog-footer">
-            <button className="button primary" type="button" onClick={() => settingsDialog.current?.close()}>Done</button>
-          </div>
+        </div>
+        <div className="dialog-footer">
+          <button
+            className="button text-button"
+            type="button"
+            onClick={() => {
+              const preset = THEME_PRESETS[data.settings.theme] ?? THEME_PRESETS.default!;
+              changeSettings({ ...preset });
+            }}
+          >
+            Reset theme colors
+          </button>
+          <button className="button primary" type="button" onClick={() => settingsDialog.current?.close()}>Done</button>
         </div>
       </dialog>
 
