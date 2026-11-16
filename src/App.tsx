@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   Maximize2,
   MousePointer,
+  Palette,
   PanelRight,
   Plus,
   Redo2,
@@ -978,9 +979,12 @@ function App() {
   };
 
   const saveSvg = () => {
-    if (!activeDocument) return;
+    if (!activeDocument || !data) return;
     try {
-      exportSvg(`${activeDocument.name.replace(/[\\/:*?"<>|]/g, "-")}.svg`);
+      exportSvg(
+        `${activeDocument.name.replace(/[\\/:*?"<>|]/g, "-")}.svg`,
+        data.settings,
+      );
     } catch (error) {
       setStorageError(errorText(error));
     }
@@ -1127,6 +1131,16 @@ function App() {
           >
             <Users aria-hidden="true" size={15} />
             <span>{roomMode === "none" ? "Share live" : `Live ${roomDevices}/${MAX_ROOM_DEVICES}`}</span>
+          </button>
+          <button
+            className={`icon-button${data.settings.colorizeBoxes ? " active-tool" : ""}`}
+            type="button"
+            title={data.settings.colorizeBoxes ? "Colored export boxes: on" : "Colored export boxes: off"}
+            aria-label="Colorize boxes on export"
+            aria-pressed={Boolean(data.settings.colorizeBoxes)}
+            onClick={() => changeSettings({ colorizeBoxes: !data.settings.colorizeBoxes })}
+          >
+            <Palette aria-hidden="true" size={17} />
           </button>
           <button className="icon-button" title="Export SVG" aria-label="Export SVG" onClick={saveSvg}>
             <FileImage aria-hidden="true" size={17} />
@@ -1677,6 +1691,14 @@ function App() {
                 </span>
               </label>
               <label className="wide-field">Diagram font<input value={data.settings.font} onChange={(event) => changeSettings({ font: event.target.value })} /></label>
+              <label className="wide-field checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={Boolean(data.settings.colorizeBoxes)}
+                  onChange={(event) => changeSettings({ colorizeBoxes: event.target.checked })}
+                />
+                <span>Colorize boxes &amp; classes on export</span>
+              </label>
             </div>
           </fieldset>
           <fieldset className="settings-card">

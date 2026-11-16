@@ -48,6 +48,7 @@ export interface StudioSettings {
   snapSize: number;
   smoothZoom: boolean;
   scrollMode: "pan" | "zoom";
+  colorizeBoxes?: boolean;
   provider: ProviderSettings;
 }
 

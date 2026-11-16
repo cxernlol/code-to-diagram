@@ -121,7 +121,7 @@ function expandHex(value: string, fallback: string): string {
   return fallback;
 }
 
-function relativeLuminance(hex: string): number {
+export function relativeLuminance(hex: string): number {
   const normalized = expandHex(hex, "#ffffff");
   const channels = [1, 3, 5].map((index) => {
     const value = Number.parseInt(normalized.slice(index, index + 2), 16) / 255;

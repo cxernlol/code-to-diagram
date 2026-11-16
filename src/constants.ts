@@ -48,6 +48,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   snapSize: 20,
   smoothZoom: true,
   scrollMode: "zoom",
+  colorizeBoxes: false,
   provider: {
     provider: "deepseek",
     baseUrl: "https://api.deepseek.com",

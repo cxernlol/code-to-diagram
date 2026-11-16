@@ -605,6 +605,16 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(exportedSvg).not.toContain("sgs-edge-controls");
   expect(exportedSvg).toContain("Customer");
   expect(exportedSvg).toContain("Product");
+  expect(exportedSvg).not.toContain("rgb(234, 241, 248)");
+
+  await page.getByRole("button", { name: "Colorize boxes on export" }).click();
+  const colorSvgPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export SVG" }).click();
+  const colorSvgDownload = await colorSvgPromise;
+  const colorSvgPath = await colorSvgDownload.path();
+  const colorExportedSvg = await fs.readFile(colorSvgPath!, "utf8");
+  expect(colorExportedSvg).toContain("rgb(234, 241, 248)");
+  expect(colorExportedSvg).toContain("rgb(230, 244, 234)");
 
   const pngDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export PNG" }).click();
