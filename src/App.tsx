@@ -393,6 +393,14 @@ function App() {
   }, [boot]);
 
   useEffect(() => {
+    if (view === "home") {
+      document.title = "SGS Studio: Code to Diagram Editor for Mermaid, DOT & SQL";
+    } else if (activeDocument) {
+      document.title = `${activeDocument.name} — SGS Studio`;
+    }
+  }, [view, activeDocument?.name]);
+
+  useEffect(() => {
     const onHashChange = () => {
       setView(isStudioHash(window.location.hash) ? "studio" : "home");
     };
