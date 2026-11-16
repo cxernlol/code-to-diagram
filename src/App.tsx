@@ -9,16 +9,19 @@ import {
   FileImage,
   FolderOpen,
   GitBranch,
+  Hand,
+  LayoutGrid,
   Maximize2,
+  MousePointer,
   PanelRight,
   Plus,
   Redo2,
   RotateCcw,
   Settings2,
   Share2,
-  Sparkles,
   StopCircle,
   Undo2,
+  Wand2,
   X,
   ZoomIn,
   ZoomOut,
@@ -31,10 +34,10 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { CodeEditor } from "./CodeEditor";
+import { CodeEditor, type CodeEditorHandle } from "./CodeEditor";
 import { DiagramCanvas, type DiagramCanvasHandle } from "./DiagramCanvas";
 import { PROVIDERS, TEMPLATES, createDocument } from "./constants";
 import {
@@ -48,7 +51,7 @@ import {
   exportPng,
   exportSvg,
   getImportedMermaid,
-  getSharedCode,
+  getSharedPayload,
 } from "./export";
 import { detectDiagramType, type DiagramType } from "./lib/mermaid";
 import {
@@ -151,6 +154,7 @@ function App() {
   const expectedUpdatedAt = useRef(new Map<string, number>());
   const inFlight = useRef(new Set<string>());
   const aiController = useRef<AbortController | null>(null);
+  const editorRef = useRef<CodeEditorHandle>(null);
   const canvasRef = useRef<DiagramCanvasHandle>(null);
   const settingsDialog = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -166,6 +170,7 @@ function App() {
   const [announcement, setAnnouncement] = useState("");
   const [renderError, setRenderError] = useState<{ message: string; line?: number }>();
   const [diagramType, setDiagramType] = useState<DiagramType>("other");
+  const [canvasTool, setCanvasTool] = useState<"move" | "hand">("move");
   const [mobilePane, setMobilePane] = useState<"code" | "preview">("preview");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [renameId, setRenameId] = useState("");
@@ -300,15 +305,47 @@ function App() {
     return true;
   }, [activeDocument, updateDocument]);
 
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "s") {
+        const doc = dataRef.current?.documents.find(
+          (item) => item.id === dataRef.current?.settings.activeDocumentId,
+        ) ?? dataRef.current?.documents[0];
+        if (!doc) return;
+        event.preventDefault();
+        downloadText(`${doc.name.replace(/[\\/:*?"<>|]/g, "-")}.mmd`, doc.code);
+        setNotice("Mermaid file downloaded.");
+        return;
+      }
+      if (key !== "z" && key !== "y") return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("input, textarea, select, [contenteditable='true']"))
+      ) return;
+      event.preventDefault();
+      if (key === "y" || event.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [redo, undo]);
+
   const boot = useCallback(async (ignoreLegacy = false) => {
     setBootError(undefined);
     setLegacyError(undefined);
     try {
       const loaded = await initializeStudio(ignoreLegacy);
       try {
-        const sharedCode = getSharedCode(window.location.hash);
-        if (sharedCode) {
-          const shared = createDocument("Shared diagram", sharedCode, loaded.documents.length);
+        const sharedPayload = getSharedPayload(window.location.hash);
+        if (sharedPayload) {
+          const shared = {
+            ...createDocument("Shared diagram", sharedPayload.code, loaded.documents.length),
+            layout: sharedPayload.layout,
+          };
           loaded.documents = [...loaded.documents, shared];
           loaded.settings = { ...loaded.settings, activeDocumentId: shared.id };
           history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -556,7 +593,7 @@ function App() {
     setAiPrompt("");
   };
 
-  const runAi = async (mode = aiMode) => {
+  const runAi = async (mode = aiMode, promptOverride?: string) => {
     if (!activeDocument || !data) return;
     if (!data.settings.provider.baseUrl.trim() || !data.settings.provider.model.trim()) {
       setAiError("Add an endpoint and model in AI settings first.");
@@ -570,6 +607,7 @@ function App() {
     setAiPanel(null);
     setAiStream("");
     let feedback = "";
+    const customPrompt = (promptOverride ?? aiPrompt).trim();
     try {
       if (mode === "explain") {
         const text = await requestAiText({
@@ -590,7 +628,7 @@ function App() {
             ? `Create structured diagrams from the source below. Return JSON with an Overview and at least one named detail diagram. Diagram type: ${detectDiagramType(activeDocument.code)}.`
             : `Improve this ${detectDiagramType(activeDocument.code)} diagram. Keep its meaning and IDs where practical. Return valid Mermaid source.`,
           `Syntax guidance: ${SYNTAX_GUIDANCE[detectDiagramType(activeDocument.code)]}`,
-          aiPrompt.trim() ||
+          customPrompt ||
             (structured
               ? "Organize the content into a clear overview and focused supporting diagrams."
               : "Improve the structure and readability without changing the meaning."),
@@ -686,12 +724,18 @@ function App() {
   const share = async () => {
     if (!activeDocument) return;
     try {
-      const url = `${window.location.origin}${window.location.pathname}${createShareHash(activeDocument.code)}`;
+      const url = `${window.location.origin}${window.location.pathname}${createShareHash(activeDocument.code, activeDocument.layout)}`;
       await navigator.clipboard.writeText(url);
-      setNotice("Share link copied. It contains the Mermaid source, not your saved layout.");
+      setNotice("Share link copied.");
     } catch (error) {
       setStorageError(`Share link could not be copied: ${errorText(error)}`);
     }
+  };
+
+  const saveMmd = () => {
+    if (!activeDocument) return;
+    downloadText(`${activeDocument.name.replace(/[\\/:*?"<>|]/g, "-")}.mmd`, activeDocument.code);
+    setNotice("Mermaid file downloaded.");
   };
 
   const saveSvg = () => {
@@ -718,7 +762,7 @@ function App() {
     }
   };
 
-  const handleTabKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const handleTabKey = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
     const tabs = Array.from(
       event.currentTarget.closest('[role="tablist"]')?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [],
     );
@@ -925,7 +969,17 @@ function App() {
       {(storageError || renderError) && (
         <section className="error-banner" role="alert">
           <span>{storageError || renderError?.message}</span>
-          {renderError?.line && <span>Line {renderError.line}</span>}
+          {renderError?.line && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobilePane("code");
+                editorRef.current?.focusLine(renderError.line!);
+              }}
+            >
+              Line {renderError.line}
+            </button>
+          )}
           <button type="button" aria-label="Dismiss error" onClick={() => { setStorageError(""); setRenderError(undefined); }}>
             <X aria-hidden="true" size={15} />
           </button>
@@ -948,8 +1002,9 @@ function App() {
           <div className="pane-toolbar editor-toolbar">
             <div className="pane-title"><Code2 aria-hidden="true" size={15} /><span>Source</span><span className="language-chip">Mermaid</span></div>
             <div className="pane-actions">
-              <button className="icon-button compact" aria-label="Undo" title="Undo" onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Redo" title="Redo" onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Download .mmd file" title="Download .mmd file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
               <details className="history-menu">
                 <summary aria-label="Version history"><RotateCcw aria-hidden="true" size={15} /></summary>
                 <div className="history-popover">
@@ -965,6 +1020,7 @@ function App() {
           </div>
           <div className="editor-content">
             <CodeEditor
+              ref={editorRef}
               value={activeDocument.code}
               error={renderError}
               onChange={changeCode}
@@ -983,14 +1039,30 @@ function App() {
               rows={2}
               value={aiPrompt}
               onChange={(event) => setAiPrompt(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !aiBusy) {
+                  event.preventDefault();
+                  setAiMode("refine");
+                  void runAi("refine");
+                }
+              }}
               placeholder="Describe the change you want. Leave blank for a structured cleanup."
             />
             <div className="ai-buttons">
               <button className="button primary" type="button" disabled={aiBusy} onClick={() => { setAiMode("refine"); void runAi("refine"); }}>
-                <Sparkles aria-hidden="true" size={15} /> Refine
+                <Wand2 aria-hidden="true" size={15} /> Refine
               </button>
               <button className="button secondary" type="button" disabled={aiBusy} onClick={() => { setAiMode("structured"); void runAi("structured"); }}>
                 <GitBranch aria-hidden="true" size={15} /> Structure
+              </button>
+              <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
+                Fix syntax
+              </button>
+              <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
+                Style it
+              </button>
+              <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
+                Tidy
               </button>
               <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("explain"); void runAi("explain"); }}>
                 Explain
@@ -1023,10 +1095,37 @@ function App() {
           <div className="pane-toolbar preview-toolbar">
             <div className="pane-title"><PanelRight aria-hidden="true" size={15} /><span>Preview</span><span className={`diagram-kind ${supportedMovement ? "movable" : ""}`}>{diagramType}</span></div>
             <div className="preview-actions">
-              <button className="icon-button compact" aria-label="Zoom out" title="Zoom out" onClick={() => canvasRef.current?.zoomBy(1 / 1.15)}><ZoomOut aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Zoom in" title="Zoom in" onClick={() => canvasRef.current?.zoomBy(1.15)}><ZoomIn aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Fit diagram" title="Fit diagram" onClick={() => canvasRef.current?.fit()}><Maximize2 aria-hidden="true" size={15} /></button>
+              <button
+                className="icon-button compact"
+                aria-label="Move tool (V)"
+                title="Move tool (V)"
+                aria-pressed={canvasTool === "move"}
+                onClick={() => canvasRef.current?.setTool("move")}
+              >
+                <MousePointer aria-hidden="true" size={15} />
+              </button>
+              <button
+                className="icon-button compact"
+                aria-label="Hand pan tool (H)"
+                title="Hand pan tool (H)"
+                aria-pressed={canvasTool === "hand"}
+                onClick={() => canvasRef.current?.setTool("hand")}
+              >
+                <Hand aria-hidden="true" size={15} />
+              </button>
+              <button className="icon-button compact" aria-label="Zoom out" title="Zoom out (-)" onClick={() => canvasRef.current?.zoomBy(1 / 1.15)}><ZoomOut aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Zoom in" title="Zoom in (+)" onClick={() => canvasRef.current?.zoomBy(1.15)}><ZoomIn aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Fit diagram" title="Fit diagram (Shift+1)" onClick={() => canvasRef.current?.fit()}><Maximize2 aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Reset pan and zoom" title="Reset pan and zoom" onClick={() => canvasRef.current?.reset()}><RotateCcw aria-hidden="true" size={15} /></button>
+              <button
+                className="icon-button compact"
+                aria-label="Arrange nodes in grid"
+                title="Arrange nodes in grid"
+                disabled={!supportedMovement}
+                onClick={() => canvasRef.current?.arrangeGrid()}
+              >
+                <LayoutGrid aria-hidden="true" size={15} />
+              </button>
               <button
                 className="icon-button compact"
                 aria-label="Reset node positions to automatic layout"
@@ -1050,16 +1149,17 @@ function App() {
                   <label>Pan speed <input type="range" min="0.4" max="2" step="0.1" value={data.settings.panSpeed} onChange={(event) => changeSettings({ panSpeed: Number(event.target.value) })} /></label>
                   <label>Drag speed <input type="range" min="0.25" max="1.5" step="0.05" value={data.settings.dragSpeed} onChange={(event) => changeSettings({ dragSpeed: Number(event.target.value) })} /></label>
                   <label className="check-row"><input type="checkbox" checked={data.settings.invertScroll} onChange={(event) => changeSettings({ invertScroll: event.target.checked })} /> Invert scroll</label>
+                  <label className="check-row"><input type="checkbox" checked={data.settings.smoothZoom} onChange={(event) => changeSettings({ smoothZoom: event.target.checked })} /> Smooth zoom</label>
                   <label className="check-row"><input type="checkbox" checked={data.settings.snapEnabled} onChange={(event) => changeSettings({ snapEnabled: event.target.checked })} /> Snap nodes to grid</label>
                   <label>Grid size <input type="number" min="4" max="100" step="4" value={data.settings.snapSize} onChange={(event) => changeSettings({ snapSize: Number(event.target.value) })} /></label>
-                  <p>Shift: precision movement. Alt: bypass grid. Space or middle mouse: pan.</p>
+                  <p>V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Shift: precision. Alt: bypass grid.</p>
                 </div>
               </details>
             </div>
           </div>
           <div className="canvas-status">
             {supportedMovement
-              ? <span id="node-movement-help">{data.settings.scrollMode === "zoom" ? "Scroll to zoom" : "Scroll to pan; Ctrl+scroll to zoom"}; drag empty space to pan. Drag a box or use arrow keys to move it.</span>
+              ? <span id="node-movement-help">V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Arrow keys: nudge a box. Alt: bypass grid.</span>
               : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
           </div>
           <DiagramCanvas
@@ -1068,6 +1168,11 @@ function App() {
             settings={data.settings}
             onLayoutChange={changeLayout}
             onNodeMoved={announceNodeMoved}
+            onNodeSelect={(id) => {
+              setMobilePane("code");
+              editorRef.current?.focusNode(id);
+            }}
+            onToolChange={setCanvasTool}
             onRenderError={setRenderError}
             onTypeChange={setDiagramType}
           />
@@ -1085,7 +1190,7 @@ function App() {
             aria-label="AI result"
           >
             <div className="result-heading">
-              <div><Sparkles aria-hidden="true" size={16} /><h2>{aiPanel?.kind === "explain" ? "Explanation" : aiPanel?.kind === "structured" ? "Structured diagrams" : "AI preview"}</h2></div>
+              <div><Wand2 aria-hidden="true" size={16} /><h2>{aiPanel?.kind === "explain" ? "Explanation" : aiPanel?.kind === "structured" ? "Structured diagrams" : "AI preview"}</h2></div>
               <button className="icon-button compact" aria-label="Close AI result" onClick={() => { setAiPanel(null); setAiError(""); setAiStream(""); }}><X aria-hidden="true" size={15} /></button>
             </div>
             {aiError && <p className="ai-error" role="alert">{aiError}</p>}
@@ -1133,7 +1238,7 @@ function App() {
             <div className="settings-grid">
               <label>Theme
                 <select value={data.settings.theme} onChange={(event) => changeSettings({ theme: event.target.value })}>
-                  {["default", "dark", "forest", "neutral"].map((theme) => <option key={theme}>{theme}</option>)}
+                  {["default", "dark", "forest", "neutral", "base"].map((theme) => <option key={theme} value={theme}>{theme === "base" ? "custom" : theme}</option>)}
                 </select>
               </label>
               <label>Look
@@ -1141,9 +1246,9 @@ function App() {
                   <option value="classic">Classic</option><option value="handDrawn">Hand drawn</option>
                 </select>
               </label>
-              <label>Primary color <input type="color" value={data.settings.primaryColor} onChange={(event) => changeSettings({ primaryColor: event.target.value })} /></label>
-              <label>Node text <input type="color" value={data.settings.textColor} onChange={(event) => changeSettings({ textColor: event.target.value })} /></label>
-              <label>Connectors <input type="color" value={data.settings.lineColor} onChange={(event) => changeSettings({ lineColor: event.target.value })} /></label>
+              <label>Primary color <input type="color" value={data.settings.primaryColor} onChange={(event) => changeSettings({ primaryColor: event.target.value, theme: "base" })} /></label>
+              <label>Node text <input type="color" value={data.settings.textColor} onChange={(event) => changeSettings({ textColor: event.target.value, theme: "base" })} /></label>
+              <label>Connectors <input type="color" value={data.settings.lineColor} onChange={(event) => changeSettings({ lineColor: event.target.value, theme: "base" })} /></label>
               <label>Canvas <input type="color" value={data.settings.canvasColor} onChange={(event) => changeSettings({ canvasColor: event.target.value })} /></label>
               <label className="wide-field">Diagram font<input value={data.settings.font} onChange={(event) => changeSettings({ font: event.target.value })} /></label>
             </div>

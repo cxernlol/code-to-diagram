@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { autocompletion, closeBrackets, completionKeymap } from "@codemirror/autocomplete";
-import { defaultKeymap } from "@codemirror/commands";
+import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import {
   bracketMatching,
   defaultHighlightStyle,
@@ -9,6 +9,7 @@ import {
   syntaxHighlighting,
   StreamLanguage,
 } from "@codemirror/language";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
 import {
   EditorView,
@@ -41,13 +42,47 @@ const mermaidLanguage = StreamLanguage.define({
   },
 });
 
-const completions = [
+const headerCompletions = [
   { label: "flowchart TD", type: "keyword", apply: "flowchart TD\n  A[Start] --> B[End]" },
   { label: "classDiagram", type: "keyword", apply: "classDiagram\n  class Example {\n    +String name\n  }" },
   { label: "stateDiagram-v2", type: "keyword", apply: "stateDiagram-v2\n  [*] --> Idle\n  Idle --> [*]" },
   { label: "erDiagram", type: "keyword", apply: "erDiagram\n  USER ||--o{ ORDER : places" },
   { label: "sequenceDiagram", type: "keyword", apply: "sequenceDiagram\n  actor User\n  User->>App: Request" },
 ];
+
+const bodyCompletions = [
+  { label: "subgraph", type: "keyword", apply: "subgraph Group\n  \nend" },
+  { label: "classDef", type: "keyword", apply: "classDef highlight fill:#f5e8dc,stroke:#ad612e,color:#1c3439" },
+  { label: "direction TB", type: "keyword" },
+  { label: "direction LR", type: "keyword" },
+  { label: "-->", type: "operator", detail: "directed edge" },
+  { label: "-.->", type: "operator", detail: "dotted edge" },
+  { label: "==>", type: "operator", detail: "thick edge" },
+  { label: "<|--", type: "operator", detail: "inheritance" },
+  { label: "||--o{", type: "operator", detail: "one-to-many" },
+];
+
+const RESERVED_WORDS = new Set([
+  "flowchart", "graph", "classDiagram", "stateDiagram", "stateDiagram-v2",
+  "erDiagram", "sequenceDiagram", "gantt", "mindmap", "pie", "journey",
+  "subgraph", "end", "direction", "TB", "TD", "BT", "RL", "LR", "class",
+  "classDef", "style", "actor", "participant", "section", "title", "dateFormat",
+]);
+
+function extractNodeOptions(docText: string) {
+  const seen = new Set<string>();
+  const matches = docText.matchAll(/\b([A-Za-z_][\w-]{1,30})\b/g);
+  for (const match of matches) {
+    const token = match[1];
+    if (token && !RESERVED_WORDS.has(token)) seen.add(token);
+  }
+  return Array.from(seen, (label) => ({ label, type: "variable" }));
+}
+
+export interface CodeEditorHandle {
+  focusLine: (lineNumber: number) => void;
+  focusNode: (nodeId: string) => void;
+}
 
 export interface CodeEditorProps {
   value: string;
@@ -57,7 +92,10 @@ export interface CodeEditorProps {
   onRedo: () => boolean;
 }
 
-export function CodeEditor({ value, error, onChange, onUndo, onRedo }: CodeEditorProps) {
+export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor(
+  { value, error, onChange, onUndo, onRedo },
+  ref,
+) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const callbackRef = useRef({ onChange, onUndo, onRedo });
@@ -66,6 +104,41 @@ export function CodeEditor({ value, error, onChange, onUndo, onRedo }: CodeEdito
 
   callbackRef.current = { onChange, onUndo, onRedo };
   valueRef.current = value;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusLine(lineNumber: number) {
+        const view = viewRef.current;
+        if (!view) return;
+        const clamped = Math.max(1, Math.min(lineNumber, view.state.doc.lines));
+        const line = view.state.doc.line(clamped);
+        view.dispatch({
+          selection: { anchor: line.from, head: line.to },
+          effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+        });
+        view.focus();
+      },
+      focusNode(nodeId: string) {
+        const view = viewRef.current;
+        if (!view || !nodeId) return;
+        const escaped = nodeId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const text = view.state.doc.toString();
+        const match =
+          new RegExp(`\\bclass\\s+${escaped}\\b`).exec(text) ??
+          new RegExp(`^\\s*${escaped}\\b`, "m").exec(text) ??
+          new RegExp(`\\b${escaped}\\b`).exec(text);
+        if (!match || match.index === undefined) return;
+        const line = view.state.doc.lineAt(match.index);
+        view.dispatch({
+          selection: { anchor: line.from, head: line.to },
+          effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+        });
+        view.focus();
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -82,6 +155,8 @@ export function CodeEditor({ value, error, onChange, onUndo, onRedo }: CodeEdito
           bracketMatching(),
           closeBrackets(),
           indentOnInput(),
+          search({ top: true }),
+          highlightSelectionMatches(),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
           mermaidLanguage,
           autocompletion({
@@ -89,10 +164,14 @@ export function CodeEditor({ value, error, onChange, onUndo, onRedo }: CodeEdito
             override: [
               (context) => {
                 const word = context.matchBefore(/[\w-]*/);
-                if (!word && !context.explicit) return null;
+                if ((!word || word.from === word.to) && !context.explicit) return null;
+                const line = context.state.doc.lineAt(context.pos);
                 return {
                   from: word?.from ?? context.pos,
-                  options: completions,
+                  options:
+                    line.number === 1
+                      ? headerCompletions
+                      : [...bodyCompletions, ...extractNodeOptions(context.state.doc.toString())],
                 };
               },
             ],
@@ -106,6 +185,8 @@ export function CodeEditor({ value, error, onChange, onUndo, onRedo }: CodeEdito
               key: "Mod-Shift-z",
               run: () => callbackRef.current.onRedo(),
             },
+            indentWithTab,
+            ...searchKeymap,
             ...completionKeymap,
             ...defaultKeymap,
           ]),
@@ -153,9 +234,14 @@ export function CodeEditor({ value, error, onChange, onUndo, onRedo }: CodeEdito
   useEffect(() => {
     const view = viewRef.current;
     if (!view || view.state.doc.toString() === value) return;
+    const selection = view.state.selection.main;
     suppressChange.current = true;
     view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: value },
+      selection: {
+        anchor: Math.min(selection.anchor, value.length),
+        head: Math.min(selection.head, value.length),
+      },
     });
     suppressChange.current = false;
   }, [value]);
@@ -179,4 +265,4 @@ export function CodeEditor({ value, error, onChange, onUndo, onRedo }: CodeEdito
   }, [error]);
 
   return <div className="code-editor" ref={hostRef} />;
-}
+});

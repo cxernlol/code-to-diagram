@@ -14,6 +14,8 @@ export interface DiagramCanvasHandle {
   zoomBy: (factor: number) => void;
   fit: () => void;
   reset: () => void;
+  arrangeGrid: () => void;
+  setTool: (mode: "move" | "hand") => void;
 }
 
 interface DiagramCanvasProps {
@@ -21,6 +23,8 @@ interface DiagramCanvasProps {
   settings: StudioSettings;
   onLayoutChange: (layout: Record<string, Position>) => void;
   onNodeMoved: (id: string) => void;
+  onNodeSelect?: (id: string) => void;
+  onToolChange?: (mode: "move" | "hand") => void;
   onRenderError: (error?: { message: string; line?: number }) => void;
   onTypeChange: (type: DiagramType) => void;
 }
@@ -105,6 +109,7 @@ function routeEdge(
   source: SVGGElement,
   target: SVGGElement,
   allNodes: { wrapper: SVGGElement; id: string }[],
+  parallelOffset = 0,
 ) {
   const sourceBounds = boundsInRoot(svg, source);
   const targetBounds = boundsInRoot(svg, target);
@@ -116,17 +121,23 @@ function routeEdge(
     x: targetBounds.x + targetBounds.width / 2,
     y: targetBounds.y + targetBounds.height / 2,
   };
-  const start = clipToBounds(sourceBounds, targetCenter);
-  const end = clipToBounds(targetBounds, sourceCenter);
+  const start = clipToBounds(sourceBounds, {
+    x: targetCenter.x + parallelOffset,
+    y: targetCenter.y + parallelOffset,
+  });
+  const end = clipToBounds(targetBounds, {
+    x: sourceCenter.x + parallelOffset,
+    y: sourceCenter.y + parallelOffset,
+  });
   const obstacles = allNodes
     .filter((node) => node.id !== source.dataset.sgsNode && node.id !== target.dataset.sgsNode)
     .map((node) => boundsInRoot(svg, node.wrapper));
   const xCandidates = new Set([
-    (start.x + end.x) / 2,
+    (start.x + end.x) / 2 + parallelOffset,
     ...obstacles.flatMap((box) => [box.x - 18, box.x + box.width + 18]),
   ]);
   const yCandidates = new Set([
-    (start.y + end.y) / 2,
+    (start.y + end.y) / 2 + parallelOffset,
     ...obstacles.flatMap((box) => [box.y - 18, box.y + box.height + 18]),
   ]);
   const candidates = [
@@ -175,7 +186,7 @@ function routeEdge(
 }
 
 export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>(function DiagramCanvas(
-  { document, settings, onLayoutChange, onNodeMoved, onRenderError, onTypeChange },
+  { document, settings, onLayoutChange, onNodeMoved, onNodeSelect, onToolChange, onRenderError, onTypeChange },
   ref,
 ) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -185,20 +196,22 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const zoomFrameRef = useRef<number | undefined>(undefined);
   const settingsRef = useRef(settings);
   const spaceDown = useRef(false);
+  const toolModeRef = useRef<"move" | "hand">("move");
   const [svgMarkup, setSvgMarkup] = useState("");
   const [rendering, setRendering] = useState(true);
   const [viewTransform, setViewTransform] = useState(zoomIdentity);
+  const [toolMode, setToolMode] = useState<"move" | "hand">("move");
 
   settingsRef.current = settings;
   const applyTransform = useCallback((transform: ZoomTransform) => {
     transformRef.current = transform;
     setViewTransform(transform);
-    if (viewportRef.current) {
-      const gridSize = Math.max(12, Math.min(32, 20 * transform.k));
-      viewportRef.current.style.backgroundSize = `${gridSize}px ${gridSize}px`;
-      viewportRef.current.style.backgroundPosition = `${transform.x % gridSize}px ${transform.y % gridSize}px`;
-    }
   }, []);
+  const activateTool = useCallback((mode: "move" | "hand") => {
+    toolModeRef.current = mode;
+    setToolMode(mode);
+    onToolChange?.(mode);
+  }, [onToolChange]);
 
   const fit = useCallback(() => {
     const viewport = viewportRef.current;
@@ -262,7 +275,44 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     );
   }, [animateTransform]);
 
-  useImperativeHandle(ref, () => ({ zoomBy, fit, reset }), [fit, reset, zoomBy]);
+  const arrangeGrid = useCallback(() => {
+    const svg = graphicRef.current?.querySelector("svg");
+    if (!svg) return;
+    const wrappers = Array.from(svg.querySelectorAll<SVGGElement>("[data-sgs-node]"));
+    if (!wrappers.length) return;
+    const size = Math.max(4, settingsRef.current.snapSize);
+    const snapVal = (v: number) => Math.round(v / size) * size;
+    const items = wrappers.map((wrapper) => {
+      const id = wrapper.dataset.sgsNode ?? "";
+      const element = wrapper.firstElementChild as SVGGElement | null;
+      const base = readTranslation(element?.getAttribute("transform") ?? null);
+      const box = element ? boundsInRoot(svg, element) : { x: 0, y: 0, width: 120, height: 60 };
+      return { id, base, width: box.width, height: box.height };
+    });
+    items.sort((a, b) => (Math.abs(a.base.y - b.base.y) > 40 ? a.base.y - b.base.y : a.base.x - b.base.x));
+    const cols = Math.max(1, Math.ceil(Math.sqrt(items.length)));
+    const maxW = Math.max(...items.map((item) => item.width), 140);
+    const maxH = Math.max(...items.map((item) => item.height), 72);
+    const stepX = snapVal(maxW + 72);
+    const stepY = snapVal(maxH + 64);
+    const next: Record<string, Position> = {};
+    items.forEach((item, index) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      next[item.id] = {
+        x: snapVal(col * stepX + maxW / 2),
+        y: snapVal(row * stepY + maxH / 2),
+      };
+    });
+    onLayoutChange(next);
+    requestAnimationFrame(() => fit());
+  }, [fit, onLayoutChange]);
+
+  useImperativeHandle(
+    ref,
+    () => ({ zoomBy, fit, reset, arrangeGrid, setTool: activateTool }),
+    [activateTool, arrangeGrid, fit, reset, zoomBy],
+  );
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -273,10 +323,20 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         const target = event.target instanceof Element ? event.target : null;
         if (event.type === "wheel") return false;
         if (event.type === "mousedown") {
-          return (event as MouseEvent).button === 1 || spaceDown.current;
+          const button = (event as MouseEvent).button;
+          return (
+            button === 1 ||
+            spaceDown.current ||
+            toolModeRef.current === "hand" ||
+            (button === 0 && !target?.closest("[data-sgs-node]"))
+          );
         }
         if (event.type === "touchstart") {
-          return (event as TouchEvent).touches.length > 1 || !target?.closest("[data-sgs-node]");
+          return (
+            (event as TouchEvent).touches.length > 1 ||
+            toolModeRef.current === "hand" ||
+            !target?.closest("[data-sgs-node]")
+          );
         }
         return false;
       })
@@ -305,25 +365,60 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code === "Space" && !(event.target instanceof HTMLInputElement)) {
-        spaceDown.current = true;
+      const element = event.target instanceof HTMLElement ? event.target : undefined;
+      const editing = element?.isContentEditable ||
+        Boolean(element?.closest("input, textarea, select, [contenteditable='true']"));
+      if (event.code === "Space") {
+        if (!editing && !element?.closest("button, a, summary")) {
+          event.preventDefault();
+          spaceDown.current = true;
+          viewport.dataset.panning = "true";
+        }
+        return;
+      }
+      if (editing) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "h") {
+        event.preventDefault();
+        activateTool("hand");
+      } else if (key === "v" || event.key === "Escape") {
+        event.preventDefault();
+        activateTool("move");
+      } else if (event.shiftKey && event.code === "Digit1") {
+        event.preventDefault();
+        fit();
+      } else if (event.key === "+" || event.code === "NumpadAdd") {
+        event.preventDefault();
+        zoomBy(1.15);
+      } else if (event.key === "-" || event.code === "NumpadSubtract") {
+        event.preventDefault();
+        zoomBy(1 / 1.15);
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      if (event.code === "Space") spaceDown.current = false;
+      if (event.code !== "Space") return;
+      spaceDown.current = false;
+      delete viewport.dataset.panning;
+    };
+    const onWindowBlur = () => {
+      spaceDown.current = false;
+      delete viewport.dataset.panning;
     };
     viewport.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onWindowBlur);
     return () => {
       viewport.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onWindowBlur);
       if (zoomFrameRef.current) cancelAnimationFrame(zoomFrameRef.current);
       select(viewport).on(".zoom", null);
       zoomRef.current = null;
     };
-  }, [applyTransform, zoomBy]);
+  }, [activateTool, applyTransform, fit, zoomBy]);
 
   useEffect(() => {
     let active = true;
@@ -399,6 +494,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const nodes = candidates.map((element) => {
       const id = element.dataset.id || stableNodeId(element.id);
       const base = readTranslation(element.getAttribute("transform"));
+      const initialBounds = boundsInRoot(svg, element);
       const position = document.layout[id] ?? base;
       const wrapper = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
       wrapper.dataset.sgsNode = id;
@@ -412,50 +508,113 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         "transform",
         `translate(${position.x - base.x},${position.y - base.y})`,
       );
-      const currentBounds = () => boundsInRoot(svg, wrapper);
-      return { id, base, position, wrapper, element, bounds: currentBounds };
+      return { id, base, initialBounds, position, wrapper, element };
     });
+    const readCachedPoint = (element: SVGElement, key: string, fallback: () => Position): Position => {
+      const cached = element.dataset[key];
+      if (cached) {
+        const [x, y] = cached.split(",").map(Number);
+        if (Number.isFinite(x) && Number.isFinite(y)) return { x: x!, y: y! };
+      }
+      const point = fallback();
+      element.dataset[key] = `${point.x},${point.y}`;
+      return point;
+    };
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation",
       ),
     ).filter((path) => path.getTotalLength() > 0);
     const labels = Array.from(svg.querySelectorAll<SVGGElement>("g.edgeLabel"));
-    const edges = edgePaths.flatMap((path) => {
+    const selfLoops: { wrapper: SVGGElement; node: (typeof nodes)[number] }[] = [];
+    const rawEdges = edgePaths.flatMap((path) => {
       const length = path.getTotalLength();
-      const start = pointInRoot(svg, path, path.getPointAtLength(0).x, path.getPointAtLength(0).y);
-      const end = pointInRoot(svg, path, path.getPointAtLength(length).x, path.getPointAtLength(length).y);
+      const start = readCachedPoint(path, "sgsStart", () =>
+        pointInRoot(svg, path, path.getPointAtLength(0).x, path.getPointAtLength(0).y),
+      );
+      const end = readCachedPoint(path, "sgsEnd", () =>
+        pointInRoot(svg, path, path.getPointAtLength(length).x, path.getPointAtLength(length).y),
+      );
+      const mid = readCachedPoint(path, "sgsMid", () =>
+        pointInRoot(svg, path, path.getPointAtLength(length / 2).x, path.getPointAtLength(length / 2).y),
+      );
       const nearest = (point: Position) =>
         nodes.reduce<(typeof nodes)[number] | undefined>((best, node) => {
-          if (!best || distanceToBounds(point, node.bounds()) < distanceToBounds(point, best.bounds())) {
+          if (!best || distanceToBounds(point, node.initialBounds) < distanceToBounds(point, best.initialBounds)) {
             return node;
           }
           return best;
         }, undefined);
       const source = nearest(start);
       const target = nearest(end);
+      if (source && target && source.id === target.id) {
+        const wrapper = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
+        path.parentNode?.insertBefore(wrapper, path);
+        wrapper.appendChild(path);
+        selfLoops.push({ wrapper, node: source });
+        return [];
+      }
       return source && target && source.id !== target.id
-        ? [{ path, source, target }]
+        ? [{ path, source, target, mid }]
         : [];
     });
-    const labelWrappers = labels.slice(0, edges.length).map((label) => {
-      const box = boundsInRoot(svg, label);
-      const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-      const wrapper = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
-      label.parentNode?.insertBefore(wrapper, label);
-      wrapper.appendChild(label);
-      return { wrapper, center };
+    const pairCounts = new Map<string, number>();
+    const pairIndices = new Map<SVGPathElement, number>();
+    rawEdges.forEach(({ path, source, target }) => {
+      const key = [source.id, target.id].sort().join("::");
+      const count = pairCounts.get(key) ?? 0;
+      pairIndices.set(path, count);
+      pairCounts.set(key, count + 1);
     });
+    const edges = rawEdges.map((edge) => {
+      const key = [edge.source.id, edge.target.id].sort().join("::");
+      const count = pairCounts.get(key) ?? 1;
+      const index = pairIndices.get(edge.path) ?? 0;
+      return { ...edge, parallelOffset: (index - (count - 1) / 2) * 16 };
+    });
+    const labelWrappers = labels
+      .filter((label) => Boolean(label.textContent?.trim()))
+      .flatMap((label) => {
+        const center = readCachedPoint(label, "sgsCenter", () => {
+          const box = boundsInRoot(svg, label);
+          return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        });
+        const edge = edges.reduce<(typeof edges)[number] | undefined>((best, candidate) => {
+          if (
+            !best ||
+            Math.hypot(candidate.mid.x - center.x, candidate.mid.y - center.y) <
+              Math.hypot(best.mid.x - center.x, best.mid.y - center.y)
+          ) {
+            return candidate;
+          }
+          return best;
+        }, undefined);
+        if (!edge) return [];
+        const wrapper = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
+        label.parentNode?.insertBefore(wrapper, label);
+        wrapper.appendChild(label);
+        return [{ wrapper, center, path: edge.path }];
+      });
     const routeEdges = () => {
-      edges.forEach(({ path, source, target }, index) => {
-        routeEdge(svg, path, source.wrapper, target.wrapper, nodes);
-        const label = labelWrappers[index];
-        if (!label) return;
-        const point = pointInRoot(svg, path, path.getPointAtLength(path.getTotalLength() / 2).x,
-          path.getPointAtLength(path.getTotalLength() / 2).y);
-        const local = toLocalPoint(svg, label.wrapper, point);
-        const labelLocal = toLocalPoint(svg, label.wrapper, label.center);
-        label.wrapper.setAttribute(
+      edges.forEach(({ path, source, target, parallelOffset }) => {
+        routeEdge(svg, path, source.wrapper, target.wrapper, nodes, parallelOffset);
+      });
+      selfLoops.forEach(({ wrapper, node }) => {
+        wrapper.setAttribute(
+          "transform",
+          `translate(${node.position.x - node.base.x},${node.position.y - node.base.y})`,
+        );
+      });
+      labelWrappers.forEach(({ wrapper, center, path }) => {
+        const point = pointInRoot(
+          svg,
+          path,
+          path.getPointAtLength(path.getTotalLength() / 2).x,
+          path.getPointAtLength(path.getTotalLength() / 2).y,
+        );
+        const local = toLocalPoint(svg, wrapper, point);
+        const labelLocal = toLocalPoint(svg, wrapper, center);
+        wrapper.setAttribute(
           "transform",
           `translate(${local.x - labelLocal.x},${local.y - labelLocal.y})`,
         );
@@ -495,10 +654,44 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       onNodeMoved(id);
       moved = false;
     };
+    const guideGroup = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
+    guideGroup.setAttribute("class", "sgs-alignment-guides");
+    guideGroup.setAttribute("pointer-events", "none");
+    svg.appendChild(guideGroup);
+
+    const drawGuides = (activeNode: (typeof nodes)[number], x: number, y: number) => {
+      guideGroup.replaceChildren();
+      nodes.forEach((other) => {
+        if (other.id === activeNode.id) return;
+        if (Math.abs(other.position.x - x) < 1) {
+          const line = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("x1", String(x));
+          line.setAttribute("x2", String(x));
+          line.setAttribute("y1", String(Math.min(y, other.position.y) - 40));
+          line.setAttribute("y2", String(Math.max(y, other.position.y) + 40));
+          line.setAttribute("class", "sgs-guide-line");
+          guideGroup.appendChild(line);
+        }
+        if (Math.abs(other.position.y - y) < 1) {
+          const line = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("y1", String(y));
+          line.setAttribute("y2", String(y));
+          line.setAttribute("x1", String(Math.min(x, other.position.x) - 40));
+          line.setAttribute("x2", String(Math.max(x, other.position.x) + 40));
+          line.setAttribute("class", "sgs-guide-line");
+          guideGroup.appendChild(line);
+        }
+      });
+    };
+
     nodes.forEach((node) => {
       let pointerStart: { id: number; x: number; y: number; position: Position } | undefined;
       const onPointerDown = (event: PointerEvent) => {
-        if (event.button !== 0) return;
+        if (
+          event.button !== 0 ||
+          spaceDown.current ||
+          toolModeRef.current === "hand"
+        ) return;
         event.preventDefault();
         event.stopPropagation();
         pointerStart = {
@@ -520,31 +713,51 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           const size = Math.max(4, settingsRef.current.snapSize);
           x = Math.round(x / size) * size;
           y = Math.round(y / size) * size;
+        } else if (!event.altKey) {
+          for (const other of nodes) {
+            if (other.id === node.id) continue;
+            if (Math.abs(other.position.x - x) < 6) x = other.position.x;
+            if (Math.abs(other.position.y - y) < 6) y = other.position.y;
+          }
         }
         if (
           Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 4 &&
           (Math.abs(x - pointerStart.position.x) + Math.abs(y - pointerStart.position.y) > 0.5)
         ) {
           setPosition(node, { x, y });
+          drawGuides(node, x, y);
         }
       };
       const onPointerUp = (event: PointerEvent) => {
         if (!pointerStart || event.pointerId !== pointerStart.id) return;
         pointerStart = undefined;
+        guideGroup.replaceChildren();
         if (node.wrapper.hasPointerCapture(event.pointerId)) {
           node.wrapper.releasePointerCapture(event.pointerId);
         }
         finishDrag(node.id);
       };
+      const onDoubleClick = (event: MouseEvent) => {
+        event.stopPropagation();
+        onNodeSelect?.(node.id);
+      };
       const onKeyDown = (event: KeyboardEvent) => {
+        if (toolModeRef.current === "hand") return;
         if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
         event.preventDefault();
-        const step = event.shiftKey ? 20 : 4;
+        const snap = settingsRef.current.snapEnabled && !event.altKey;
+        const size = Math.max(4, settingsRef.current.snapSize);
+        const step = snap ? size : 4;
+        const distance = event.shiftKey ? step * 5 : step;
         const next = { ...node.position };
-        if (event.key === "ArrowUp") next.y -= step;
-        if (event.key === "ArrowDown") next.y += step;
-        if (event.key === "ArrowLeft") next.x -= step;
-        if (event.key === "ArrowRight") next.x += step;
+        if (event.key === "ArrowUp") next.y -= distance;
+        if (event.key === "ArrowDown") next.y += distance;
+        if (event.key === "ArrowLeft") next.x -= distance;
+        if (event.key === "ArrowRight") next.x += distance;
+        if (snap) {
+          next.x = Math.round(next.x / size) * size;
+          next.y = Math.round(next.y / size) * size;
+        }
         setPosition(node, next);
         finishDrag(node.id);
       };
@@ -552,6 +765,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       node.wrapper.addEventListener("pointermove", onPointerMove);
       node.wrapper.addEventListener("pointerup", onPointerUp);
       node.wrapper.addEventListener("pointercancel", onPointerUp);
+      node.wrapper.addEventListener("dblclick", onDoubleClick);
       node.wrapper.addEventListener("keydown", onKeyDown);
       node.wrapper.dataset.sgsListeners = "true";
     });
@@ -561,22 +775,34 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     }
 
     return () => {
+      guideGroup.remove();
       nodes.forEach(({ wrapper }) => {
+        wrapper.replaceWith(...Array.from(wrapper.childNodes));
+      });
+      selfLoops.forEach(({ wrapper }) => {
         wrapper.replaceWith(...Array.from(wrapper.childNodes));
       });
       labelWrappers.forEach(({ wrapper }) => {
         wrapper.replaceWith(...Array.from(wrapper.childNodes));
       });
     };
-  }, [svgMarkup, document.id, document.layout, onLayoutChange, onNodeMoved, fit]);
+  }, [svgMarkup, document.id, document.layout, onLayoutChange, onNodeMoved, onNodeSelect, fit]);
+
+  const gridSize = Math.max(4, settings.snapSize) * viewTransform.k;
 
   return (
     <div
       className="diagram-viewport"
       ref={viewportRef}
-      style={{ backgroundColor: settings.canvasColor }}
+      data-tool={toolMode}
+      style={{
+        backgroundColor: settings.canvasColor,
+        backgroundSize: `${gridSize}px ${gridSize}px`,
+        backgroundPosition: `${viewTransform.x % gridSize}px ${viewTransform.y % gridSize}px`,
+      }}
       role="group"
-      aria-label={`Diagram preview. ${settings.scrollMode === "zoom" ? "Scroll to zoom" : "Scroll to pan; Ctrl+scroll to zoom"}, drag empty space to pan, and drag a node to move it.`}
+      aria-describedby="node-movement-help"
+      aria-label={`Diagram preview. ${toolMode === "hand" ? "Hand tool" : "Move tool"}. Press H for hand, V for move, or Space while dragging to pan.`}
     >
       <div
         className="diagram-graphic"

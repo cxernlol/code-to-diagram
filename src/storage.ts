@@ -14,6 +14,7 @@ const DATABASE_VERSION = 1;
 const SETTINGS_KEY = "main";
 const CREDENTIALS_KEY = "provider";
 const INITIALIZED_KEY = "initialized";
+const GRID_SNAP_MIGRATION_KEY = "grid-snap-enabled";
 const CHANNEL_NAME = "sgs-studio-updates";
 
 interface StudioDatabase extends DBSchema {
@@ -198,13 +199,22 @@ async function writeInitialData(
     throw new Error("Saved data verification failed.");
   }
   await tx.objectStore("metadata").put(data.migration, INITIALIZED_KEY);
+  await tx.objectStore("metadata").put("done", GRID_SNAP_MIGRATION_KEY);
   await tx.done;
 }
 
 export async function initializeStudio(ignoreLegacy = false): Promise<StudioData> {
   const db = await database();
   const initialized = await db.get("metadata", INITIALIZED_KEY);
-  if (initialized) return readStudioData(db, initialized as StudioData["migration"]);
+  if (initialized) {
+    const data = await readStudioData(db, initialized as StudioData["migration"]);
+    if (!(await db.get("metadata", GRID_SNAP_MIGRATION_KEY))) {
+      data.settings = { ...data.settings, snapEnabled: true };
+      await db.put("settings", data.settings, SETTINGS_KEY);
+      await db.put("metadata", "done", GRID_SNAP_MIGRATION_KEY);
+    }
+    return data;
+  }
 
   let data: StudioData;
   if (!ignoreLegacy) {

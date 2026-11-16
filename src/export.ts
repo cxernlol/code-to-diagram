@@ -1,4 +1,4 @@
-import type { StudioSettings } from "./types";
+import type { Position, StudioSettings } from "./types";
 
 function download(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -54,9 +54,7 @@ export function exportSvg(filename: string) {
 export async function exportPng(filename: string, settings: StudioSettings) {
   const { svg, box } = sourceSvg();
   const { width, height } = prepareSvg(svg, box);
-  const image = await createImageBitmap(
-    new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }),
-  );
+  const serialized = new XMLSerializer().serializeToString(svg);
   const scale = 2;
   const canvas = document.createElement("canvas");
   canvas.width = width * scale;
@@ -66,8 +64,15 @@ export async function exportPng(filename: string, settings: StudioSettings) {
   context.fillStyle = settings.canvasColor;
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.scale(scale, scale);
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("The browser could not rasterize the SVG diagram."));
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
+  });
   context.drawImage(image, 0, 0, width, height);
-  image.close();
+
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((result) => {
       if (result) resolve(result);
@@ -75,6 +80,21 @@ export async function exportPng(filename: string, settings: StudioSettings) {
     }, "image/png");
   });
   download(blob, filename);
+}
+
+function encodeBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function decodeBase64(encoded: string): string {
+  const binary = atob(encoded);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 export function getImportedMermaid(text: string, filename: string): string {
@@ -87,21 +107,46 @@ export function getImportedMermaid(text: string, filename: string): string {
   return text;
 }
 
-export function getSharedCode(hash: string): string | undefined {
-  const match = hash.match(/^#d=([^&]+)$/);
-  if (!match) return undefined;
-  const binary = atob(match[1] ?? "");
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  const code = new TextDecoder().decode(bytes);
+export function getSharedPayload(
+  hash: string,
+): { code: string; layout: Record<string, Position> } | undefined {
+  if (!hash.startsWith("#d=")) return undefined;
+  const params = new URLSearchParams(hash.slice(1));
+  const rawCode = params.get("d");
+  if (!rawCode) return undefined;
+  const code = decodeBase64(rawCode);
   if (!code.trim()) throw new Error("The shared diagram link contains no Mermaid source.");
-  return code;
+  let layout: Record<string, Position> = {};
+  const rawLayout = params.get("l");
+  if (rawLayout) {
+    try {
+      const parsed = JSON.parse(decodeBase64(rawLayout)) as Record<string, unknown>;
+      if (parsed && typeof parsed === "object") {
+        layout = Object.fromEntries(
+          Object.entries(parsed).flatMap(([id, pos]) => {
+            if (!pos || typeof pos !== "object") return [];
+            const { x, y } = pos as { x?: unknown; y?: unknown };
+            return typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y)
+              ? [[id, { x, y }]]
+              : [];
+          }),
+        );
+      }
+    } catch {
+      layout = {};
+    }
+  }
+  return { code, layout };
 }
 
-export function createShareHash(code: string): string {
-  const bytes = new TextEncoder().encode(code);
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return `#d=${btoa(binary)}`;
+export function getSharedCode(hash: string): string | undefined {
+  return getSharedPayload(hash)?.code;
+}
+
+export function createShareHash(code: string, layout?: Record<string, Position>): string {
+  const base = `#d=${encodeURIComponent(encodeBase64(code))}`;
+  if (layout && Object.keys(layout).length > 0) {
+    return `${base}&l=${encodeURIComponent(encodeBase64(JSON.stringify(layout)))}`;
+  }
+  return `#d=${encodeBase64(code)}`;
 }

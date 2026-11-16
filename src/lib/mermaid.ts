@@ -23,7 +23,7 @@ export function parseMermaidSvg(markup: string): SVGSVGElement {
   if (!(svg instanceof SVGSVGElement) || parsed.querySelector("parsererror")) {
     throw new Error("Mermaid returned an invalid SVG diagram.");
   }
-  svg.querySelectorAll("script, foreignObject, iframe, object, embed").forEach((element) => {
+  svg.querySelectorAll("script, iframe, object, embed").forEach((element) => {
     element.remove();
   });
   [svg, ...Array.from(svg.querySelectorAll("*"))].forEach((element) => {
@@ -52,6 +52,32 @@ export function parseMermaidSvg(markup: string): SVGSVGElement {
 let renderSequence = 0;
 let renderQueue: Promise<void> = Promise.resolve();
 
+async function ensureMermaid(): Promise<typeof window.mermaid> {
+  if (typeof window.mermaid !== "undefined") return window.mermaid;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="mermaid"]');
+    if (!script) {
+      reject(new Error("Mermaid script tag is missing."));
+      return;
+    }
+    const onLoad = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Failed to load Mermaid runtime."));
+    };
+    const cleanup = () => {
+      script.removeEventListener("load", onLoad);
+      script.removeEventListener("error", onError);
+    };
+    script.addEventListener("load", onLoad);
+    script.addEventListener("error", onError);
+  });
+  return window.mermaid;
+}
+
 export function detectDiagramType(source: string): DiagramType {
   const firstLine = source.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0]?.trim() ?? "";
   if (/^(flowchart|graph)\b/i.test(firstLine)) return "flowchart";
@@ -73,24 +99,29 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
     const color = (value: string, fallback: string) =>
       /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(value) ? value : fallback;
-    window.mermaid.initialize({
+    const isCustomTheme = settings.theme === "base";
+    const fontFamily = settings.font.replace(/[;{}<>]/g, "");
+    const mermaid = await ensureMermaid();
+    mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
       look: settings.look === "handDrawn" ? "handDrawn" : "classic",
-      theme: ["default", "dark", "forest", "neutral"].includes(settings.theme)
+      theme: ["default", "dark", "forest", "neutral", "base"].includes(settings.theme)
         ? settings.theme
         : "default",
       htmlLabels: false,
-      themeVariables: {
-        primaryColor: color(settings.primaryColor, "#6366f1"),
-        primaryTextColor: color(settings.textColor, "#ffffff"),
-        primaryBorderColor: color(settings.lineColor, "#334155"),
-        lineColor: color(settings.lineColor, "#334155"),
-        background: color(settings.canvasColor, "#ffffff"),
-        fontFamily: settings.font.replace(/[;{}<>]/g, ""),
-      },
+      themeVariables: isCustomTheme
+        ? {
+            primaryColor: color(settings.primaryColor, "#eef2ef"),
+            primaryTextColor: color(settings.textColor, "#1c3439"),
+            primaryBorderColor: color(settings.lineColor, "#315158"),
+            lineColor: color(settings.lineColor, "#315158"),
+            background: color(settings.canvasColor, "#f5f7f5"),
+            fontFamily,
+          }
+        : { fontFamily },
     });
-    const rendered = await window.mermaid.render(`sgs-${sequence}`, source);
+    const rendered = await mermaid.render(`sgs-${sequence}`, source);
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
     return { svg: rendered.svg, type };
   });
@@ -100,12 +131,13 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
 
 export function parseMermaid(source: string): Promise<void> {
   const result = renderQueue.then(async () => {
-    window.mermaid.initialize({
+    const mermaid = await ensureMermaid();
+    mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
       htmlLabels: false,
     });
-    await window.mermaid.parse(source);
+    await mermaid.parse(source);
   });
   renderQueue = result.then(() => undefined, () => undefined);
   return result;
