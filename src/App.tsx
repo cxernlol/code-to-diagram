@@ -1,7 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDownToLine,
-  BarChart3,
   Check,
   ChevronDown,
   Clipboard,
@@ -47,7 +46,6 @@ import { CodeEditor, type CodeEditorHandle } from "./CodeEditor";
 import { DiagramCanvas, type DiagramCanvasHandle } from "./DiagramCanvas";
 import { HomePage } from "./HomePage";
 import { LegalPage, type LegalTab } from "./LegalPage";
-import { DiagramMetricsChart } from "./components/FormatCoverageChart";
 import { PROVIDERS, TEMPLATES, THEME_PRESETS, createDocument } from "./constants";
 import {
   cleanMermaidCode,
@@ -1500,13 +1498,6 @@ function App() {
               >
                 <RotateCcw aria-hidden="true" size={15} />
               </button>
-              <details className="sensitivity-menu">
-                <summary aria-label="Diagram metrics"><BarChart3 aria-hidden="true" size={15} /></summary>
-                <div className="sensitivity-popover metrics-popover">
-                  <strong>Diagram metrics</strong>
-                  <DiagramMetricsChart code={activeDocument.code} />
-                </div>
-              </details>
               <details className="sensitivity-menu">
                 <summary aria-label="Pan and zoom settings"><Settings2 aria-hidden="true" size={15} /></summary>
                 <div className="sensitivity-popover">

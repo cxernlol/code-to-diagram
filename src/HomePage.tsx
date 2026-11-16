@@ -2,7 +2,6 @@ import { animate, stagger, svg as animeSvg } from "animejs";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, GitBranch, Grid3x3, HardDrive, ImageDown, Star } from "lucide-react";
-import { FormatCoverageChart } from "./components/FormatCoverageChart";
 
 const GITHUB_URL = "https://github.com/cxernlol/sgs-chify";
 const GITHUB_API_URL = "https://api.github.com/repos/cxernlol/sgs-chify";
@@ -431,8 +430,6 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
             </p>
           </motion.article>
         </section>
-
-        <FormatCoverageChart />
       </main>
 
       <footer className="home-footer">
