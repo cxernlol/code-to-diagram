@@ -1,5 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { animate, stagger, svg as animeSvg } from "animejs";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, GitBranch, Grid3x3, HardDrive, ImageDown, Star } from "lucide-react";
+import { FormatCoverageChart } from "./components/FormatCoverageChart";
 
 const GITHUB_URL = "https://github.com/cxernlol/sgs-chify";
 const GITHUB_API_URL = "https://api.github.com/repos/cxernlol/sgs-chify";
@@ -212,6 +215,8 @@ Canvas -> Export: SVG/PNG`,
 ];
 
 export function HomePage({ onStart, onLegal }: HomePageProps) {
+  const reduceMotion = useReducedMotion();
+  const previewCanvasRef = useRef<HTMLDivElement>(null);
   const [activeFormat, setActiveFormat] = useState(FORMAT_DEMOS[0]!);
   const [stars, setStars] = useState<number | null>(null);
   const [noticeDismissed, setNoticeDismissed] = useState(() => {
@@ -244,6 +249,38 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const host = previewCanvasRef.current;
+    if (!host || reduceMotion) return;
+    const paths = host.querySelectorAll<SVGPathElement>("svg path");
+    const shapes = host.querySelectorAll<SVGElement>("svg rect, svg polygon");
+    const animations: Array<{ revert?: () => void; pause?: () => void }> = [];
+    if (paths.length > 0) {
+      animations.push(
+        animate(animeSvg.createDrawable(paths), {
+          draw: ["0 0", "0 1"],
+          ease: "outCubic",
+          duration: 520,
+          delay: stagger(70),
+        }),
+      );
+    }
+    if (shapes.length > 0) {
+      animations.push(
+        animate(shapes, {
+          opacity: [0, 1],
+          scale: [0.94, 1],
+          ease: "outCubic",
+          duration: 360,
+          delay: stagger(45),
+        }),
+      );
+    }
+    return () => {
+      animations.forEach((anim) => anim.revert?.() ?? anim.pause?.());
+    };
+  }, [activeFormat.id, reduceMotion]);
+
   return (
     <div className="home-page">
       <header className="home-nav">
@@ -273,7 +310,12 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
 
       <main className="home-main">
         <section className="home-hero" aria-labelledby="home-title">
-          <div className="home-hero-copy">
+          <motion.div
+            className="home-hero-copy"
+            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.32, ease: "easeOut" }}
+          >
             <p className="home-eyebrow">Local-first code to diagrams</p>
             <h1 id="home-title">Write code. Drag boxes and lines into place.</h1>
             <p className="home-lead">
@@ -297,9 +339,14 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
                 {stars !== null && <span className="home-star-count">{stars}</span>}
               </a>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="home-preview-card">
+          <motion.div
+            className="home-preview-card"
+            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.36, delay: reduceMotion ? 0 : 0.06, ease: "easeOut" }}
+          >
             <div className="home-preview-bar">
               <div className="home-format-tabs" role="tablist" aria-label="Code format examples">
                 {FORMAT_DEMOS.map((demo) => (
@@ -327,41 +374,65 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
             <div className="home-preview-split">
               <div className="home-preview-code">
                 <div className="home-preview-file">{activeFormat.file}</div>
-                <pre>{activeFormat.code}</pre>
+                <AnimatePresence mode="wait">
+                  <motion.pre
+                    key={activeFormat.id}
+                    initial={reduceMotion ? false : { opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, x: 6 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.16 }}
+                  >
+                    {activeFormat.code}
+                  </motion.pre>
+                </AnimatePresence>
               </div>
-              <div className="home-preview-canvas">
+              <div className="home-preview-canvas" ref={previewCanvasRef}>
                 {activeFormat.diagram}
               </div>
             </div>
-          </div>
+          </motion.div>
         </section>
 
         <section className="home-features" aria-label="Capabilities">
-          <article className="home-feature">
+          <motion.article
+            className="home-feature"
+            whileHover={reduceMotion ? undefined : { y: -2 }}
+            transition={{ duration: 0.15 }}
+          >
             <Grid3x3 aria-hidden="true" size={18} />
             <h2>Move boxes and lines</h2>
             <p>
               Drag nodes or connector segments in flowcharts, class, state, and ER diagrams with
               grid snapping and one-click layered arrangement.
             </p>
-          </article>
-          <article className="home-feature">
+          </motion.article>
+          <motion.article
+            className="home-feature"
+            whileHover={reduceMotion ? undefined : { y: -2 }}
+            transition={{ duration: 0.15 }}
+          >
             <HardDrive aria-hidden="true" size={18} />
             <h2>Saved in your browser</h2>
             <p>
               Diagrams, manual positions, and theme settings live in IndexedDB. No sign-in, no
               cloud lock-in, and no subscription limits.
             </p>
-          </article>
-          <article className="home-feature">
+          </motion.article>
+          <motion.article
+            className="home-feature"
+            whileHover={reduceMotion ? undefined : { y: -2 }}
+            transition={{ duration: 0.15 }}
+          >
             <ImageDown aria-hidden="true" size={18} />
             <h2>Clean export and BYOK AI</h2>
             <p>
               Export full-bounds SVG or PNG files, share diagrams via URL, or plug in your own AI
               provider key directly from the browser.
             </p>
-          </article>
+          </motion.article>
         </section>
+
+        <FormatCoverageChart />
       </main>
 
       <footer className="home-footer">

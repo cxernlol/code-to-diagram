@@ -11,6 +11,9 @@ export default defineConfig({
           if (id.includes("@codemirror") || id.includes("@lezer") || id.includes("/codemirror/")) {
             return "codemirror";
           }
+          if (id.includes("recharts") || id.includes("victory-vendor")) {
+            return "charts";
+          }
           if (id.includes("lucide-react")) {
             return "icons";
           }

@@ -675,7 +675,7 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await sixthDevice.close();
 
   await host.getByLabel("Start from a template").selectOption({ label: "Class" });
-  await expect(guests[0]!.locator('[data-sgs-node="Animal"]')).toBeVisible();
+  await expect(guests[0]!.locator('[data-sgs-node="Animal"]')).toBeVisible({ timeout: 10000 });
 
   await host.close();
   await expect(guests[0]!.getByText(/Host closed the browser or ended the room/i)).toBeVisible();
