@@ -139,10 +139,14 @@ function isDiamondNode(element: Element): boolean {
 
 function chooseFace(
   bounds: ReturnType<typeof boundsInRoot>,
-  target: Position,
+  targetBounds: ReturnType<typeof boundsInRoot>,
   obstacles: ReturnType<typeof boundsInRoot>[] = [],
 ): Face {
   const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  const target = {
+    x: targetBounds.x + targetBounds.width / 2,
+    y: targetBounds.y + targetBounds.height / 2,
+  };
   const dx = target.x - center.x;
   const dy = target.y - center.y;
   const halfW = Math.max(bounds.width / 2, 0.001);
@@ -151,19 +155,37 @@ function chooseFace(
   const scaleY = halfH / Math.max(Math.abs(dy), 0.001);
   const vFace: Face = dy < 0 ? "top" : "bottom";
   const hFace: Face = dx < 0 ? "left" : "right";
-  const primary = scaleY <= scaleX ? vFace : hFace;
-  const secondary = scaleY <= scaleX ? hFace : vFace;
+  const vGap = Math.max(
+    0,
+    targetBounds.y - (bounds.y + bounds.height),
+    bounds.y - (targetBounds.y + targetBounds.height),
+  );
+  const hGap = Math.max(
+    0,
+    targetBounds.x - (bounds.x + bounds.width),
+    bounds.x - (targetBounds.x + targetBounds.width),
+  );
+  const preferVertical =
+    vGap >= 16 && hGap <= vGap * 5.5
+      ? true
+      : hGap >= 16 && vGap < 16
+        ? false
+        : scaleY <= scaleX;
+  const primary = preferVertical ? vFace : hFace;
+  const secondary = preferVertical ? hFace : vFace;
   if (obstacles.length > 0 && Math.abs(dx) > 24 && Math.abs(dy) > 24) {
     const faceBlocked = (face: Face) => {
       const { point, normal } = portOnFace(bounds, face, 0);
-      const probe = { x: point.x + normal.x * 32, y: point.y + normal.y * 32 };
-      return obstacles.some(
-        (box) =>
-          probe.x >= box.x - 6 &&
-          probe.x <= box.x + box.width + 6 &&
-          probe.y >= box.y - 6 &&
-          probe.y <= box.y + box.height + 6,
-      );
+      return [28, 56].some((dist) => {
+        const probe = { x: point.x + normal.x * dist, y: point.y + normal.y * dist };
+        return obstacles.some(
+          (box) =>
+            probe.x >= box.x - 6 &&
+            probe.x <= box.x + box.width + 6 &&
+            probe.y >= box.y - 6 &&
+            probe.y <= box.y + box.height + 6,
+        );
+      });
     };
     if (faceBlocked(primary) && !faceBlocked(secondary)) {
       return secondary;
@@ -264,7 +286,8 @@ function normalizeMarkers(svg: SVGSVGElement, canvasColor: string) {
         textEl.parentElement.removeAttribute("transform");
       }
       textEl.setAttribute("text-anchor", "middle");
-      textEl.querySelectorAll("tspan").forEach((tspan) => tspan.setAttribute("x", "0"));
+      textEl.querySelectorAll(":scope > tspan").forEach((tspan) => tspan.setAttribute("x", "0"));
+      textEl.querySelectorAll("tspan tspan").forEach((tspan) => tspan.removeAttribute("x"));
       const tBox = textEl.getBBox();
       if (!tBox.width || !tBox.height) return;
       const padX = 5;
@@ -317,16 +340,39 @@ function normalizeMarkers(svg: SVGSVGElement, canvasColor: string) {
   });
   svg.querySelectorAll<SVGGElement>("g.edgeTerminals").forEach((term) => {
     if (!term.textContent?.trim()) return;
-    const inner =
+    let inner =
       term.querySelector<SVGGElement>("g.inner") ??
       (term.firstElementChild instanceof SVGGElement ? term.firstElementChild : null);
     const textEl = term.querySelector<SVGTextElement>("text");
-    if (textEl && inner) {
+    if (textEl) {
+      if (!inner) {
+        inner = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
+        inner.setAttribute("class", "inner");
+        term.insertBefore(inner, textEl);
+      }
+      if (textEl.parentNode !== inner) {
+        inner.appendChild(textEl);
+      }
       inner.removeAttribute("transform");
       textEl.setAttribute("text-anchor", "middle");
-      textEl.querySelectorAll("tspan").forEach((tspan) => tspan.setAttribute("x", "0"));
+      textEl.querySelectorAll(":scope > tspan").forEach((tspan) => tspan.setAttribute("x", "0"));
+      textEl.querySelectorAll("tspan tspan").forEach((tspan) => tspan.removeAttribute("x"));
       const tBox = textEl.getBBox();
       if (tBox.width && tBox.height) {
+        let bg = inner.querySelector<SVGRectElement>("rect.sgs-term-bg");
+        if (!bg) {
+          bg = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "rect");
+          bg.setAttribute("class", "sgs-term-bg");
+          inner.insertBefore(bg, textEl);
+        }
+        bg.setAttribute("x", String(tBox.x - 2));
+        bg.setAttribute("y", String(tBox.y - 1));
+        bg.setAttribute("width", String(tBox.width + 4));
+        bg.setAttribute("height", String(tBox.height + 2));
+        bg.setAttribute("rx", "2");
+        bg.setAttribute("ry", "2");
+        bg.style.fill = canvasColor;
+        bg.style.opacity = "0.9";
         inner.setAttribute(
           "transform",
           `translate(${-(tBox.x + tBox.width / 2)},${-(tBox.y + tBox.height / 2)})`,
@@ -391,6 +437,7 @@ function routeEdge(
   targetOffset: number,
   channelOffset = 0,
   manualOffset: Position = { x: 0, y: 0 },
+  usedSegments: { a: Position; b: Position }[] = [],
 ): {
   points: Position[];
   mid: Position;
@@ -440,7 +487,7 @@ function routeEdge(
       : startNormal.y !== 0 && endNormal.y !== 0
         ? Math.abs(end.y - start.y)
         : Math.hypot(end.x - start.x, end.y - start.y);
-  const stub = Math.max(10, Math.min(20, rawGap * 0.35));
+  const stub = Math.max(12, Math.min(24, rawGap * 0.35));
   const startStub = {
     x: start.x + startNormal.x * stub,
     y: start.y + startNormal.y * stub,
@@ -453,23 +500,31 @@ function routeEdge(
     .filter((node) => node.id !== source.dataset.sgsNode && node.id !== target.dataset.sgsNode)
     .map((node) => boundsInRoot(svg, node.wrapper));
   const endpointBoxes = [sourceBounds, targetBounds];
+  const midX = (startStub.x + endStub.x) / 2 + channelOffset;
+  const midY = (startStub.y + endStub.y) / 2 + channelOffset;
   const xCandidates = new Set([
-    (startStub.x + endStub.x) / 2 + channelOffset,
+    midX,
+    midX - 18,
+    midX + 18,
+    midX - 36,
+    midX + 36,
     startStub.x,
     endStub.x,
-    ...obstacles.flatMap((box) => [box.x - 20, box.x + box.width + 20]),
-    ...endpointBoxes.flatMap((box) => [box.x - 20, box.x + box.width + 20]),
+    ...obstacles.flatMap((box) => [box.x - 24, box.x + box.width + 24]),
+    ...endpointBoxes.flatMap((box) => [box.x - 24, box.x + box.width + 24]),
   ]);
   const yCandidates = new Set([
-    (startStub.y + endStub.y) / 2 + channelOffset,
+    midY,
+    midY - 18,
+    midY + 18,
+    midY - 36,
+    midY + 36,
     startStub.y,
     endStub.y,
-    ...obstacles.flatMap((box) => [box.y - 20, box.y + box.height + 20]),
-    ...endpointBoxes.flatMap((box) => [box.y - 20, box.y + box.height + 20]),
+    ...obstacles.flatMap((box) => [box.y - 24, box.y + box.height + 24]),
+    ...endpointBoxes.flatMap((box) => [box.y - 24, box.y + box.height + 24]),
   ]);
   const candidates = [
-    [start, startStub, { x: endStub.x, y: startStub.y }, endStub, end],
-    [start, startStub, { x: startStub.x, y: endStub.y }, endStub, end],
     ...Array.from(yCandidates, (y) => [
       start,
       startStub,
@@ -486,6 +541,8 @@ function routeEdge(
       endStub,
       end,
     ]),
+    [start, startStub, { x: endStub.x, y: startStub.y }, endStub, end],
+    [start, startStub, { x: startStub.x, y: endStub.y }, endStub, end],
   ].map(simplifyOrthogonal);
   const blocked = (a: Position, b: Position, box: ReturnType<typeof boundsInRoot>, pad = 8) => {
     if (Math.abs(a.y - b.y) < 0.01) {
@@ -506,6 +563,7 @@ function routeEdge(
   const score = (points: Position[]) => {
     let length = 0;
     let collisions = 0;
+    let overlapPenalty = 0;
     const first = points[1];
     const lastPrev = points[points.length - 2];
     if (first) {
@@ -531,28 +589,85 @@ function routeEdge(
       if (index < points.length - 1) {
         collisions += blocked(a, b, targetBounds, -1) ? 1 : 0;
       }
+      if (index > 1 && index < points.length - 1) {
+        const isHoriz = Math.abs(a.y - b.y) < 0.01;
+        if (isHoriz) {
+          overlapPenalty += Math.min(20, Math.abs(a.y - midY) * 0.08);
+          if (blocked(a, b, sourceBounds, 26)) overlapPenalty += 35;
+          if (blocked(a, b, targetBounds, 26)) overlapPenalty += 35;
+        } else {
+          overlapPenalty += Math.min(20, Math.abs(a.x - midX) * 0.08);
+          if (blocked(a, b, sourceBounds, 26)) overlapPenalty += 35;
+          if (blocked(a, b, targetBounds, 26)) overlapPenalty += 35;
+        }
+      }
+      const isHoriz = Math.abs(a.y - b.y) < 0.01;
+      for (const used of usedSegments) {
+        const usedHoriz = Math.abs(used.a.y - used.b.y) < 0.01;
+        if (isHoriz && usedHoriz) {
+          if (Math.abs(a.y - used.a.y) < 10) {
+            const overlap =
+              Math.min(Math.max(a.x, b.x), Math.max(used.a.x, used.b.x)) -
+              Math.max(Math.min(a.x, b.x), Math.min(used.a.x, used.b.x));
+            if (overlap > 4) overlapPenalty += 2500 + overlap * 2;
+          }
+        } else if (!isHoriz && !usedHoriz) {
+          if (Math.abs(a.x - used.a.x) < 10) {
+            const overlap =
+              Math.min(Math.max(a.y, b.y), Math.max(used.a.y, used.b.y)) -
+              Math.max(Math.min(a.y, b.y), Math.min(used.a.y, used.b.y));
+            if (overlap > 4) overlapPenalty += 2500 + overlap * 2;
+          }
+        } else {
+          const h = isHoriz ? { a, b } : used;
+          const v = isHoriz ? used : { a, b };
+          const hx1 = Math.min(h.a.x, h.b.x);
+          const hx2 = Math.max(h.a.x, h.b.x);
+          const vy1 = Math.min(v.a.y, v.b.y);
+          const vy2 = Math.max(v.a.y, v.b.y);
+          if (v.a.x > hx1 + 2 && v.a.x < hx2 - 2 && h.a.y > vy1 + 2 && h.a.y < vy2 - 2) {
+            overlapPenalty += 300;
+          }
+        }
+      }
     }
-    return length + (points.length - 2) * 18 + collisions * 100000;
+    return length + (points.length - 2) * 18 + overlapPenalty + collisions * 100000;
   };
   const autoBest = candidates.sort((a, b) => score(a) - score(b))[0] ?? [start, end];
   let best = autoBest;
   if (Math.hypot(manualOffset.x, manualOffset.y) > 0.5) {
     const autoMid = longestSegmentMidpoint(autoBest);
     const via = { x: autoMid.x + manualOffset.x, y: autoMid.y + manualOffset.y };
+    const sStubV =
+      startNormal.x !== 0 && (via.x - start.x) * startNormal.x > 2
+        ? { x: via.x, y: start.y }
+        : startStub;
+    const eStubV =
+      endNormal.x !== 0 && (via.x - end.x) * endNormal.x > 2
+        ? { x: via.x, y: end.y }
+        : endStub;
+    const sStubH =
+      startNormal.y !== 0 && (via.y - start.y) * startNormal.y > 2
+        ? { x: start.x, y: via.y }
+        : startStub;
+    const eStubH =
+      endNormal.y !== 0 && (via.y - end.y) * endNormal.y > 2
+        ? { x: end.x, y: via.y }
+        : endStub;
     const viaV = simplifyOrthogonal([
       start,
-      startStub,
-      { x: via.x, y: startStub.y },
-      { x: via.x, y: endStub.y },
-      endStub,
+      sStubV,
+      { x: via.x, y: sStubV.y },
+      { x: via.x, y: eStubV.y },
+      eStubV,
       end,
     ]);
     const viaH = simplifyOrthogonal([
       start,
-      startStub,
-      { x: startStub.x, y: via.y },
-      { x: endStub.x, y: via.y },
-      endStub,
+      sStubH,
+      { x: sStubH.x, y: via.y },
+      { x: eStubH.x, y: via.y },
+      eStubH,
       end,
     ]);
     if (autoBest.length <= 2) {
@@ -565,7 +680,20 @@ function routeEdge(
           ? viaH
           : autoBest;
     } else {
-      best = Math.abs(manualOffset.x) > Math.abs(manualOffset.y) ? viaV : viaH;
+      let bestSegHoriz = Math.abs(manualOffset.y) >= Math.abs(manualOffset.x);
+      let maxSegLen = -1;
+      for (let i = 1; i < autoBest.length; i += 1) {
+        const a = autoBest[i - 1]!;
+        const b = autoBest[i]!;
+        const len = Math.hypot(b.x - a.x, b.y - a.y) * (i > 1 && i < autoBest.length - 1 ? 1.15 : 1);
+        if (len > maxSegLen) {
+          maxSegLen = len;
+          bestSegHoriz = Math.abs(a.y - b.y) < 0.5;
+        }
+      }
+      if (bestSegHoriz && Math.abs(manualOffset.y) > 2) best = viaH;
+      else if (!bestSegHoriz && Math.abs(manualOffset.x) > 2) best = viaV;
+      else best = Math.abs(manualOffset.x) > Math.abs(manualOffset.y) ? viaV : viaH;
     }
   }
   const localPoints = best.map((point) => toLocalPoint(svg, path, point));
@@ -720,10 +848,14 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     });
     const inDeg = new Map(items.map((item) => [item.id, 0]));
     const outDeg = new Map(items.map((item) => [item.id, 0]));
+    const parentsOf = new Map<string, Set<string>>(items.map((item) => [item.id, new Set()]));
+    const childrenOf = new Map<string, Set<string>>(items.map((item) => [item.id, new Set()]));
     const neighbors = new Map<string, Set<string>>(items.map((item) => [item.id, new Set()]));
     directedEdges.forEach(({ from, to }) => {
       outDeg.set(from, (outDeg.get(from) ?? 0) + 1);
       inDeg.set(to, (inDeg.get(to) ?? 0) + 1);
+      childrenOf.get(from)?.add(to);
+      parentsOf.get(to)?.add(from);
       neighbors.get(from)?.add(to);
       neighbors.get(to)?.add(from);
     });
@@ -748,8 +880,18 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
         if (!changed) break;
       }
+      const byDescRank = [...items].sort((a, b) => (ranks.get(b.id) ?? 0) - (ranks.get(a.id) ?? 0));
+      for (const item of byDescRank) {
+        if ((inDeg.get(item.id) ?? 0) > 0 && (outDeg.get(item.id) ?? 0) > 0) {
+          const kids = Array.from(childrenOf.get(item.id) ?? []);
+          const minChildRank = Math.min(...kids.map((c) => ranks.get(c) ?? 0));
+          if (minChildRank - 1 > (ranks.get(item.id) ?? 0)) {
+            ranks.set(item.id, minChildRank - 1);
+          }
+        }
+      }
     }
-    const maxCols = Math.max(2, Math.ceil(Math.sqrt(items.length * 1.25)));
+    const maxCols = Math.max(4, Math.ceil(Math.sqrt(items.length * 1.8)));
     const rankBuckets = new Map<number, typeof items>();
     items.forEach((item) => {
       const r = ranks.get(item.id) ?? 0;
@@ -774,29 +916,59 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         });
     }
     const colIndex = new Map<string, number>();
+    const rowOf = new Map<string, number>();
     const updateColIndices = () => {
-      rows.forEach((row) => {
+      rows.forEach((row, rIdx) => {
         row.forEach((item, idx) => {
           colIndex.set(item.id, idx - (row.length - 1) / 2);
+          rowOf.set(item.id, rIdx);
         });
       });
     };
     updateColIndices();
-    for (let iter = 0; iter < 3; iter += 1) {
-      rows.forEach((row) => {
-        row.sort((a, b) => {
-          const adjA = Array.from(neighbors.get(a.id) ?? []);
-          const adjB = Array.from(neighbors.get(b.id) ?? []);
-          const baryA = adjA.length
-            ? adjA.reduce((sum, id) => sum + (colIndex.get(id) ?? 0), 0) / adjA.length
-            : colIndex.get(a.id) ?? 0;
-          const baryB = adjB.length
-            ? adjB.reduce((sum, id) => sum + (colIndex.get(id) ?? 0), 0) / adjB.length
-            : colIndex.get(b.id) ?? 0;
-          return baryA - baryB;
-        });
+    const baryScore = (id: string, rIdx: number, downward: boolean) => {
+      const adj = Array.from(neighbors.get(id) ?? []);
+      if (!adj.length) return colIndex.get(id) ?? 0;
+      let weightedSum = 0;
+      let totalWeight = 0;
+      for (const otherId of adj) {
+        const otherRow = rowOf.get(otherId) ?? rIdx;
+        if (otherRow === rIdx) continue;
+        const isPrimary = downward ? otherRow < rIdx : otherRow > rIdx;
+        const w = isPrimary ? 1.0 : 0.35;
+        weightedSum += (colIndex.get(otherId) ?? 0) * w;
+        totalWeight += w;
+      }
+      return totalWeight > 0 ? weightedSum / totalWeight : colIndex.get(id) ?? 0;
+    };
+    const sortRow = (row: typeof items, rIdx: number, downward: boolean) => {
+      row.sort((a, b) => {
+        const baryA = baryScore(a.id, rIdx, downward);
+        const baryB = baryScore(b.id, rIdx, downward);
+        if (Math.abs(baryA - baryB) > 0.08) return baryA - baryB;
+        const kidsA = outDeg.get(a.id) ?? 0;
+        const kidsB = outDeg.get(b.id) ?? 0;
+        if ((kidsA > 0) !== (kidsB > 0)) {
+          return kidsA > 0 ? -1 : 1;
+        }
+        return (colIndex.get(a.id) ?? 0) - (colIndex.get(b.id) ?? 0);
       });
       updateColIndices();
+    };
+    for (let iter = 0; iter < 4; iter += 1) {
+      const downward = iter % 2 === 0;
+      if (downward) {
+        for (let rIdx = 0; rIdx < rows.length; rIdx += 1) {
+          sortRow(rows[rIdx]!, rIdx, true);
+        }
+      } else {
+        for (let rIdx = rows.length - 1; rIdx >= 0; rIdx -= 1) {
+          sortRow(rows[rIdx]!, rIdx, false);
+        }
+      }
+    }
+    for (let rIdx = 1; rIdx < rows.length; rIdx += 1) {
+      sortRow(rows[rIdx]!, rIdx, true);
     }
     const gapX = 88;
     const gapY = 80;
@@ -1211,20 +1383,67 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
 
     const routeEdges = () => {
       const nodeBounds = new Map(nodes.map((n) => [n.id, boundsInRoot(svg, n.wrapper)]));
+      const edgeFaces = edges.map((edge) => {
+        const sBox = nodeBounds.get(edge.source.id)!;
+        const tBox = nodeBounds.get(edge.target.id)!;
+        const otherBoxes = nodes
+          .filter((n) => n.id !== edge.source.id && n.id !== edge.target.id)
+          .map((n) => nodeBounds.get(n.id)!);
+        const sourceFace = chooseFace(sBox, tBox, otherBoxes);
+        const targetFace = chooseFace(tBox, sBox, otherBoxes);
+        return { sourceFace, targetFace, sourceOffset: 0, targetOffset: 0 };
+      });
+      nodes.forEach((node) => {
+        if (!isDiamondNode(node.wrapper)) return;
+        const nBox = nodeBounds.get(node.id)!;
+        const nCenter = { x: nBox.x + nBox.width / 2, y: nBox.y + nBox.height / 2 };
+        const usedFaces = new Set<Face>();
+        edges.forEach((edge, idx) => {
+          if (edge.source.id === node.id) usedFaces.add(edgeFaces[idx]!.sourceFace);
+          if (edge.target.id === node.id) usedFaces.add(edgeFaces[idx]!.targetFace);
+        });
+        (["bottom", "top"] as Face[]).forEach((vFace) => {
+          const attached: { idx: number; end: "source" | "target"; dx: number }[] = [];
+          edges.forEach((edge, idx) => {
+            if (edge.source.id === node.id && edgeFaces[idx]!.sourceFace === vFace) {
+              const oBox = nodeBounds.get(edge.target.id)!;
+              attached.push({ idx, end: "source", dx: oBox.x + oBox.width / 2 - nCenter.x });
+            }
+            if (edge.target.id === node.id && edgeFaces[idx]!.targetFace === vFace) {
+              const oBox = nodeBounds.get(edge.source.id)!;
+              attached.push({ idx, end: "target", dx: oBox.x + oBox.width / 2 - nCenter.x });
+            }
+          });
+          if (attached.length <= 1) return;
+          let remaining = attached.length;
+          attached
+            .sort(
+              (a, b) =>
+                (a.end === "target" ? -1 : 1) - (b.end === "target" ? -1 : 1) ||
+                b.idx - a.idx,
+            )
+            .forEach((item) => {
+              if (remaining <= 1 || Math.abs(item.dx) <= 20) return;
+              const latFace: Face = item.dx > 0 ? "right" : "left";
+              if (!usedFaces.has(latFace) || item.end === "target" || item.end === "source") {
+                if (item.end === "source") edgeFaces[item.idx]!.sourceFace = latFace;
+                else edgeFaces[item.idx]!.targetFace = latFace;
+                usedFaces.add(latFace);
+                remaining -= 1;
+              }
+            });
+        });
+      });
       const faceGroups = new Map<
         string,
         { edgeIndex: number; end: "source" | "target"; face: Face; otherCoord: number }[]
       >();
-      const edgeFaces = edges.map((edge, edgeIndex) => {
+      edges.forEach((edge, edgeIndex) => {
         const sBox = nodeBounds.get(edge.source.id)!;
         const tBox = nodeBounds.get(edge.target.id)!;
         const sCenter = { x: sBox.x + sBox.width / 2, y: sBox.y + sBox.height / 2 };
         const tCenter = { x: tBox.x + tBox.width / 2, y: tBox.y + tBox.height / 2 };
-        const otherBoxes = nodes
-          .filter((n) => n.id !== edge.source.id && n.id !== edge.target.id)
-          .map((n) => nodeBounds.get(n.id)!);
-        const sourceFace = chooseFace(sBox, tCenter, otherBoxes);
-        const targetFace = chooseFace(tBox, sCenter, otherBoxes);
+        const { sourceFace, targetFace } = edgeFaces[edgeIndex]!;
         const sKey = `${edge.source.id}::${sourceFace}`;
         const tKey = `${edge.target.id}::${targetFace}`;
         const sOther =
@@ -1239,7 +1458,6 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         const tList = faceGroups.get(tKey) ?? [];
         tList.push({ edgeIndex, end: "target", face: targetFace, otherCoord: tOther });
         faceGroups.set(tKey, tList);
-        return { sourceFace, targetFace, sourceOffset: 0, targetOffset: 0 };
       });
       faceGroups.forEach((list, key) => {
         if (list.length <= 1) return;
@@ -1260,6 +1478,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         (typeof edges)[number],
         ReturnType<typeof routeEdge>
       >();
+      const usedSegments: { a: Position; b: Position }[] = [];
       edges.forEach((edge, idx) => {
         const { sourceFace, targetFace, sourceOffset, targetOffset } = edgeFaces[idx]!;
         const routed = routeEdge(
@@ -1274,8 +1493,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           targetOffset,
           edge.parallelOffset,
           edge.manualOffset,
+          usedSegments,
         );
         routedByEdge.set(edge, routed);
+        for (let i = 1; i < routed.points.length; i += 1) {
+          usedSegments.push({ a: routed.points[i - 1]!, b: routed.points[i]! });
+        }
         const ctrlPoints = routed.points.map((pt) => toLocalPoint(svg, edge.control, pt));
         edge.hitPath.setAttribute(
           "d",
@@ -1296,37 +1519,89 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           `translate(${node.position.x - node.base.x},${node.position.y - node.base.y})`,
         );
       });
-      const placedLabelPoints: Position[] = [];
-      labelEntries.forEach(({ label, edge }) => {
-        const routed = routedByEdge.get(edge);
-        if (!routed) return;
-        const point = { ...routed.mid };
-        for (const prev of placedLabelPoints) {
-          if (Math.abs(prev.x - point.x) < 42 && Math.abs(prev.y - point.y) < 18) {
-            point.y += 20;
-          }
-        }
-        placedLabelPoints.push(point);
-        const parent =
-          label.parentElement instanceof SVGGraphicsElement ? label.parentElement : svg;
-        const local = toLocalPoint(svg, parent, point);
-        label.setAttribute("transform", `translate(${local.x},${local.y})`);
-      });
+      const placedBoxes: { x: number; y: number; width: number; height: number }[] = [];
       terminalEntries.forEach(({ term, edge, which }) => {
         const routed = routedByEdge.get(edge);
         if (!routed) return;
         const basePt = which === "start" ? routed.start : routed.end;
         const normal = which === "start" ? routed.startNormal : routed.endNormal;
         const perp = { x: -normal.y, y: normal.x };
-        const sign = which === "start" ? 1 : -1;
-        const anchor = {
-          x: basePt.x + normal.x * 15 + perp.x * 12 * sign,
-          y: basePt.y + normal.y * 15 + perp.y * 12 * sign,
+        const defaultSign = which === "start" ? 1 : -1;
+        const candA = {
+          x: basePt.x + normal.x * 18 + perp.x * 16 * defaultSign,
+          y: basePt.y + normal.y * 18 + perp.y * 16 * defaultSign,
         };
+        const candB = {
+          x: basePt.x + normal.x * 18 - perp.x * 16 * defaultSign,
+          y: basePt.y + normal.y * 18 - perp.y * 16 * defaultSign,
+        };
+        const collides = (pt: Position) =>
+          placedBoxes.some(
+            (b) => Math.abs(b.x + b.width / 2 - pt.x) < 22 && Math.abs(b.y + b.height / 2 - pt.y) < 16,
+          );
+        const anchor = collides(candA) && !collides(candB) ? candB : candA;
+        placedBoxes.push({ x: anchor.x - 12, y: anchor.y - 8, width: 24, height: 16 });
         const parent =
           term.parentElement instanceof SVGGraphicsElement ? term.parentElement : svg;
         const local = toLocalPoint(svg, parent, anchor);
         term.setAttribute("transform", `translate(${local.x},${local.y})`);
+      });
+      labelEntries.forEach(({ label, edge }) => {
+        const routed = routedByEdge.get(edge);
+        if (!routed) return;
+        const rect = label.querySelector<SVGRectElement>("rect");
+        const lBox = rect ? rect.getBBox() : label.getBBox();
+        const lw = Math.max(28, lBox.width || 36);
+        const lh = Math.max(18, lBox.height || 22);
+        const pts = routed.points;
+        const candidates: { pt: Position; score: number }[] = [];
+        for (let i = 1; i < pts.length; i += 1) {
+          const a = pts[i - 1]!;
+          const b = pts[i]!;
+          const len = Math.hypot(b.x - a.x, b.y - a.y);
+          if (len < 16 && pts.length > 2) continue;
+          const interiorBonus = i > 1 && i < pts.length - 1 ? 1.18 : 1;
+          const ts = len >= 64 ? [0.5, 0.36, 0.64] : [0.5];
+          for (const t of ts) {
+            const pt = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+            const box = { x: pt.x - lw / 2, y: pt.y - lh / 2, width: lw, height: lh };
+            let penalty = Math.abs(t - 0.5) * 40;
+            nodeBounds.forEach((nb) => {
+              if (
+                box.x < nb.x + nb.width + 4 &&
+                box.x + box.width > nb.x - 4 &&
+                box.y < nb.y + nb.height + 4 &&
+                box.y + box.height > nb.y - 4
+              ) {
+                penalty += 8000;
+              }
+            });
+            for (const pb of placedBoxes) {
+              if (
+                box.x < pb.x + pb.width + 6 &&
+                box.x + box.width > pb.x - 6 &&
+                box.y < pb.y + pb.height + 4 &&
+                box.y + box.height > pb.y - 4
+              ) {
+                penalty += 5000;
+              }
+            }
+            for (let c = 1; c < pts.length - 1; c += 1) {
+              const corner = pts[c]!;
+              if (Math.abs(corner.x - pt.x) < lw * 0.45 && Math.abs(corner.y - pt.y) < lh * 0.45) {
+                penalty += 900;
+              }
+            }
+            candidates.push({ pt, score: len * interiorBonus - penalty });
+          }
+        }
+        const bestPt =
+          candidates.sort((a, b) => b.score - a.score)[0]?.pt ?? { ...routed.mid };
+        placedBoxes.push({ x: bestPt.x - lw / 2, y: bestPt.y - lh / 2, width: lw, height: lh });
+        const parent =
+          label.parentElement instanceof SVGGraphicsElement ? label.parentElement : svg;
+        const local = toLocalPoint(svg, parent, bestPt);
+        label.setAttribute("transform", `translate(${local.x},${local.y})`);
       });
     };
     routeEdges();
