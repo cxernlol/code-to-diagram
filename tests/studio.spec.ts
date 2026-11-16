@@ -34,12 +34,18 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   const githubLinks = page.getByRole("link", { name: /GitHub/i });
   await expect(githubLinks.first()).toHaveAttribute("href", "https://github.com/cxernlol/sgs-chify");
 
-  await page.locator(".home-cta-start").click();
+  await page.getByRole("tab", { name: "SQL" }).click();
+  await expect(page.locator(".home-preview-file")).toHaveText("schema.sql");
+  await page.getByRole("button", { name: "Open SQL" }).click();
   await expect(page).toHaveURL(/#app$/);
-  await expect(page.locator('[data-sgs-node="Check"]')).toBeVisible();
+  await expect(page.locator(".language-chip")).toHaveText("SQL DDL");
 
   await page.getByRole("button", { name: "SGS Studio home" }).click();
   await expect(page.getByRole("heading", { name: /Write code\. Drag boxes and lines into place\./i })).toBeVisible();
+
+  await page.locator(".home-cta-start").click();
+  await expect(page).toHaveURL(/#app$/);
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
 });
 
 test("moves one flowchart node and keeps its connectors attached", async ({ page }) => {

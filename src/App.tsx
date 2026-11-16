@@ -400,13 +400,6 @@ function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  const openStudio = useCallback(() => {
-    setView("studio");
-    if (!isStudioHash(window.location.hash)) {
-      window.location.hash = "#app";
-    }
-  }, []);
-
   const openHome = useCallback(() => {
     setView("home");
     if (window.location.hash) {
@@ -530,6 +523,19 @@ function App() {
       setRenameId("");
     },
     [markDirty, updateData],
+  );
+
+  const openStudio = useCallback(
+    (templateName?: string) => {
+      if (templateName && TEMPLATES[templateName]) {
+        createTab(templateName, TEMPLATES[templateName]);
+      }
+      setView("studio");
+      if (!isStudioHash(window.location.hash)) {
+        window.location.hash = "#app";
+      }
+    },
+    [createTab],
   );
 
   const startRename = (document: DiagramDocument) => {
