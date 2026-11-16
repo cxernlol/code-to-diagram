@@ -21,6 +21,7 @@ import {
   Share2,
   StopCircle,
   Undo2,
+  Users,
   Wand2,
   X,
   ZoomIn,
@@ -67,6 +68,16 @@ import {
   type CodeFormat,
 } from "./lib/formats";
 import { detectDiagramType, type DiagramType } from "./lib/mermaid";
+import {
+  createRoomId,
+  createRoomUrl,
+  getRoomIdFromHash,
+  joinHostRoom,
+  MAX_ROOM_DEVICES,
+  startHostRoom,
+  type GuestRoomSession,
+  type HostRoomSession,
+} from "./lib/room";
 import {
   broadcastDocumentChange,
   deleteDocument as deleteStoredDocument,
@@ -164,7 +175,7 @@ function errorText(error: unknown): string {
 type AppView = "home" | "studio" | "privacy" | "terms";
 
 function isStudioHash(hash: string): boolean {
-  return hash === "#app" || hash.startsWith("#d=");
+  return hash === "#app" || hash.startsWith("#d=") || hash.startsWith("#room=");
 }
 
 function viewFromHash(hash: string): AppView {
@@ -214,6 +225,13 @@ function App() {
   const [aiError, setAiError] = useState("");
   const [testStatus, setTestStatus] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
+  const [roomMode, setRoomMode] = useState<"none" | "host" | "guest">("none");
+  const [roomDevices, setRoomDevices] = useState(1);
+  const [roomNotice, setRoomNotice] = useState("");
+  const hostRoomRef = useRef<HostRoomSession | null>(null);
+  const guestRoomRef = useRef<GuestRoomSession | null>(null);
+  const roomDocIdRef = useRef<string>("");
+  const applyingRoomSyncRef = useRef(false);
 
   const activeDocument = useMemo(() => {
     if (!data) return undefined;
@@ -392,6 +410,60 @@ function App() {
         }
       });
       updateData(loaded);
+      const roomId = getRoomIdFromHash(window.location.hash);
+      if (roomId && !guestRoomRef.current && !hostRoomRef.current) {
+        setRoomMode("guest");
+        setRoomNotice("");
+        guestRoomRef.current = joinHostRoom(roomId, {
+          onSync: (payload, devices) => {
+            setRoomDevices(devices);
+            const current = dataRef.current;
+            if (!current) return;
+            applyingRoomSyncRef.current = true;
+            const existing = current.documents.find((d) => d.id === roomDocIdRef.current);
+            if (existing) {
+              updateData({
+                ...current,
+                documents: current.documents.map((d) =>
+                  d.id === existing.id
+                    ? { ...d, name: payload.name, code: payload.code, layout: payload.layout }
+                    : d,
+                ),
+              });
+              markDirty(existing.id);
+            } else {
+              const doc = {
+                ...createDocument(payload.name || "Live room", payload.code, current.documents.length),
+                layout: payload.layout,
+              };
+              roomDocIdRef.current = doc.id;
+              expectedUpdatedAt.current.set(doc.id, 0);
+              updateData({
+                ...current,
+                documents: [...current.documents, doc],
+                settings: { ...current.settings, activeDocumentId: doc.id },
+              });
+              markDirty(doc.id);
+            }
+            window.setTimeout(() => {
+              applyingRoomSyncRef.current = false;
+            }, 0);
+          },
+          onEnded: (reason) => {
+            guestRoomRef.current = null;
+            setRoomMode("none");
+            setRoomNotice(reason);
+            if (window.location.hash.startsWith("#room=")) {
+              history.replaceState(null, "", `${window.location.pathname}${window.location.search}#app`);
+            }
+          },
+          onError: (message) => {
+            guestRoomRef.current = null;
+            setRoomMode("none");
+            setStorageError(message);
+          },
+        });
+      }
     } catch (error) {
       setBootError(error);
       if (error instanceof LegacyDataError) setLegacyError(error);
@@ -787,6 +859,88 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    if (!activeDocument || applyingRoomSyncRef.current) return;
+    if (roomMode === "host" && hostRoomRef.current) {
+      hostRoomRef.current.broadcast({
+        name: activeDocument.name,
+        code: activeDocument.code,
+        layout: activeDocument.layout,
+      });
+    } else if (roomMode === "guest" && guestRoomRef.current) {
+      guestRoomRef.current.sendEdit(activeDocument.code, activeDocument.layout);
+    }
+  }, [activeDocument?.name, activeDocument?.code, activeDocument?.layout, roomMode]);
+
+  useEffect(() => {
+    return () => {
+      hostRoomRef.current?.close();
+      guestRoomRef.current?.leave();
+    };
+  }, []);
+
+  const startLiveRoom = async () => {
+    if (!activeDocument) return;
+    if (roomMode === "host" && hostRoomRef.current) {
+      try {
+        await navigator.clipboard.writeText(createRoomUrl(hostRoomRef.current.roomId));
+        setNotice("Live room link copied (max 5 devices).");
+      } catch {
+        setStorageError("Clipboard access was blocked.");
+      }
+      return;
+    }
+    guestRoomRef.current?.leave();
+    guestRoomRef.current = null;
+    const roomId = createRoomId();
+    roomDocIdRef.current = activeDocument.id;
+    setRoomMode("host");
+    setRoomNotice("");
+    const session = startHostRoom(
+      roomId,
+      () => {
+        const doc =
+          dataRef.current?.documents.find((d) => d.id === roomDocIdRef.current) ??
+          dataRef.current?.documents[0];
+        return {
+          name: doc?.name ?? "Live room",
+          code: doc?.code ?? "",
+          layout: doc?.layout ?? {},
+        };
+      },
+      {
+        onDevicesChange: setRoomDevices,
+        onGuestEdit: (code, layout) => {
+          const targetId = roomDocIdRef.current;
+          if (!targetId) return;
+          applyingRoomSyncRef.current = true;
+          updateDocument(targetId, (doc) => ({ ...doc, code, layout }));
+          window.setTimeout(() => {
+            applyingRoomSyncRef.current = false;
+          }, 0);
+        },
+        onError: (msg) => setStorageError(msg),
+      },
+    );
+    hostRoomRef.current = session;
+    try {
+      await navigator.clipboard.writeText(createRoomUrl(roomId));
+      setNotice("Live room started and link copied (max 5 devices).");
+    } catch {
+      setNotice("Live room started (max 5 devices).");
+    }
+  };
+
+  const endLiveRoom = () => {
+    hostRoomRef.current?.close();
+    hostRoomRef.current = null;
+    guestRoomRef.current?.leave();
+    guestRoomRef.current = null;
+    setRoomMode("none");
+    setRoomDevices(1);
+    setNotice("Live room ended.");
+  };
+
   const copyCode = async () => {
     if (!activeDocument) return;
     try {
@@ -956,6 +1110,14 @@ function App() {
           <button className="icon-button" title="Copy share link" aria-label="Copy share link" onClick={() => void share()}>
             <Share2 aria-hidden="true" size={17} />
           </button>
+          <button
+            className={`icon-button${roomMode !== "none" ? " room-active" : ""}`}
+            title={roomMode === "host" ? `Live room (${roomDevices}/${MAX_ROOM_DEVICES} devices)` : "Host live room (max 5 devices)"}
+            aria-label={roomMode === "host" ? "Copy live room link" : "Host live room (max 5 devices)"}
+            onClick={() => void startLiveRoom()}
+          >
+            <Users aria-hidden="true" size={17} />
+          </button>
           <button className="icon-button" title="Export SVG" aria-label="Export SVG" onClick={saveSvg}>
             <FileImage aria-hidden="true" size={17} />
           </button>
@@ -1041,6 +1203,31 @@ function App() {
       </section>
 
       <div className="message-stack">
+        {roomMode !== "none" && (
+          <section className="room-banner" role="status">
+            <span>
+              {roomMode === "host"
+                ? `Hosting live room (${roomDevices}/${MAX_ROOM_DEVICES} devices). Closing this browser ends the room.`
+                : `Connected to live room (${roomDevices}/${MAX_ROOM_DEVICES} devices).`}
+            </span>
+            {roomMode === "host" && (
+              <button type="button" onClick={() => void startLiveRoom()}>
+                Copy room link
+              </button>
+            )}
+            <button type="button" onClick={endLiveRoom}>
+              {roomMode === "host" ? "End room" : "Leave room"}
+            </button>
+          </section>
+        )}
+        {roomNotice && (
+          <section className="conflict-banner" role="status">
+            <span>{roomNotice}</span>
+            <button type="button" onClick={() => setRoomNotice("")}>
+              Dismiss
+            </button>
+          </section>
+        )}
         {externalConflict && (
           <section className="conflict-banner" role="alert">
             <span>“{externalConflict.name}” changed in another browser tab.</span>

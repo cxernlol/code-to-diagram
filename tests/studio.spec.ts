@@ -648,3 +648,35 @@ test("renders DOT, PlantUML, D2, SQL DDL, TypeScript, and XML code and translate
   await expect(page.locator(".language-chip")).toHaveText("TypeScript");
   await expect(page.locator('[data-sgs-node="Gateway"]')).toBeVisible();
 });
+
+test("hosts a live room via copy link up to 5 devices and ends room when host closes", async ({ context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const host = await context.newPage();
+  await host.goto("/#app");
+  await expect(host.locator('[data-sgs-node="Check"]')).toBeVisible();
+
+  await host.getByRole("button", { name: "Host live room (max 5 devices)" }).click();
+  await expect(host.getByText(/Hosting live room \(1\/5 devices\)/)).toBeVisible();
+  const roomUrl = await host.evaluate(() => navigator.clipboard.readText());
+  expect(roomUrl).toMatch(/#room=sgs-room-/);
+
+  const guests = [];
+  for (let i = 2; i <= 5; i += 1) {
+    const guest = await context.newPage();
+    await guest.goto(roomUrl);
+    await expect(guest.getByText(new RegExp(`Connected to live room \\(${i}/5 devices\\)`))).toBeVisible();
+    guests.push(guest);
+  }
+  await expect(host.getByText(/Hosting live room \(5\/5 devices\)/)).toBeVisible();
+
+  const sixthDevice = await context.newPage();
+  await sixthDevice.goto(roomUrl);
+  await expect(sixthDevice.getByText(/Room is full \(maximum 5 devices\)/)).toBeVisible();
+  await sixthDevice.close();
+
+  await host.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await expect(guests[0]!.locator('[data-sgs-node="Animal"]')).toBeVisible();
+
+  await host.close();
+  await expect(guests[0]!.getByText(/Host closed the browser or ended the room/i)).toBeVisible();
+});

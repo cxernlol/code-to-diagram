@@ -903,7 +903,8 @@ summary:focus-visible,
 }
 
 .error-banner,
-.conflict-banner {
+.conflict-banner,
+.room-banner {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -919,13 +920,26 @@ summary:focus-visible,
   background: #fbf3dd;
 }
 
+.room-banner {
+  color: #1c3439;
+  background: #e5efe9;
+  border-block-end: 1px solid var(--border);
+}
+
+.icon-button.room-active {
+  color: #e5b47c;
+  background: rgb(255 255 255 / 16%);
+}
+
 .error-banner span:first-child,
-.conflict-banner span {
+.conflict-banner span,
+.room-banner span {
   flex: 1;
 }
 
 .error-banner button,
-.conflict-banner button {
+.conflict-banner button,
+.room-banner button {
   min-block-size: 25px;
   padding-inline: 7px;
   border: 1px solid currentColor;
