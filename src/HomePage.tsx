@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
-import { ArrowRight, ExternalLink, GitBranch, Grid3x3, HardDrive, ImageDown } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ArrowRight, GitBranch, Grid3x3, HardDrive, ImageDown, Star } from "lucide-react";
 
 const GITHUB_URL = "https://github.com/cxernlol/sgs-chify";
+const GITHUB_API_URL = "https://api.github.com/repos/cxernlol/sgs-chify";
 
 interface HomePageProps {
   onStart: (templateName?: string) => void;
@@ -210,6 +211,20 @@ Canvas -> Export: SVG/PNG`,
 
 export function HomePage({ onStart }: HomePageProps) {
   const [activeFormat, setActiveFormat] = useState(FORMAT_DEMOS[0]!);
+  const [stars, setStars] = useState<number | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(GITHUB_API_URL, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((repo: { stargazers_count?: unknown } | null) => {
+        if (typeof repo?.stargazers_count === "number") {
+          setStars(repo.stargazers_count);
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   return (
     <div className="home-page">
@@ -226,8 +241,9 @@ export function HomePage({ onStart }: HomePageProps) {
               target="_blank"
               rel="noreferrer"
             >
-              GitHub
-              <ExternalLink aria-hidden="true" size={14} />
+              <Star aria-hidden="true" size={14} />
+              <span>Star on GitHub</span>
+              {stars !== null && <span className="home-star-pill">{stars}</span>}
             </a>
             <button className="button primary home-nav-start" type="button" onClick={() => onStart()}>
               Start
@@ -258,8 +274,9 @@ export function HomePage({ onStart }: HomePageProps) {
                 target="_blank"
                 rel="noreferrer"
               >
-                GitHub
-                <ExternalLink aria-hidden="true" size={15} />
+                <Star aria-hidden="true" size={15} className="home-star-icon" />
+                <span>Star on GitHub</span>
+                {stars !== null && <span className="home-star-count">{stars}</span>}
               </a>
             </div>
           </div>
