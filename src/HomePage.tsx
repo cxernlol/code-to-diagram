@@ -3,9 +3,11 @@ import { ArrowRight, GitBranch, Grid3x3, HardDrive, ImageDown, Star } from "luci
 
 const GITHUB_URL = "https://github.com/cxernlol/sgs-chify";
 const GITHUB_API_URL = "https://api.github.com/repos/cxernlol/sgs-chify";
+const STORAGE_NOTICE_KEY = "sgs-storage-notice";
 
 interface HomePageProps {
   onStart: (templateName?: string) => void;
+  onLegal: (tab: "privacy" | "terms") => void;
 }
 
 interface FormatDemo {
@@ -209,9 +211,25 @@ Canvas -> Export: SVG/PNG`,
   },
 ];
 
-export function HomePage({ onStart }: HomePageProps) {
+export function HomePage({ onStart, onLegal }: HomePageProps) {
   const [activeFormat, setActiveFormat] = useState(FORMAT_DEMOS[0]!);
   const [stars, setStars] = useState<number | null>(null);
+  const [noticeDismissed, setNoticeDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_NOTICE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const dismissNotice = () => {
+    setNoticeDismissed(true);
+    try {
+      localStorage.setItem(STORAGE_NOTICE_KEY, "1");
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -348,10 +366,30 @@ export function HomePage({ onStart }: HomePageProps) {
 
       <footer className="home-footer">
         <span>SGS Studio</span>
-        <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-          github.com/cxernlol/sgs-chify
-        </a>
+        <div className="home-footer-links">
+          <button type="button" className="home-footer-btn" onClick={() => onLegal("privacy")}>
+            Privacy &amp; Cookies
+          </button>
+          <button type="button" className="home-footer-btn" onClick={() => onLegal("terms")}>
+            Terms
+          </button>
+          <a href={GITHUB_URL} target="_blank" rel="noreferrer">
+            github.com/cxernlol/sgs-chify
+          </a>
+        </div>
       </footer>
+
+      {!noticeDismissed && (
+        <aside className="cookie-notice" aria-label="Storage notice">
+          <span>Essential browser storage only. No tracking cookies.</span>
+          <button type="button" className="cookie-link" onClick={() => onLegal("privacy")}>
+            Privacy
+          </button>
+          <button type="button" className="cookie-dismiss" onClick={dismissNotice}>
+            Got it
+          </button>
+        </aside>
+      )}
     </div>
   );
 }

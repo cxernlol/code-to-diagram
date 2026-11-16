@@ -42,6 +42,7 @@ import {
 import { CodeEditor, type CodeEditorHandle } from "./CodeEditor";
 import { DiagramCanvas, type DiagramCanvasHandle } from "./DiagramCanvas";
 import { HomePage } from "./HomePage";
+import { LegalPage, type LegalTab } from "./LegalPage";
 import { PROVIDERS, TEMPLATES, THEME_PRESETS, createDocument } from "./constants";
 import {
   cleanMermaidCode,
@@ -158,15 +159,22 @@ function errorText(error: unknown): string {
     : message;
 }
 
+type AppView = "home" | "studio" | "privacy" | "terms";
+
 function isStudioHash(hash: string): boolean {
   return hash === "#app" || hash.startsWith("#d=");
 }
 
+function viewFromHash(hash: string): AppView {
+  if (isStudioHash(hash)) return "studio";
+  if (hash === "#privacy") return "privacy";
+  if (hash === "#terms") return "terms";
+  return "home";
+}
+
 function App() {
   const reduceMotion = useReducedMotion();
-  const [view, setView] = useState<"home" | "studio">(() =>
-    isStudioHash(window.location.hash) ? "studio" : "home",
-  );
+  const [view, setView] = useState<AppView>(() => viewFromHash(window.location.hash));
   const [data, setData] = useState<StudioData | null>(null);
   const dataRef = useRef<StudioData | null>(null);
   const historyRef = useRef(new Map<string, EditStack>());
@@ -395,6 +403,10 @@ function App() {
   useEffect(() => {
     if (view === "home") {
       document.title = "SGS Studio: Code to Diagram Editor for Mermaid, DOT & SQL";
+    } else if (view === "privacy") {
+      document.title = "Privacy & Cookies — SGS Studio";
+    } else if (view === "terms") {
+      document.title = "Terms of Use — SGS Studio";
     } else if (activeDocument) {
       document.title = `${activeDocument.name} — SGS Studio`;
     }
@@ -402,10 +414,15 @@ function App() {
 
   useEffect(() => {
     const onHashChange = () => {
-      setView(isStudioHash(window.location.hash) ? "studio" : "home");
+      setView(viewFromHash(window.location.hash));
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  const openLegal = useCallback((tab: LegalTab) => {
+    setView(tab);
+    window.location.hash = `#${tab}`;
   }, []);
 
   const openHome = useCallback(() => {
@@ -885,7 +902,18 @@ function App() {
   }
 
   if (view === "home") {
-    return <HomePage onStart={openStudio} />;
+    return <HomePage onStart={openStudio} onLegal={openLegal} />;
+  }
+
+  if (view === "privacy" || view === "terms") {
+    return (
+      <LegalPage
+        tab={view}
+        onSwitch={openLegal}
+        onBack={openHome}
+        onStart={() => openStudio()}
+      />
+    );
   }
 
   if (!data || !activeDocument) {

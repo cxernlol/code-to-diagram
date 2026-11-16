@@ -43,6 +43,16 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   await page.getByRole("button", { name: "SGS Studio home" }).click();
   await expect(page.getByRole("heading", { name: /Write code\. Drag boxes and lines into place\./i })).toBeVisible();
 
+  await page.getByRole("button", { name: "Privacy & Cookies" }).click();
+  await expect(page).toHaveURL(/#privacy$/);
+  await expect(page.getByRole("heading", { name: /Privacy Policy & Minimal Cookies/i })).toBeVisible();
+  await page.getByRole("button", { name: "Terms" }).click();
+  await expect(page).toHaveURL(/#terms$/);
+  await expect(page.getByRole("heading", { name: /Terms of Use/i })).toBeVisible();
+  await page.getByRole("button", { name: "Back to home" }).click();
+  await page.getByRole("button", { name: "Got it" }).click();
+  await expect(page.getByRole("complementary", { name: "Storage notice" })).toBeHidden();
+
   await page.locator(".home-cta-start").click();
   await expect(page).toHaveURL(/#app$/);
   await expect(page.locator(".diagram-graphic svg")).toBeVisible();
