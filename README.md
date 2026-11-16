@@ -1,26 +1,34 @@
 # SGS Studio
 
-SGS Studio is a free, browser-based Mermaid editor. Edit Mermaid source, move
-individual nodes in flowchart, class, state, and ER diagrams, and export SVG or
-PNG. AI features are optional and use a provider endpoint and key you configure.
+A local-first, free-forever browser workspace for editing and visually tweaking Mermaid diagrams. Built to bypass paywalled SaaS tools and corporate cloud bloat.
 
-## Run locally
+## Features
 
-```sh
+- **Live Code & Visual Editing:** Edit raw Mermaid source code or manually drag and reposition individual nodes in flowcharts, class, state, and ER diagrams.
+- **Local-First Storage:** All diagrams, layout adjustments, and settings live securely in your browser's IndexedDB. 
+- **Zero Login:** Open the app and start working immediately. No accounts, no tracking, no subscriptions.
+- **BYOK AI (Optional):** Use your own provider endpoint and API key. AI requests go directly from your browser to your configured provider.
+- **Clean Export:** Export production-ready SVG or PNG assets instantly.
+
+## Getting Started
+
+Clone the repository and run it locally:
+
+```bash
+git clone https://github.com/cxernlol/sgs-chify.git
+cd sgs-chify
 npm install
 npm run dev
 ```
 
-Run `npm run build` to type-check and create the production app in `dist/`.
+To type-check and generate a production build in `dist/`:
 
-## Saved work and AI privacy
+```bash
+npm run build
+```
 
-Diagrams, layout, and settings are stored in IndexedDB in this browser. On first
-launch, SGS Studio migrates the existing `mstudio2` localStorage workspace and
-leaves the original value untouched as a recovery copy. Provider credentials
-are stored separately from diagrams.
+## Data & Privacy
 
-When you explicitly start an AI request, the prompt, current diagram, and API
-key are sent directly from the browser to the configured provider. Some
-providers block browser requests with CORS. Provider usage may incur charges;
-SGS Studio itself has no paid features or diagram limits.
+- **Storage:** Data is stored locally in IndexedDB. On first launch, SGS Studio automatically migrates legacy `mstudio2` `localStorage` workspaces while leaving a recovery copy untouched.
+- **AI Requests:** When you invoke an AI prompt, your code, prompt, and API key are sent directly from your browser to your endpoint. (Note: Some providers may require CORS configuration for browser-origin requests).
+- **Cost:** SGS Studio has zero paid features, zero subscription tiers, and zero diagram limits. You only incur costs if you plug in a paid commercial AI provider key.
