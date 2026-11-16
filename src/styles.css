@@ -475,6 +475,18 @@ summary:focus-visible,
   background: #faf4ed;
 }
 
+.format-convert-select {
+  max-inline-size: 108px;
+  min-block-size: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 10px;
+}
+
 .pane-actions,
 .preview-actions {
   gap: 2px;

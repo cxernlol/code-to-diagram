@@ -6,7 +6,7 @@ Live app: [sgs-chify.vercel.app](https://sgs-chify.vercel.app/)
 
 ## Features
 
-- **Multi-Format Code to Diagrams:** Auto-detects and renders **Mermaid**, **Graphviz DOT**, **PlantUML**, **D2**, **SQL DDL** (`CREATE TABLE` to ER diagram), and **TypeScript** interfaces/classes (`classDiagram`) into the same interactive canvas.
+- **Multi-Format Code to Diagrams & Translation:** Auto-detects and renders **Mermaid**, **Graphviz DOT**, **PlantUML**, **D2**, **SQL DDL**, **TypeScript**, and **XML** (including Draw.io `mxGraphModel`, BPMN, and generic XML trees) into the interactive canvas, with one-click cross-format translation via **Convert to…**.
 - **Move Boxes and Lines:** Drag individual nodes, nudge them with arrow keys, drag connector segments to adjust routing lanes, and snap to a configurable grid with alignment guides.
 - **Layered Arrangement & Auto-Focus:** Arrange nodes cleanly in one click, center the viewport on active diagram bounds, and expand either the source or preview pane.
 - **Clean Connectors & Labels:** Orthogonal edge routing with perpendicular port stubs, centered labels and diamond exits, and theme presets (`default`, `dark`, `forest`, `neutral`) with automatic contrast guards.

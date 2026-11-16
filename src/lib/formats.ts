@@ -1,10 +1,13 @@
+import { emitFromIR, parseMermaidToIR, parseXmlToIR } from "./translate";
+
 export type CodeFormat =
   | "mermaid"
   | "dot"
   | "plantuml"
   | "d2"
   | "sql"
-  | "typescript";
+  | "typescript"
+  | "xml";
 
 export const FORMAT_LABELS: Record<CodeFormat, string> = {
   mermaid: "Mermaid",
@@ -13,6 +16,7 @@ export const FORMAT_LABELS: Record<CodeFormat, string> = {
   d2: "D2",
   sql: "SQL DDL",
   typescript: "TypeScript",
+  xml: "XML",
 };
 
 export const FORMAT_EXTENSIONS: Record<CodeFormat, string> = {
@@ -22,6 +26,7 @@ export const FORMAT_EXTENSIONS: Record<CodeFormat, string> = {
   d2: "d2",
   sql: "sql",
   typescript: "ts",
+  xml: "xml",
 };
 
 const MERMAID_HEADER_RE =
@@ -61,6 +66,9 @@ export function detectCodeFormat(source: string): CodeFormat {
   const trimmed = source.replace(/^\uFEFF/, "").trim();
   if (!trimmed) return "mermaid";
   if (MERMAID_HEADER_RE.test(trimmed)) return "mermaid";
+  if (/^<\?xml\b|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?>[\s\S]*<\/[A-Za-z_][\w:-]*>\s*$|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?\/>\s*$/i.test(trimmed)) {
+    return "xml";
+  }
   if (/^@startuml\b/im.test(trimmed)) return "plantuml";
   if (/^(?:strict\s+)?(?:di)?graph\b[\s\S]*\{/i.test(trimmed)) return "dot";
   if (/\bCREATE\s+TABLE\b/i.test(trimmed)) return "sql";
@@ -479,6 +487,8 @@ export function toMermaidSource(source: string): {
 } {
   const format = detectCodeFormat(source);
   switch (format) {
+    case "xml":
+      return { format, mermaid: emitFromIR(parseXmlToIR(source), "mermaid") };
     case "dot":
       return { format, mermaid: convertDotToMermaid(source) };
     case "plantuml":
@@ -492,4 +502,14 @@ export function toMermaidSource(source: string): {
     default:
       return { format: "mermaid", mermaid: source };
   }
+}
+
+export function translateCodeFormat(source: string, target: CodeFormat): string {
+  const format = detectCodeFormat(source);
+  if (format === target) return source;
+  const ir =
+    format === "xml"
+      ? parseXmlToIR(source)
+      : parseMermaidToIR(toMermaidSource(source).mermaid);
+  return emitFromIR(ir, target);
 }

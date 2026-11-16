@@ -266,6 +266,18 @@ interface Diagram {
   owner: User;
   nodes: number;
 }`,
+
+  "XML Diagram": `<diagram kind="flowchart" direction="LR">
+  <nodes>
+    <node id="Client" label="Web App" />
+    <node id="Gateway" label="API Gateway" shape="diamond" />
+    <node id="Store" label="Postgres" shape="cylinder" />
+  </nodes>
+  <edges>
+    <edge from="Client" to="Gateway" label="HTTPS" />
+    <edge from="Gateway" to="Store" label="SQL" />
+  </edges>
+</diagram>`,
 };
 
 export function createDocument(

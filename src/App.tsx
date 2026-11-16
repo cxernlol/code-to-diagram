@@ -63,6 +63,8 @@ import {
   detectCodeFormat,
   FORMAT_EXTENSIONS,
   FORMAT_LABELS,
+  translateCodeFormat,
+  type CodeFormat,
 } from "./lib/formats";
 import { detectDiagramType, type DiagramType } from "./lib/mermaid";
 import {
@@ -947,7 +949,7 @@ function App() {
           <button className="icon-button" title="Open Mermaid or Markdown file" aria-label="Open Mermaid or Markdown file" onClick={() => fileInput.current?.click()}>
             <FolderOpen aria-hidden="true" size={17} />
           </button>
-          <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,text/plain,text/markdown" onChange={(event) => void importFile(event)} />
+          <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,text/plain,text/markdown,application/xml" onChange={(event) => void importFile(event)} />
           <button className="icon-button" title="Copy source" aria-label="Copy Mermaid source" onClick={() => void copyCode()}>
             <Clipboard aria-hidden="true" size={17} />
           </button>
@@ -1117,6 +1119,32 @@ function App() {
               </button>
               <span>Source</span>
               <span className="language-chip">{FORMAT_LABELS[codeFormat]}</span>
+              <select
+                className="format-convert-select"
+                aria-label="Convert code format"
+                title="Translate current code to another format"
+                value=""
+                onChange={(event) => {
+                  const target = event.target.value as CodeFormat | "";
+                  if (!target) return;
+                  try {
+                    const converted = translateCodeFormat(activeDocument.code, target);
+                    changeCode(converted);
+                    setNotice(`Translated to ${FORMAT_LABELS[target]}.`);
+                  } catch (error) {
+                    setStorageError(errorText(error));
+                  }
+                }}
+              >
+                <option value="">Convert to…</option>
+                {(Object.keys(FORMAT_LABELS) as CodeFormat[])
+                  .filter((fmt) => fmt !== codeFormat)
+                  .map((fmt) => (
+                    <option key={fmt} value={fmt}>
+                      {FORMAT_LABELS[fmt]}
+                    </option>
+                  ))}
+              </select>
             </div>
             <div className="pane-actions">
               <button className="icon-button compact" aria-label="Download source file" title="Download source file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>

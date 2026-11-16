@@ -620,7 +620,7 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(pngHeight).toBeGreaterThan(1000);
 });
 
-test("renders DOT, PlantUML, D2, SQL DDL, and TypeScript code into interactive diagrams", async ({ page }) => {
+test("renders DOT, PlantUML, D2, SQL DDL, TypeScript, and XML code and translates between formats", async ({ page }) => {
   await page.goto("/#app");
   const cases = [
     { template: "DOT Graph", chip: "Graphviz DOT", text: "API Gateway", node: "API" },
@@ -628,6 +628,7 @@ test("renders DOT, PlantUML, D2, SQL DDL, and TypeScript code into interactive d
     { template: "D2 Flow", chip: "D2", text: "Compiler", node: "Compiler" },
     { template: "SQL Schema", chip: "SQL DDL", text: "projects" },
     { template: "TypeScript Types", chip: "TypeScript", text: "Diagram", node: "Diagram" },
+    { template: "XML Diagram", chip: "XML", text: "API Gateway", node: "Gateway" },
   ];
 
   for (const item of cases) {
@@ -638,4 +639,12 @@ test("renders DOT, PlantUML, D2, SQL DDL, and TypeScript code into interactive d
       await expect(page.locator(`[data-sgs-node="${item.node}"]`)).toBeVisible();
     }
   }
+
+  await page.getByLabel("Convert code format").selectOption("dot");
+  await expect(page.locator(".language-chip")).toHaveText("Graphviz DOT");
+  await expect(page.locator('[data-sgs-node="Gateway"]')).toBeVisible();
+
+  await page.getByLabel("Convert code format").selectOption("typescript");
+  await expect(page.locator(".language-chip")).toHaveText("TypeScript");
+  await expect(page.locator('[data-sgs-node="Gateway"]')).toBeVisible();
 });
