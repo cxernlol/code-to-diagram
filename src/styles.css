@@ -1,7 +1,7 @@
 :root {
   font-family: "Segoe UI Variable", "Segoe UI", "Aptos", sans-serif;
-  color: #1c3439;
-  background: #e7edea;
+  color: #23363b;
+  background: #e9eeec;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   color-scheme: light;
@@ -15,10 +15,10 @@
   --text: #23363b;
   --muted: #5a6d6f;
   --surface: #fbfcfa;
-  --surface-2: #e7edea;
-  --surface-chrome: #eef2ef;
-  --border: #cfd9d5;
-  --border-strong: #b4c4be;
+  --surface-2: #eef2ef;
+  --surface-chrome: #f3f6f4;
+  --border: #d7dfdc;
+  --border-strong: #bac8c3;
   --selection: #dce8e2;
   /* 10% Accent: focal points & primary actions */
   --accent: #ad612e;
@@ -27,31 +27,6 @@
   --mono: "Cascadia Code", "Cascadia Mono", Consolas, monospace;
   --radius: 5px;
   --shadow: 0 18px 60px rgb(22 43 47 / 22%);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    color: #e4ecea;
-    background: #141f22;
-    --canvas: #0f1719;
-    --editor-bg: #121b1e;
-    --grid-dot: #293b40;
-    --ink: #e4ecea;
-    --ink-soft: #b8c9c6;
-    --text: #dce6e4;
-    --muted: #8fa3a0;
-    --surface: #172326;
-    --surface-2: #1f2e32;
-    --surface-chrome: #162124;
-    --border: #26383d;
-    --border-strong: #354c52;
-    --selection: #243b40;
-    --accent: #d47a42;
-    --accent-hover: #e08b55;
-    --accent-soft: rgb(212 122 66 / 18%);
-    --shadow: 0 18px 60px rgb(0 0 0 / 50%);
-  }
 }
 
 .message-stack:empty {
@@ -1011,6 +986,7 @@ summary:focus-visible,
 .settings-dialog {
   inline-size: min(690px, calc(100vw - 28px));
   max-block-size: min(88dvh, 850px);
+  overflow: hidden;
   padding: 0;
   border: 1px solid var(--border-strong);
   border-radius: 7px;

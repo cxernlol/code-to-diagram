@@ -1238,7 +1238,7 @@ function App() {
             <div className="settings-grid">
               <label>Theme
                 <select value={data.settings.theme} onChange={(event) => changeSettings({ theme: event.target.value })}>
-                  {["default", "dark", "forest", "neutral", "base"].map((theme) => <option key={theme} value={theme}>{theme === "base" ? "custom" : theme}</option>)}
+                  {["default", "dark", "forest", "neutral"].map((theme) => <option key={theme}>{theme}</option>)}
                 </select>
               </label>
               <label>Look
@@ -1246,9 +1246,9 @@ function App() {
                   <option value="classic">Classic</option><option value="handDrawn">Hand drawn</option>
                 </select>
               </label>
-              <label>Primary color <input type="color" value={data.settings.primaryColor} onChange={(event) => changeSettings({ primaryColor: event.target.value, theme: "base" })} /></label>
-              <label>Node text <input type="color" value={data.settings.textColor} onChange={(event) => changeSettings({ textColor: event.target.value, theme: "base" })} /></label>
-              <label>Connectors <input type="color" value={data.settings.lineColor} onChange={(event) => changeSettings({ lineColor: event.target.value, theme: "base" })} /></label>
+              <label>Primary color <input type="color" value={data.settings.primaryColor} onChange={(event) => changeSettings({ primaryColor: event.target.value })} /></label>
+              <label>Node text <input type="color" value={data.settings.textColor} onChange={(event) => changeSettings({ textColor: event.target.value })} /></label>
+              <label>Connectors <input type="color" value={data.settings.lineColor} onChange={(event) => changeSettings({ lineColor: event.target.value })} /></label>
               <label>Canvas <input type="color" value={data.settings.canvasColor} onChange={(event) => changeSettings({ canvasColor: event.target.value })} /></label>
               <label className="wide-field">Diagram font<input value={data.settings.font} onChange={(event) => changeSettings({ font: event.target.value })} /></label>
             </div>

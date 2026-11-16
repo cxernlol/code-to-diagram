@@ -99,27 +99,23 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
     const color = (value: string, fallback: string) =>
       /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(value) ? value : fallback;
-    const isCustomTheme = settings.theme === "base";
-    const fontFamily = settings.font.replace(/[;{}<>]/g, "");
     const mermaid = await ensureMermaid();
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
       look: settings.look === "handDrawn" ? "handDrawn" : "classic",
-      theme: ["default", "dark", "forest", "neutral", "base"].includes(settings.theme)
+      theme: ["default", "dark", "forest", "neutral"].includes(settings.theme)
         ? settings.theme
         : "default",
       htmlLabels: false,
-      themeVariables: isCustomTheme
-        ? {
-            primaryColor: color(settings.primaryColor, "#eef2ef"),
-            primaryTextColor: color(settings.textColor, "#1c3439"),
-            primaryBorderColor: color(settings.lineColor, "#315158"),
-            lineColor: color(settings.lineColor, "#315158"),
-            background: color(settings.canvasColor, "#f5f7f5"),
-            fontFamily,
-          }
-        : { fontFamily },
+      themeVariables: {
+        primaryColor: color(settings.primaryColor, "#eef2ef"),
+        primaryTextColor: color(settings.textColor, "#1c3439"),
+        primaryBorderColor: color(settings.lineColor, "#315158"),
+        lineColor: color(settings.lineColor, "#315158"),
+        background: color(settings.canvasColor, "#f5f7f5"),
+        fontFamily: settings.font.replace(/[;{}<>]/g, ""),
+      },
     });
     const rendered = await mermaid.render(`sgs-${sequence}`, source);
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
