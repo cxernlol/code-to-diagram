@@ -78,15 +78,98 @@ function distanceToBounds(point: Position, bounds: ReturnType<typeof boundsInRoo
   return Math.hypot(dx, dy);
 }
 
-function clipToBounds(bounds: ReturnType<typeof boundsInRoot>, target: Position): Position {
+function clipToBounds(
+  bounds: ReturnType<typeof boundsInRoot>,
+  target: Position,
+): { point: Position; normal: Position } {
   const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
   const dx = target.x - center.x;
   const dy = target.y - center.y;
-  const scale = Math.min(
-    bounds.width / 2 / Math.max(Math.abs(dx), 0.001),
-    bounds.height / 2 / Math.max(Math.abs(dy), 0.001),
+  const halfW = Math.max(bounds.width / 2, 0.001);
+  const halfH = Math.max(bounds.height / 2, 0.001);
+  const scaleX = halfW / Math.max(Math.abs(dx), 0.001);
+  const scaleY = halfH / Math.max(Math.abs(dy), 0.001);
+  if (scaleY <= scaleX) {
+    const sign = dy < 0 ? -1 : 1;
+    const margin = Math.min(12, halfW * 0.5);
+    const clampedX = Math.max(
+      bounds.x + margin,
+      Math.min(bounds.x + bounds.width - margin, center.x + dx * scaleY),
+    );
+    return {
+      point: { x: clampedX, y: center.y + sign * halfH },
+      normal: { x: 0, y: sign },
+    };
+  }
+  const sign = dx < 0 ? -1 : 1;
+  const margin = Math.min(12, halfH * 0.5);
+  const clampedY = Math.max(
+    bounds.y + margin,
+    Math.min(bounds.y + bounds.height - margin, center.y + dy * scaleX),
   );
-  return { x: center.x + dx * scale, y: center.y + dy * scale };
+  return {
+    point: { x: center.x + sign * halfW, y: clampedY },
+    normal: { x: sign, y: 0 },
+  };
+}
+
+function normalizeMarkers(svg: SVGSVGElement, canvasColor: string) {
+  svg
+    .querySelectorAll<SVGMarkerElement>(
+      'marker[id$="-extensionStart"], marker[id$="-compositionStart"], marker[id$="-aggregationStart"], marker[id$="-dependencyStart"], marker[id$="-lollipopStart"]',
+    )
+    .forEach((marker) => marker.setAttribute("refX", "1"));
+  svg
+    .querySelectorAll<SVGMarkerElement>(
+      'marker[id$="-extensionEnd"], marker[id$="-compositionEnd"], marker[id$="-aggregationEnd"], marker[id$="-dependencyEnd"]',
+    )
+    .forEach((marker) => marker.setAttribute("refX", "18"));
+  svg
+    .querySelectorAll<SVGMarkerElement>('marker[id$="-lollipopEnd"]')
+    .forEach((marker) => marker.setAttribute("refX", "13"));
+  svg
+    .querySelectorAll<SVGMarkerElement>('marker[id$="-pointEnd"]')
+    .forEach((marker) => marker.setAttribute("refX", "9"));
+  svg
+    .querySelectorAll<SVGMarkerElement>('marker[id$="-pointStart"]')
+    .forEach((marker) => marker.setAttribute("refX", "1"));
+  svg
+    .querySelectorAll<SVGElement>(
+      "marker.extension path, marker.aggregation path, marker.lollipop circle",
+    )
+    .forEach((shape) => {
+      shape.setAttribute("fill", canvasColor);
+      shape.style.fill = canvasColor;
+    });
+}
+
+function simplifyOrthogonal(points: Position[]): Position[] {
+  const deduped = points.filter((point, index) => {
+    const prev = points[index - 1];
+    return !prev || Math.abs(prev.x - point.x) > 0.01 || Math.abs(prev.y - point.y) > 0.01;
+  });
+  const result: Position[] = [];
+  for (const point of deduped) {
+    while (result.length >= 2) {
+      const a = result[result.length - 2]!;
+      const b = result[result.length - 1]!;
+      const abx = b.x - a.x;
+      const aby = b.y - a.y;
+      const bcx = point.x - b.x;
+      const bcy = point.y - b.y;
+      const collinear =
+        (Math.abs(abx) < 0.01 && Math.abs(bcx) < 0.01) ||
+        (Math.abs(aby) < 0.01 && Math.abs(bcy) < 0.01);
+      const sameDirection = abx * bcx + aby * bcy >= 0;
+      if (collinear && sameDirection) {
+        result.pop();
+      } else {
+        break;
+      }
+    }
+    result.push(point);
+  }
+  return result;
 }
 
 function toLocalPoint(
@@ -121,57 +204,100 @@ function routeEdge(
     x: targetBounds.x + targetBounds.width / 2,
     y: targetBounds.y + targetBounds.height / 2,
   };
-  const start = clipToBounds(sourceBounds, {
+  const { point: start, normal: startNormal } = clipToBounds(sourceBounds, {
     x: targetCenter.x + parallelOffset,
     y: targetCenter.y + parallelOffset,
   });
-  const end = clipToBounds(targetBounds, {
+  const { point: end, normal: endNormal } = clipToBounds(targetBounds, {
     x: sourceCenter.x + parallelOffset,
     y: sourceCenter.y + parallelOffset,
   });
+  const stub = 22;
+  const startStub = {
+    x: start.x + startNormal.x * stub,
+    y: start.y + startNormal.y * stub,
+  };
+  const endStub = {
+    x: end.x + endNormal.x * stub,
+    y: end.y + endNormal.y * stub,
+  };
   const obstacles = allNodes
     .filter((node) => node.id !== source.dataset.sgsNode && node.id !== target.dataset.sgsNode)
     .map((node) => boundsInRoot(svg, node.wrapper));
+  const endpointBoxes = [sourceBounds, targetBounds];
   const xCandidates = new Set([
-    (start.x + end.x) / 2 + parallelOffset,
-    ...obstacles.flatMap((box) => [box.x - 18, box.x + box.width + 18]),
+    (startStub.x + endStub.x) / 2 + parallelOffset,
+    startStub.x,
+    endStub.x,
+    ...obstacles.flatMap((box) => [box.x - 22, box.x + box.width + 22]),
+    ...endpointBoxes.flatMap((box) => [box.x - 22, box.x + box.width + 22]),
   ]);
   const yCandidates = new Set([
-    (start.y + end.y) / 2 + parallelOffset,
-    ...obstacles.flatMap((box) => [box.y - 18, box.y + box.height + 18]),
+    (startStub.y + endStub.y) / 2 + parallelOffset,
+    startStub.y,
+    endStub.y,
+    ...obstacles.flatMap((box) => [box.y - 22, box.y + box.height + 22]),
+    ...endpointBoxes.flatMap((box) => [box.y - 22, box.y + box.height + 22]),
   ]);
   const candidates = [
-    ...Array.from(xCandidates, (x) => [start, { x, y: start.y }, { x, y: end.y }, end]),
-    ...Array.from(yCandidates, (y) => [start, { x: start.x, y }, { x: end.x, y }, end]),
-  ].map((points) => points.filter((point, index) => {
-    const previous = points[index - 1];
-    return !previous || previous.x !== point.x || previous.y !== point.y;
-  }));
-  const blocked = (a: Position, b: Position, box: ReturnType<typeof boundsInRoot>) => {
-    if (a.y === b.y) {
+    ...Array.from(yCandidates, (y) => [
+      start,
+      startStub,
+      { x: startStub.x, y },
+      { x: endStub.x, y },
+      endStub,
+      end,
+    ]),
+    ...Array.from(xCandidates, (x) => [
+      start,
+      startStub,
+      { x, y: startStub.y },
+      { x, y: endStub.y },
+      endStub,
+      end,
+    ]),
+  ].map(simplifyOrthogonal);
+  const blocked = (a: Position, b: Position, box: ReturnType<typeof boundsInRoot>, pad = 8) => {
+    if (Math.abs(a.y - b.y) < 0.01) {
       return (
-        a.y > box.y - 8 &&
-        a.y < box.y + box.height + 8 &&
-        Math.max(Math.min(a.x, b.x), box.x - 8) <
-          Math.min(Math.max(a.x, b.x), box.x + box.width + 8)
+        a.y > box.y - pad &&
+        a.y < box.y + box.height + pad &&
+        Math.max(Math.min(a.x, b.x), box.x - pad) <
+          Math.min(Math.max(a.x, b.x), box.x + box.width + pad)
       );
     }
     return (
-      a.x > box.x - 8 &&
-      a.x < box.x + box.width + 8 &&
-      Math.max(Math.min(a.y, b.y), box.y - 8) <
-        Math.min(Math.max(a.y, b.y), box.y + box.height + 8)
+      a.x > box.x - pad &&
+      a.x < box.x + box.width + pad &&
+      Math.max(Math.min(a.y, b.y), box.y - pad) <
+        Math.min(Math.max(a.y, b.y), box.y + box.height + pad)
     );
   };
   const score = (points: Position[]) => {
     let length = 0;
     let collisions = 0;
+    const first = points[1];
+    const lastPrev = points[points.length - 2];
+    if (first) {
+      const dotStart = (first.x - start.x) * startNormal.x + (first.y - start.y) * startNormal.y;
+      if (dotStart < 1) collisions += 10;
+    }
+    if (lastPrev) {
+      const dotEnd = (lastPrev.x - end.x) * endNormal.x + (lastPrev.y - end.y) * endNormal.y;
+      if (dotEnd < 1) collisions += 10;
+    }
     for (let index = 1; index < points.length; index += 1) {
       const a = points[index - 1];
       const b = points[index];
       if (!a || !b) continue;
       length += Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
-      collisions += obstacles.filter((box) => blocked(a, b, box)).length;
+      collisions += obstacles.filter((box) => blocked(a, b, box, 8)).length;
+      if (index > 1) {
+        collisions += blocked(a, b, sourceBounds, -1) ? 1 : 0;
+      }
+      if (index < points.length - 1) {
+        collisions += blocked(a, b, targetBounds, -1) ? 1 : 0;
+      }
     }
     return length + (points.length - 2) * 14 + collisions * 100000;
   };
@@ -477,6 +603,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     if (!graphic || !svg || !viewport) return;
     const previousDocumentId = graphic.dataset.documentId;
     graphic.dataset.documentId = document.id;
+    normalizeMarkers(svg, settingsRef.current.canvasColor);
     if (!["flowchart", "class", "state", "er"].includes(detectDiagramType(document.code))) {
       if (previousDocumentId !== document.id) requestAnimationFrame(() => fit());
       return;

@@ -85,6 +85,24 @@ test("class relationships follow a snapped class move", async ({ page }) => {
 
   await expect.poll(() => edge.getAttribute("d")).not.toBe(beforePath);
   await expectEdgeEndsAtNodes(edge);
+  const tangents = await edge.evaluate((el) => {
+    const path = el as SVGPathElement;
+    const len = path.getTotalLength();
+    const p0 = path.getPointAtLength(0);
+    const p1 = path.getPointAtLength(Math.min(10, len / 4));
+    const pEndPrev = path.getPointAtLength(Math.max(0, len - Math.min(10, len / 4)));
+    const pEnd = path.getPointAtLength(len);
+    return {
+      startDx: Math.abs(p1.x - p0.x),
+      startDy: p1.y - p0.y,
+      endDx: Math.abs(pEnd.x - pEndPrev.x),
+      endDy: pEnd.y - pEndPrev.y,
+    };
+  });
+  expect(tangents.startDx).toBeLessThan(0.5);
+  expect(tangents.startDy).toBeGreaterThan(5);
+  expect(tangents.endDx).toBeLessThan(0.5);
+  expect(tangents.endDy).toBeGreaterThan(5);
 });
 
 test("upgrades existing workspaces to grid snapping without changing the new default", async ({ page }) => {
