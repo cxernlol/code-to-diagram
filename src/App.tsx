@@ -26,6 +26,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+
 import {
   useCallback,
   useEffect,
@@ -37,8 +38,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+
 import { CodeEditor, type CodeEditorHandle } from "./CodeEditor";
 import { DiagramCanvas, type DiagramCanvasHandle } from "./DiagramCanvas";
+import { HomePage } from "./HomePage";
 import { PROVIDERS, TEMPLATES, THEME_PRESETS, createDocument } from "./constants";
 import {
   cleanMermaidCode,
@@ -46,6 +49,7 @@ import {
   requestAiText,
   validateMermaid,
 } from "./ai";
+
 import {
   createShareHash,
   exportPng,
@@ -53,6 +57,7 @@ import {
   getImportedMermaid,
   getSharedPayload,
 } from "./export";
+
 import { detectDiagramType, type DiagramType } from "./lib/mermaid";
 import {
   broadcastDocumentChange,
@@ -66,6 +71,7 @@ import {
   saveDocument,
   saveSettings,
 } from "./storage";
+
 import type {
   DiagramDocument,
   Position,
@@ -101,6 +107,7 @@ const SYSTEM_STRUCTURED =
   'Return one valid JSON object only: {"overview":"<Mermaid source>","diagrams":[{"name":"<short descriptive name>","code":"<Mermaid source>"}]}. Include an Overview and at least one named detail diagram. Keep each diagram focused and professional. Do not wrap the JSON in markdown.';
 const SYSTEM_EXPLAIN =
   "Explain the supplied Mermaid diagram in concise plain language. Do not return Mermaid code or modify the diagram.";
+
 const SYNTAX_GUIDANCE: Record<DiagramType, string> = {
   flowchart: "Use flowchart TD or LR, stable node IDs, and --> or labeled -->|text| edges.",
   class: "Use classDiagram, class blocks for members, and typed relationships such as A --> B.",
@@ -146,8 +153,15 @@ function errorText(error: unknown): string {
     : message;
 }
 
+function isStudioHash(hash: string): boolean {
+  return hash === "#app" || hash.startsWith("#d=");
+}
+
 function App() {
   const reduceMotion = useReducedMotion();
+  const [view, setView] = useState<"home" | "studio">(() =>
+    isStudioHash(window.location.hash) ? "studio" : "home",
+  );
   const [data, setData] = useState<StudioData | null>(null);
   const dataRef = useRef<StudioData | null>(null);
   const historyRef = useRef(new Map<string, EditStack>());
@@ -349,7 +363,8 @@ function App() {
           };
           loaded.documents = [...loaded.documents, shared];
           loaded.settings = { ...loaded.settings, activeDocumentId: shared.id };
-          history.replaceState(null, "", window.location.pathname + window.location.search);
+          setView("studio");
+          history.replaceState(null, "", `${window.location.pathname}${window.location.search}#app`);
           expectedUpdatedAt.current.set(shared.id, 0);
           setDirtyIds((current) => new Set(current).add(shared.id));
         }
@@ -371,6 +386,28 @@ function App() {
   useEffect(() => {
     void boot();
   }, [boot]);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      setView(isStudioHash(window.location.hash) ? "studio" : "home");
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  const openStudio = useCallback(() => {
+    setView("studio");
+    if (!isStudioHash(window.location.hash)) {
+      window.location.hash = "#app";
+    }
+  }, []);
+
+  const openHome = useCallback(() => {
+    setView("home");
+    if (window.location.hash) {
+      history.pushState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
 
   useEffect(() => {
     if (data) dataRef.current = data;
@@ -630,9 +667,9 @@ function App() {
             : `Improve this ${detectDiagramType(activeDocument.code)} diagram. Keep its meaning and IDs where practical. Return valid Mermaid source.`,
           `Syntax guidance: ${SYNTAX_GUIDANCE[detectDiagramType(activeDocument.code)]}`,
           customPrompt ||
-            (structured
-              ? "Organize the content into a clear overview and focused supporting diagrams."
-              : "Improve the structure and readability without changing the meaning."),
+          (structured
+            ? "Organize the content into a clear overview and focused supporting diagrams."
+            : "Improve the structure and readability without changing the meaning."),
           `Existing Mermaid source:\n${activeDocument.code}`,
           feedback && `Validation feedback from attempt ${attempt + 1}: ${feedback}`,
         ]
@@ -826,6 +863,10 @@ function App() {
     );
   }
 
+  if (view === "home") {
+    return <HomePage onStart={openStudio} />;
+  }
+
   if (!data || !activeDocument) {
     return <main className="boot-screen" aria-live="polite">Loading saved diagrams…</main>;
   }
@@ -836,8 +877,16 @@ function App() {
     <main className="studio" style={{ "--split": `${data.settings.splitPercent}%` } as CSSProperties}>
       <header className="topbar">
         <div className="brand-lockup">
-          <span className="brand-mark"><GitBranch aria-hidden="true" size={17} /></span>
-          <span className="brand-name">SGS Studio</span>
+          <button
+            className="brand-home-button"
+            type="button"
+            onClick={openHome}
+            title="Back to home"
+            aria-label="SGS Studio home"
+          >
+            <span className="brand-mark"><GitBranch aria-hidden="true" size={17} /></span>
+            <span className="brand-name">SGS Studio</span>
+          </button>
           <span className="brand-divider" aria-hidden="true" />
           <span className="workbench-label">Diagram workbench</span>
         </div>
@@ -941,52 +990,52 @@ function App() {
 
       <div className="message-stack">
         {externalConflict && (
-        <section className="conflict-banner" role="alert">
-          <span>“{externalConflict.name}” changed in another browser tab.</span>
-          <button
-            type="button"
-            onClick={() => {
-              const conflict = externalConflict;
-              expectedUpdatedAt.current.set(conflict.id, conflict.updatedAt);
-              updateDocument(conflict.id, () => conflict, false);
-              setExternalConflict(undefined);
-              setStorageError("");
-            }}
-          >
-            Load other version
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              expectedUpdatedAt.current.set(externalConflict.id, externalConflict.updatedAt);
-              setExternalConflict(undefined);
-              markDirty(externalConflict.id);
-            }}
-          >
-            Keep my version
-          </button>
-        </section>
-      )}
-      {(storageError || renderError) && (
-        <section className="error-banner" role="alert">
-          <span>{storageError || renderError?.message}</span>
-          {renderError?.line && (
+          <section className="conflict-banner" role="alert">
+            <span>“{externalConflict.name}” changed in another browser tab.</span>
             <button
               type="button"
               onClick={() => {
-                setMobilePane("code");
-                setExpandedPane((current) => (current === "preview" ? "none" : current));
-                editorRef.current?.focusLine(renderError.line!);
+                const conflict = externalConflict;
+                expectedUpdatedAt.current.set(conflict.id, conflict.updatedAt);
+                updateDocument(conflict.id, () => conflict, false);
+                setExternalConflict(undefined);
+                setStorageError("");
               }}
             >
-              Line {renderError.line}
+              Load other version
             </button>
-          )}
-          <button type="button" aria-label="Dismiss error" onClick={() => { setStorageError(""); setRenderError(undefined); }}>
-            <X aria-hidden="true" size={15} />
-          </button>
-        </section>
-      )}
+            <button
+              type="button"
+              onClick={() => {
+                expectedUpdatedAt.current.set(externalConflict.id, externalConflict.updatedAt);
+                setExternalConflict(undefined);
+                markDirty(externalConflict.id);
+              }}
+            >
+              Keep my version
+            </button>
+          </section>
+        )}
+        {(storageError || renderError) && (
+          <section className="error-banner" role="alert">
+            <span>{storageError || renderError?.message}</span>
+            {renderError?.line && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobilePane("code");
+                  setExpandedPane((current) => (current === "preview" ? "none" : current));
+                  editorRef.current?.focusLine(renderError.line!);
+                }}
+              >
+                Line {renderError.line}
+              </button>
+            )}
+            <button type="button" aria-label="Dismiss error" onClick={() => { setStorageError(""); setRenderError(undefined); }}>
+              <X aria-hidden="true" size={15} />
+            </button>
+          </section>
+        )}
       </div>
 
       <div className="mobile-pane-switch" role="group" aria-label="Editor and preview">

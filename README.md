@@ -1,18 +1,20 @@
 # SGS Studio
 
-A local-first, free-forever browser workspace for editing and visually tweaking Mermaid diagrams. Built to bypass paywalled SaaS tools and corporate cloud bloat.
+A local-first Mermaid diagram editor that runs in your browser. Write Mermaid code on the left, drag nodes and connector lines into place on the right, and export without creating an account.
+
+Live app: [sgs-chify.vercel.app](https://sgs-chify.vercel.app/)
 
 ## Features
 
-- **Live Code & Visual Editing:** Edit raw Mermaid source code or manually drag and reposition individual nodes in flowcharts, class, state, and ER diagrams.
-- **Local-First Storage:** All diagrams, layout adjustments, and settings live securely in your browser's IndexedDB. 
-- **Zero Login:** Open the app and start working immediately. No accounts, no tracking, no subscriptions.
-- **BYOK AI (Optional):** Use your own provider endpoint and API key. AI requests go directly from your browser to your configured provider.
-- **Clean Export:** Export production-ready SVG or PNG assets instantly.
+- **Home & Workbench:** Open the home page to launch straight into the editor (`#app`), or open a shared `#d=...` link directly in the workspace.
+- **Move Boxes and Lines:** Drag individual nodes, nudge them with arrow keys, drag connector segments to adjust routing lanes, and snap to a configurable grid with alignment guides.
+- **Layered Arrangement & Auto-Focus:** Arrange nodes cleanly in one click, center the viewport on active diagram bounds, and expand either the source or preview pane.
+- **Clean Connectors & Labels:** Orthogonal edge routing with perpendicular port stubs, centered labels and diamond exits, and theme presets (`default`, `dark`, `forest`, `neutral`) with automatic contrast guards.
+- **Local-First Storage:** Diagrams, manual node/edge layouts, version history, and settings are stored in IndexedDB.
+- **Import, Export & Share:** Open `.mmd` or `.md` files, export full-bounds SVG or PNG images, or share a URL that preserves both source code and manual layout.
+- **BYOK AI (Optional):** Connect your own OpenAI, DeepSeek, Ollama, OpenRouter, Groq, or custom OpenAI-compatible endpoint directly from the browser.
 
 ## Getting Started
-
-Clone the repository and run it locally:
 
 ```bash
 git clone https://github.com/cxernlol/sgs-chify.git
@@ -21,14 +23,20 @@ npm install
 npm run dev
 ```
 
-To type-check and generate a production build in `dist/`:
+Type-check and build for production:
 
 ```bash
 npm run build
 ```
 
+Run the Playwright end-to-end test suite:
+
+```bash
+npm test
+```
+
 ## Data & Privacy
 
-- **Storage:** Data is stored locally in IndexedDB. On first launch, SGS Studio automatically migrates legacy `mstudio2` `localStorage` workspaces while leaving a recovery copy untouched.
-- **AI Requests:** When you invoke an AI prompt, your code, prompt, and API key are sent directly from your browser to your endpoint. (Note: Some providers may require CORS configuration for browser-origin requests).
-- **Cost:** SGS Studio has zero paid features, zero subscription tiers, and zero diagram limits. You only incur costs if you plug in a paid commercial AI provider key.
+- **Storage:** Diagrams and preferences stay in your browser's IndexedDB. Legacy `mstudio2` `localStorage` data is migrated on first load while keeping a recovery copy.
+- **AI Requests:** Prompts, diagram source, and API keys are sent directly from your browser to the endpoint you configure.
+- **Cost:** SGS Studio is free to run and has no accounts or paid tiers. If you connect a commercial AI API key, provider usage is billed by that provider.

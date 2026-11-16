@@ -28,8 +28,22 @@ async function expectEdgeEndsAtNodes(edge: Locator): Promise<void> {
   expect(endpoints.every((distance) => distance < 3)).toBe(true);
 }
 
-test("moves one flowchart node and keeps its connectors attached", async ({ page }) => {
+test("shows the home page with Start and GitHub links and opens the diagram app on Start", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: /Write Mermaid diagrams/i })).toBeVisible();
+  const githubLinks = page.getByRole("link", { name: /GitHub/i });
+  await expect(githubLinks.first()).toHaveAttribute("href", "https://github.com/cxernlol/sgs-chify");
+
+  await page.locator(".home-cta-start").click();
+  await expect(page).toHaveURL(/#app$/);
+  await expect(page.locator('[data-sgs-node="Check"]')).toBeVisible();
+
+  await page.getByRole("button", { name: "SGS Studio home" }).click();
+  await expect(page.getByRole("heading", { name: /Write Mermaid diagrams/i })).toBeVisible();
+});
+
+test("moves one flowchart node and keeps its connectors attached", async ({ page }) => {
+  await page.goto("/#app");
   const node = page.locator('[data-sgs-node="Check"]');
   await expect(node).toBeVisible();
   await expect(page.getByRole("region", { name: "Diagram preview" }).getByText("flowchart", { exact: true })).toBeVisible();
@@ -68,7 +82,7 @@ test("moves one flowchart node and keeps its connectors attached", async ({ page
 });
 
 test("class relationships follow a snapped class move", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#app");
   await page.getByLabel("Start from a template").selectOption({ label: "Class" });
   const node = page.locator('[data-sgs-node="Dog"]');
   const edge = page.locator(".diagram-graphic .edgePaths path.relation").first();
@@ -109,7 +123,7 @@ test("upgrades existing workspaces to grid snapping without changing the new def
   await page.route("**/src/main.tsx", (route) =>
     route.fulfill({ contentType: "text/javascript", body: "" }),
   );
-  await page.goto("/");
+  await page.goto("/#app");
   await page.evaluate(() => new Promise<void>((resolve, reject) => {
     const request = indexedDB.open("sgs-studio", 1);
     request.onupgradeneeded = () => {
@@ -176,7 +190,7 @@ test("upgrades existing workspaces to grid snapping without changing the new def
 });
 
 test("H pans, V moves, and keyboard history reverses node movement", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#app");
   const viewport = page.locator(".diagram-viewport");
   const graphic = page.locator(".diagram-graphic");
   const node = page.locator('[data-sgs-node="Check"]');
@@ -235,7 +249,7 @@ test("migrates the legacy workspace without removing its recovery copy", async (
     key: "legacy-key",
   });
   await page.addInitScript((value) => localStorage.setItem("mstudio2", value), legacy);
-  await page.goto("/");
+  await page.goto("/#app");
 
   await expect(page.getByRole("tab", { name: "Legacy diagram" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Mermaid diagram source" })).toContainText("Saved --> Work");
@@ -245,7 +259,7 @@ test("migrates the legacy workspace without removing its recovery copy", async (
 });
 
 test("zooms with the toolbar and wheel and keeps the dotted grid in sync", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#app");
   const graphic = page.locator(".diagram-graphic");
   const viewport = page.locator(".diagram-viewport");
   await expect(page.locator('[data-sgs-node="Check"]')).toBeVisible();
@@ -288,7 +302,7 @@ test("creates structured tabs only after every Mermaid block validates", async (
       body,
     });
   });
-  await page.goto("/");
+  await page.goto("/#app");
   await page.getByRole("button", { name: "Structure" }).click();
   await expect(page.getByRole("heading", { name: "Structured diagrams" })).toBeVisible();
   await expect(page.getByText("Checkout", { exact: true })).toBeVisible();
@@ -299,7 +313,7 @@ test("creates structured tabs only after every Mermaid block validates", async (
 
 test("supports a narrow Code/Preview switch and disables node movement for sequences", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/#app");
   await expect(page.getByRole("button", { name: "Code", exact: false })).toBeVisible();
   await page.getByLabel("Start from a template").selectOption({ label: "Sequence" });
   await expect(page.getByText(/sequence diagrams use automatic layout/i)).toBeVisible();
@@ -309,7 +323,7 @@ test("supports a narrow Code/Preview switch and disables node movement for seque
 });
 
 test("pans when dragging empty canvas space and preserves mindmap foreignObject labels", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#app");
   const viewport = page.locator(".diagram-viewport");
   const graphic = page.locator(".diagram-graphic");
   await expect(page.locator('[data-sgs-node="Check"]')).toBeVisible();
@@ -339,7 +353,7 @@ test("restores both Mermaid source and manual node layout from a share link", as
 });
 
 test("arranges nodes into a grid with one click and undo restores the original layout", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#app");
   await page.getByLabel("Start from a template").selectOption({ label: "Class" });
   const dog = page.locator('[data-sgs-node="Dog"]');
   await expect(dog).toBeVisible();
@@ -353,7 +367,7 @@ test("arranges nodes into a grid with one click and undo restores the original l
 });
 
 test("selecting a theme preset updates primary, text, connector, and canvas colors", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#app");
   await page.getByRole("button", { name: "Open settings" }).click();
   const dialog = page.getByRole("dialog", { name: "Studio settings" });
   await expect(dialog).toBeVisible();
@@ -366,7 +380,7 @@ test("selecting a theme preset updates primary, text, connector, and canvas colo
 });
 
 test("expands preview pane, auto-focuses on grid layout, and enforces readable class diagram colors", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#app");
   await page.getByLabel("Start from a template").selectOption({ label: "Class" });
   const animal = page.locator('[data-sgs-node="Animal"]');
   await expect(animal).toBeVisible();
@@ -406,7 +420,7 @@ test("expands preview pane, auto-focuses on grid layout, and enforces readable c
 });
 
 test("centers edge labels, supports movable lines, routes multi-class diagrams without spikes, and exports full SVG/PNG", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#app");
   const checkNode = page.locator('[data-sgs-node="Check"]');
   await expect(checkNode).toBeVisible();
 
