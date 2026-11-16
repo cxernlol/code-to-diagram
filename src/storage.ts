@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import { DEFAULT_SETTINGS, LEGACY_STORAGE_KEY, TEMPLATES } from "./constants";
+import { DEFAULT_SETTINGS, LEGACY_STORAGE_KEY, TEMPLATES, THEME_PRESETS } from "./constants";
 import type {
   DiagramDocument,
   LegacyState,
@@ -15,6 +15,7 @@ const SETTINGS_KEY = "main";
 const CREDENTIALS_KEY = "provider";
 const INITIALIZED_KEY = "initialized";
 const GRID_SNAP_MIGRATION_KEY = "grid-snap-enabled";
+const THEME_PALETTE_MIGRATION_KEY = "theme-palette-v2";
 const CHANNEL_NAME = "sgs-studio-updates";
 
 interface StudioDatabase extends DBSchema {
@@ -123,15 +124,17 @@ function normalizeLegacy(raw: string): StudioData {
       : 0;
   const activeDocument = documents[currentIndex];
   if (!activeDocument) throw new LegacyDataError(raw, new Error("No saved documents were found."));
+  const theme = typeof state.theme === "string" && state.theme in THEME_PRESETS ? state.theme : DEFAULT_SETTINGS.theme;
+  const preset = THEME_PRESETS[theme] ?? THEME_PRESETS.default!;
   const settings: StudioSettings = {
     ...DEFAULT_SETTINGS,
     activeDocumentId: activeDocument.id,
-    theme: typeof state.theme === "string" ? state.theme : DEFAULT_SETTINGS.theme,
+    theme,
     look: typeof state.look === "string" ? state.look : DEFAULT_SETTINGS.look,
-    primaryColor: typeof state.c1 === "string" ? state.c1 : DEFAULT_SETTINGS.primaryColor,
-    textColor: typeof state.c2 === "string" ? state.c2 : DEFAULT_SETTINGS.textColor,
-    lineColor: typeof state.c3 === "string" ? state.c3 : DEFAULT_SETTINGS.lineColor,
-    canvasColor: typeof state.c4 === "string" ? state.c4 : DEFAULT_SETTINGS.canvasColor,
+    primaryColor: typeof state.c1 === "string" ? state.c1 : preset.primaryColor,
+    textColor: typeof state.c2 === "string" ? state.c2 : preset.textColor,
+    lineColor: typeof state.c3 === "string" ? state.c3 : preset.lineColor,
+    canvasColor: typeof state.c4 === "string" ? state.c4 : preset.canvasColor,
     font: typeof state.font === "string" ? state.font : DEFAULT_SETTINGS.font,
     provider: {
       ...DEFAULT_SETTINGS.provider,
@@ -200,6 +203,7 @@ async function writeInitialData(
   }
   await tx.objectStore("metadata").put(data.migration, INITIALIZED_KEY);
   await tx.objectStore("metadata").put("done", GRID_SNAP_MIGRATION_KEY);
+  await tx.objectStore("metadata").put("done", THEME_PALETTE_MIGRATION_KEY);
   await tx.done;
 }
 
@@ -212,6 +216,14 @@ export async function initializeStudio(ignoreLegacy = false): Promise<StudioData
       data.settings = { ...data.settings, snapEnabled: true };
       await db.put("settings", data.settings, SETTINGS_KEY);
       await db.put("metadata", "done", GRID_SNAP_MIGRATION_KEY);
+    }
+    if (!(await db.get("metadata", THEME_PALETTE_MIGRATION_KEY))) {
+      const preset = THEME_PRESETS[data.settings.theme];
+      if (preset) {
+        data.settings = { ...data.settings, ...preset };
+        await db.put("settings", data.settings, SETTINGS_KEY);
+      }
+      await db.put("metadata", "done", THEME_PALETTE_MIGRATION_KEY);
     }
     return data;
   }

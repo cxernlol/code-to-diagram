@@ -3,14 +3,41 @@ import type { DiagramDocument, ProviderId, StudioSettings } from "./types";
 export const LEGACY_STORAGE_KEY = "mstudio2";
 export const DEFAULT_FONT = "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
+export const THEME_PRESETS: Record<
+  string,
+  { primaryColor: string; textColor: string; lineColor: string; canvasColor: string }
+> = {
+  default: {
+    primaryColor: "#ffffff",
+    textColor: "#1c3439",
+    lineColor: "#315158",
+    canvasColor: "#f5f7f5",
+  },
+  dark: {
+    primaryColor: "#1c2b30",
+    textColor: "#eef4f2",
+    lineColor: "#8ab4ad",
+    canvasColor: "#0f171a",
+  },
+  forest: {
+    primaryColor: "#d8edd9",
+    textColor: "#163624",
+    lineColor: "#2d6a4f",
+    canvasColor: "#f2f7f3",
+  },
+  neutral: {
+    primaryColor: "#eae6df",
+    textColor: "#2b2927",
+    lineColor: "#5c5751",
+    canvasColor: "#f6f5f2",
+  },
+};
+
 export const DEFAULT_SETTINGS: StudioSettings = {
   activeDocumentId: "",
   theme: "default",
   look: "classic",
-  primaryColor: "#eef2ef",
-  textColor: "#1c3439",
-  lineColor: "#315158",
-  canvasColor: "#f5f7f5",
+  ...THEME_PRESETS.default,
   font: DEFAULT_FONT,
   splitPercent: 42,
   zoomSpeed: 1,

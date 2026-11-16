@@ -99,21 +99,34 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
     const color = (value: string, fallback: string) =>
       /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(value) ? value : fallback;
+    const primaryColor = color(settings.primaryColor, "#ffffff");
+    const textColor = color(settings.textColor, "#1c3439");
+    const lineColor = color(settings.lineColor, "#315158");
+    const canvasColor = color(settings.canvasColor, "#f5f7f5");
     const mermaid = await ensureMermaid();
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
       look: settings.look === "handDrawn" ? "handDrawn" : "classic",
-      theme: ["default", "dark", "forest", "neutral"].includes(settings.theme)
-        ? settings.theme
-        : "default",
+      theme: "base",
       htmlLabels: false,
       themeVariables: {
-        primaryColor: color(settings.primaryColor, "#eef2ef"),
-        primaryTextColor: color(settings.textColor, "#1c3439"),
-        primaryBorderColor: color(settings.lineColor, "#315158"),
-        lineColor: color(settings.lineColor, "#315158"),
-        background: color(settings.canvasColor, "#f5f7f5"),
+        primaryColor,
+        mainBkg: primaryColor,
+        nodeBkg: primaryColor,
+        secondBkg: primaryColor,
+        tertiaryColor: canvasColor,
+        primaryTextColor: textColor,
+        secondaryTextColor: textColor,
+        tertiaryTextColor: textColor,
+        textColor,
+        classText: textColor,
+        primaryBorderColor: lineColor,
+        secondaryBorderColor: lineColor,
+        tertiaryBorderColor: lineColor,
+        nodeBorder: lineColor,
+        lineColor,
+        background: canvasColor,
         fontFamily: settings.font.replace(/[;{}<>]/g, ""),
       },
     });

@@ -39,7 +39,7 @@ import {
 } from "react";
 import { CodeEditor, type CodeEditorHandle } from "./CodeEditor";
 import { DiagramCanvas, type DiagramCanvasHandle } from "./DiagramCanvas";
-import { PROVIDERS, TEMPLATES, createDocument } from "./constants";
+import { PROVIDERS, TEMPLATES, THEME_PRESETS, createDocument } from "./constants";
 import {
   cleanMermaidCode,
   parseStructuredDiagrams,
@@ -1237,7 +1237,14 @@ function App() {
             <legend>Diagram appearance</legend>
             <div className="settings-grid">
               <label>Theme
-                <select value={data.settings.theme} onChange={(event) => changeSettings({ theme: event.target.value })}>
+                <select
+                  value={data.settings.theme}
+                  onChange={(event) => {
+                    const theme = event.target.value;
+                    const preset = THEME_PRESETS[theme];
+                    changeSettings(preset ? { theme, ...preset } : { theme });
+                  }}
+                >
                   {["default", "dark", "forest", "neutral"].map((theme) => <option key={theme}>{theme}</option>)}
                 </select>
               </label>

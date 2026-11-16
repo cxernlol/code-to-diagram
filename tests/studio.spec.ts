@@ -351,3 +351,16 @@ test("arranges nodes into a grid with one click and undo restores the original l
   await page.getByRole("button", { name: "Undo" }).click();
   await expect.poll(() => dog.getAttribute("transform")).toBe(initialTransform);
 });
+
+test("selecting a theme preset updates primary, text, connector, and canvas colors", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open settings" }).click();
+  const dialog = page.getByRole("dialog", { name: "Studio settings" });
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByLabel("Theme").selectOption("forest");
+  await expect(dialog.getByLabel("Primary color")).toHaveValue("#d8edd9");
+  await expect(dialog.getByLabel("Node text")).toHaveValue("#163624");
+  await expect(dialog.getByLabel("Connectors")).toHaveValue("#2d6a4f");
+  await expect(dialog.getByLabel("Canvas")).toHaveValue("#f2f7f3");
+});
