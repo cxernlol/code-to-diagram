@@ -1,11 +1,11 @@
-# SGS Studio structured diagrams and class layout design
+# SGS Studio structured diagrams and node layout design
 
 ## Goal
 
 Turn pasted source or Mermaid into a readable overview and focused detail
-diagrams, and let users reposition individual classes without leaving their
-relationships behind. Keep the existing standalone editor and its Mermaid
-workflow.
+diagrams, and let users reposition individual class and flowchart nodes
+without leaving their relationships behind. Keep the existing standalone
+editor and its Mermaid workflow.
 
 ## Current state
 
@@ -14,8 +14,9 @@ tabs, AI calls, and drag behavior. Mermaid is bundled locally. The app already
 has tabs, Mermaid syntax validation, API-key settings, and generic SVG node
 dragging. AI generation currently streams Mermaid text into the active editor
 and replaces that document after validation. Dragging applies SVG transforms
-to broadly selected nodes but does not reroute relationships. The directory
-does not contain a test runner or Git metadata.
+to broadly selected nodes but does not reroute relationships. `vercel.json`
+rewrites the homepage to `dot.html`. The Git repository tracks `main`; no test
+runner is present.
 
 ## Decisions and alternatives
 
@@ -24,10 +25,11 @@ does not contain a test runner or Git metadata.
   current API call and avoids partial tabs. Separate calls per view would add
   latency and partial-failure handling; delimiter-separated text is less
   reliable to parse.
-- **Class movement:** Keep Mermaid's renderer and add a class-diagram-only SVG
-  routing layer. This avoids a new dependency and preserves existing diagram
-  rendering. Moving only SVG groups is insufficient because it leaves edges
-  detached; replacing Mermaid rendering is out of scope.
+- **Node movement:** Keep Mermaid's renderer and extend the SVG routing layer
+  to class diagrams and flowcharts. This avoids a new dependency and preserves
+  Mermaid's existing rendering. Moving only SVG groups is insufficient
+  because it leaves edges detached; replacing Mermaid rendering or adding a
+  graph-layout dependency would move unrelated nodes and is out of scope.
 
 ## Generation flow
 
@@ -51,10 +53,10 @@ does not contain a test runner or Git metadata.
    The app names the overview tab **Overview**. `overview.code` and every
    detail `code` must be non-empty Mermaid source; each detail needs a
    non-empty name and code. Include at least one detail.
-5. Instruct the model to preserve source meaning, avoid inventing classes,
+5. Instruct the model to preserve source meaning, avoid inventing entities,
    members, or relationships, make the overview concise, and group detailed
-   views by cohesive areas. For non-class source, select an appropriate
-   Mermaid diagram type.
+   views by cohesive areas. Select an appropriate Mermaid diagram type for
+   the source.
 6. Parse the response and validate every diagram with `mermaid.parse` before
    changing document state. Retry invalid output up to three total attempts,
    feeding validation errors back to the model. If validation still fails,
@@ -66,17 +68,20 @@ does not contain a test runner or Git metadata.
 Raw source that is not valid Mermaid remains editable in its source tab; a
 Mermaid parse error must not prevent Generate from running.
 
-## Class movement and routing
+## Node movement and routing
 
-- For `classDiagram`, make each individual class group draggable. Do not make
-  the parent node container a drag target.
-- On movement, keep relationship endpoints attached to their classes and
-  recompute orthogonal routes for incident edges and any edge obstructed by
-  the moved class. Route around class bounds, reposition relationship labels
-  onto a clear route segment, and retain edge direction, markers, and labels.
-- Prefer short routes and penalize crossings. Avoid class-box intersections;
+- For `classDiagram` and `flowchart`/`graph`, make each rendered node
+  individually draggable. Do not make parent containers drag targets.
+- On movement, keep connectors attached and recompute orthogonal routes for
+  incident edges and any edge obstructed by the moved node. Route around node
+  bounds, reposition edge labels onto clear route segments, and retain edge
+  direction and markers. In flowcharts, preserve branch labels such as “Yes”
+  and “No.”
+- Prefer short routes and penalize crossings. Avoid node-box intersections;
   line crossings may remain in highly connected diagrams. Extend the SVG
   bounds when a valid detour would otherwise be clipped.
+- Node text remains editable in the Mermaid source pane; inline canvas label
+  editing is not included.
 - Preserve the current generic drag behavior for other diagram types.
 - Reset returns the current diagram to Mermaid's automatic layout.
 - Movement changes rendered layout only. SVG and PNG exports include the
@@ -85,9 +90,9 @@ Mermaid parse error must not prevent Generate from running.
 
 ## Branding and visual constraints
 
-Change the visible heading and description to SGS Studio, consistent with the
-existing document title. Preserve the already implemented 60/30/10 palette,
-responsive editor/preview layout, focus treatment, and dark theme.
+The visible heading, description, and document title use SGS Studio. Preserve
+the already implemented 60/30/10 palette, responsive editor/preview layout,
+focus treatment, and dark theme.
 
 ## Errors and privacy
 
@@ -108,8 +113,11 @@ add tabs. Keep the original source available after either failure or success.
 - In a class diagram, drag one class and confirm all affected relationships
   remain attached, labels and markers remain visible, and routed lines avoid
   class boxes. Reset and verify automatic layout returns.
-- Verify non-class diagrams retain current drag behavior and SVG/PNG exports
-  reflect the visible class layout.
+- In a flowchart, move a decision diamond such as “Valid?” and confirm its
+  incoming/outgoing arrows, branch labels, and markers follow it, including a
+  loop edge. Verify Mermaid source remains editable and unchanged by dragging.
+- Verify other diagram types retain current drag behavior and SVG/PNG exports
+  reflect the visible class and flowchart layouts.
 - Check the SGS Studio heading, desktop and narrow layouts, and light/dark
   themes in the local browser.
 
