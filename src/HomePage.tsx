@@ -211,6 +211,36 @@ Canvas -> Export: SVG/PNG`,
       </svg>
     ),
   },
+  {
+    id: "xml",
+    label: "XML",
+    file: "arch.xml",
+    template: "XML Diagram",
+    code: `<diagram direction="LR">
+  <node id="Client" label="Web App"/>
+  <node id="API" shape="diamond"/>
+  <node id="DB" shape="cylinder"/>
+  <edge from="Client" to="API"/>
+  <edge from="API" to="DB"/>
+</diagram>`,
+    diagram: (
+      <svg viewBox="0 0 280 210" className="home-preview-svg" role="img" aria-label="XML diagram preview">
+        <defs>
+          <marker id="home-arrow-xml" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#315158" />
+          </marker>
+        </defs>
+        <path d="M 86 105 L 112 105" stroke="#315158" strokeWidth="1.6" fill="none" markerEnd="url(#home-arrow-xml)" />
+        <path d="M 166 105 L 194 105" stroke="#315158" strokeWidth="1.6" fill="none" markerEnd="url(#home-arrow-xml)" />
+        <rect x="14" y="87" width="72" height="36" rx="4" fill="#ffffff" stroke="#315158" strokeWidth="1.4" />
+        <text x="50" y="109" textAnchor="middle" fill="#1c3439" fontSize="11">Web App</text>
+        <polygon points="140,80 168,105 140,130 112,105" fill="#f5e8dc" stroke="#ad612e" strokeWidth="1.5" />
+        <text x="140" y="109" textAnchor="middle" fill="#1c3439" fontSize="11" fontWeight="600">API</text>
+        <rect x="196" y="83" width="70" height="44" rx="10" fill="#ffffff" stroke="#315158" strokeWidth="1.4" />
+        <text x="231" y="109" textAnchor="middle" fill="#1c3439" fontSize="11">DB</text>
+      </svg>
+    ),
+  },
 ];
 
 export function HomePage({ onStart, onLegal }: HomePageProps) {
@@ -318,7 +348,7 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
             <p className="home-eyebrow">Local-first code to diagrams</p>
             <h1 id="home-title">Write code. Drag boxes and lines into place.</h1>
             <p className="home-lead">
-              Paste Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, or TypeScript interfaces and
+              Paste Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML and
               reposition every node and connector by hand. Your work stays in your browser with no
               account required.
             </p>
@@ -338,6 +368,11 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
                 {stars !== null && <span className="home-star-count">{stars}</span>}
               </a>
             </div>
+            <ul className="home-trust-strip" aria-label="Highlights">
+              <li>7 code formats</li>
+              <li>SVG &amp; PNG export</li>
+              <li>5-device live rooms</li>
+            </ul>
           </motion.div>
 
           <motion.div
@@ -357,7 +392,14 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
                     className={`home-format-tab${activeFormat.id === demo.id ? " active" : ""}`}
                     onClick={() => setActiveFormat(demo)}
                   >
-                    {demo.label}
+                    {activeFormat.id === demo.id && (
+                      <motion.span
+                        layoutId="home-format-pill"
+                        className="home-format-pill"
+                        transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+                      />
+                    )}
+                    <span className="home-format-label">{demo.label}</span>
                   </button>
                 ))}
               </div>
