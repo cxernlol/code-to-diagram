@@ -217,6 +217,7 @@ function App() {
   const [mobilePane, setMobilePane] = useState<"code" | "preview">("preview");
   const [expandedPane, setExpandedPane] = useState<"none" | "code" | "preview">("none");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"appearance" | "ai">("appearance");
   const [renameId, setRenameId] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState("");
@@ -1613,7 +1614,37 @@ function App() {
           <div><h2 id="settings-title">Studio settings</h2><p>Diagram appearance, theme presets, and AI provider.</p></div>
           <button className="icon-button" type="button" aria-label="Close settings" onClick={() => settingsDialog.current?.close()}><X aria-hidden="true" size={17} /></button>
         </div>
+        <div className="settings-tabs" role="tablist" aria-label="Settings sections">
+          {(
+            [
+              { id: "appearance", label: "Appearance" },
+              { id: "ai", label: "AI provider" },
+            ] as const
+          ).map((tab) => {
+            const active = settingsTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`settings-tab${active ? " active" : ""}`}
+                onClick={() => setSettingsTab(tab.id)}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="settings-tab-pill"
+                    className="settings-tab-pill"
+                    transition={{ type: "spring", stiffness: 500, damping: 38 }}
+                  />
+                )}
+                <span className="settings-tab-label">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
         <div className="settings-content">
+          {settingsTab === "appearance" ? (
           <fieldset className="settings-card">
             <legend>Diagram appearance</legend>
             <div
@@ -1691,16 +1722,20 @@ function App() {
                 </span>
               </label>
               <label className="wide-field">Diagram font<input value={data.settings.font} onChange={(event) => changeSettings({ font: event.target.value })} /></label>
-              <label className="wide-field checkbox-field">
+              <label className="wide-field settings-toggle-row">
                 <input
                   type="checkbox"
                   checked={Boolean(data.settings.colorizeBoxes)}
                   onChange={(event) => changeSettings({ colorizeBoxes: event.target.checked })}
                 />
-                <span>Colorize boxes &amp; classes on export</span>
+                <span className="settings-toggle-copy">
+                  <strong>Colorize boxes &amp; classes on export</strong>
+                  <span>Apply distinct palette colors to flowchart shapes and class boxes in SVG/PNG exports.</span>
+                </span>
               </label>
             </div>
           </fieldset>
+          ) : (
           <fieldset className="settings-card">
             <legend>AI provider</legend>
             <div className="settings-grid">
@@ -1752,6 +1787,7 @@ function App() {
               <span role="status">{testStatus}</span>
             </div>
           </fieldset>
+          )}
         </div>
         <div className="dialog-footer">
           <button
