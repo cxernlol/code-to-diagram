@@ -92,17 +92,62 @@ export function detectDiagramType(source: string): DiagramType {
   return "other";
 }
 
+function expandHex(value: string, fallback: string): string {
+  const clean = value.trim();
+  if (/^#[\da-f]{6}$/i.test(clean)) return clean.toLowerCase();
+  if (/^#[\da-f]{3}$/i.test(clean)) {
+    const [, r, g, b] = clean;
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return fallback;
+}
+
+function relativeLuminance(hex: string): number {
+  const normalized = expandHex(hex, "#ffffff");
+  const channels = [1, 3, 5].map((index) => {
+    const value = Number.parseInt(normalized.slice(index, index + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+}
+
+function contrastRatio(hexA: string, hexB: string): number {
+  const lumA = relativeLuminance(hexA);
+  const lumB = relativeLuminance(hexB);
+  const lighter = Math.max(lumA, lumB);
+  const darker = Math.min(lumA, lumB);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+export function resolveDiagramPalette(
+  settings: Pick<StudioSettings, "theme" | "primaryColor" | "textColor" | "lineColor" | "canvasColor">,
+): { primaryColor: string; textColor: string; lineColor: string; canvasColor: string } {
+  let primaryColor = expandHex(settings.primaryColor, "#ffffff");
+  let textColor = expandHex(settings.textColor, "#1c3439");
+  let lineColor = expandHex(settings.lineColor, "#315158");
+  let canvasColor = expandHex(settings.canvasColor, "#f5f7f5");
+
+  if (settings.theme !== "dark" && relativeLuminance(canvasColor) < 0.08) {
+    canvasColor = settings.theme === "forest" ? "#f2f7f3" : settings.theme === "neutral" ? "#f6f5f2" : "#f5f7f5";
+  }
+  if (settings.theme === "dark" && relativeLuminance(primaryColor) > 0.45) {
+    primaryColor = "#1c2b30";
+  }
+  if (contrastRatio(primaryColor, textColor) < 3.5) {
+    textColor = relativeLuminance(primaryColor) > 0.35 ? "#162427" : "#eef4f2";
+  }
+  if (contrastRatio(canvasColor, lineColor) < 2.6) {
+    lineColor = relativeLuminance(canvasColor) < 0.25 ? "#8ab4ad" : "#315158";
+  }
+  return { primaryColor, textColor, lineColor, canvasColor };
+}
+
 export function renderMermaid(source: string, settings: StudioSettings): Promise<MermaidResult> {
   const sequence = ++renderSequence;
   const type = detectDiagramType(source);
   const result = renderQueue.then(async () => {
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
-    const color = (value: string, fallback: string) =>
-      /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(value) ? value : fallback;
-    const primaryColor = color(settings.primaryColor, "#ffffff");
-    const textColor = color(settings.textColor, "#1c3439");
-    const lineColor = color(settings.lineColor, "#315158");
-    const canvasColor = color(settings.canvasColor, "#f5f7f5");
+    const { primaryColor, textColor, lineColor, canvasColor } = resolveDiagramPalette(settings);
     const mermaid = await ensureMermaid();
     mermaid.initialize({
       startOnLoad: false,
@@ -110,7 +155,15 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
       look: settings.look === "handDrawn" ? "handDrawn" : "classic",
       theme: "base",
       htmlLabels: false,
+      themeCSS: `
+        .node rect, .node circle, .node ellipse, .node polygon, g.classGroup rect, .basic.label-container > path:first-child, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
+        .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }
+        .nodeLabel, .label text, .label tspan, .label span, .label div, g.classGroup text, .classTitleText, .node text, .entityLabel { fill: ${textColor} !important; color: ${textColor} !important; }
+        .edgePath .path, .flowchart-link, path.relation, .transition, .er.relationshipLine { stroke: ${lineColor}; }
+        .edgeLabel, .edgeLabel rect, .edgeLabel span, .labelBkg { background-color: ${canvasColor}; fill: ${canvasColor}; color: ${textColor}; }
+      `,
       themeVariables: {
+        darkMode: relativeLuminance(canvasColor) < 0.25,
         primaryColor,
         mainBkg: primaryColor,
         nodeBkg: primaryColor,
@@ -141,11 +194,6 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
 export function parseMermaid(source: string): Promise<void> {
   const result = renderQueue.then(async () => {
     const mermaid = await ensureMermaid();
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      htmlLabels: false,
-    });
     await mermaid.parse(source);
   });
   renderQueue = result.then(() => undefined, () => undefined);

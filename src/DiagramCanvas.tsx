@@ -7,6 +7,7 @@ import {
   getMermaidErrorLine,
   parseMermaidSvg,
   renderMermaid,
+  resolveDiagramPalette,
   type DiagramType,
 } from "./lib/mermaid";
 
@@ -52,7 +53,7 @@ function pointInRoot(svg: SVGSVGElement, element: SVGGraphicsElement, x: number,
   return { x: rootPoint.x, y: rootPoint.y };
 }
 
-function boundsInRoot(svg: SVGSVGElement, element: SVGGElement) {
+function boundsInRoot(svg: SVGSVGElement, element: SVGGraphicsElement) {
   const box = element.getBBox();
   const corners = [
     pointInRoot(svg, element, box.x, box.y),
@@ -70,6 +71,43 @@ function boundsInRoot(svg: SVGSVGElement, element: SVGGElement) {
     width: Math.max(...xs) - left,
     height: Math.max(...ys) - top,
   };
+}
+
+export function getDiagramBounds(svg: SVGSVGElement): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const nodeWrappers = Array.from(svg.querySelectorAll<SVGGElement>("[data-sgs-node]"));
+  if (nodeWrappers.length > 0) {
+    const boxes = nodeWrappers
+      .map((wrapper) => boundsInRoot(svg, wrapper))
+      .filter((box) => box.width > 0 && box.height > 0);
+    const edgePaths = Array.from(
+      svg.querySelectorAll<SVGPathElement>(
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation",
+      ),
+    ).filter((path) => path.getTotalLength() > 0);
+    edgePaths.forEach((path) => {
+      const box = boundsInRoot(svg, path);
+      if (box.width > 0 || box.height > 0) boxes.push(box);
+    });
+    svg.querySelectorAll<SVGGElement>("g.cluster, g.edgeLabel").forEach((group) => {
+      if (group.classList.contains("edgeLabel") && !group.textContent?.trim()) return;
+      const box = boundsInRoot(svg, group);
+      if (box.width > 0 && box.height > 0) boxes.push(box);
+    });
+    if (boxes.length > 0) {
+      const left = Math.min(...boxes.map((b) => b.x));
+      const top = Math.min(...boxes.map((b) => b.y));
+      const right = Math.max(...boxes.map((b) => b.x + b.width));
+      const bottom = Math.max(...boxes.map((b) => b.y + b.height));
+      return { x: left, y: top, width: right - left, height: bottom - top };
+    }
+  }
+  const box = svg.getBBox();
+  return { x: box.x, y: box.y, width: box.width, height: box.height };
 }
 
 function distanceToBounds(point: Position, bounds: ReturnType<typeof boundsInRoot>) {
@@ -323,7 +361,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const settingsRef = useRef(settings);
   const spaceDown = useRef(false);
   const toolModeRef = useRef<"move" | "hand">("move");
-  const [svgMarkup, setSvgMarkup] = useState("");
+  const pendingFitRef = useRef(false);
+  const [rendered, setRendered] = useState<{ id: string; svg: string }>({ id: "", svg: "" });
   const [rendering, setRendering] = useState(true);
   const [viewTransform, setViewTransform] = useState(zoomIdentity);
   const [toolMode, setToolMode] = useState<"move" | "hand">("move");
@@ -344,24 +383,41 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const graphic = graphicRef.current;
     const svg = graphic?.querySelector("svg");
     if (!viewport || !svg) return;
-    const box = svg.getBBox();
+    const box = getDiagramBounds(svg);
     if (!box.width || !box.height) return;
-    const padding = 48;
+    const vw = viewport.clientWidth || 640;
+    const vh = viewport.clientHeight || 480;
+    const padding = Math.min(48, Math.floor(Math.min(vw, vh) * 0.12));
     const scale = Math.min(
-      (viewport.clientWidth - padding * 2) / box.width,
-      (viewport.clientHeight - padding * 2) / box.height,
-      2.5,
+      Math.max(0.15, (vw - padding * 2) / box.width),
+      Math.max(0.15, (vh - padding * 2) / box.height),
+      2.2,
     );
-    const x = (viewport.clientWidth - box.width * scale) / 2 - box.x * scale;
-    const y = (viewport.clientHeight - box.height * scale) / 2 - box.y * scale;
+    const x = (vw - box.width * scale) / 2 - box.x * scale;
+    const y = (vh - box.height * scale) / 2 - box.y * scale;
     const transform = zoomIdentity.translate(x, y).scale(scale);
     if (zoomRef.current) select(viewport).call(zoomRef.current.transform, transform);
     else applyTransform(transform);
   }, [applyTransform]);
 
   const reset = useCallback(() => {
-    if (!viewportRef.current || !zoomRef.current) return;
-    select(viewportRef.current).call(zoomRef.current.transform, zoomIdentity);
+    const viewport = viewportRef.current;
+    const svg = graphicRef.current?.querySelector("svg");
+    if (!viewport || !zoomRef.current) return;
+    if (!svg) {
+      select(viewport).call(zoomRef.current.transform, zoomIdentity);
+      return;
+    }
+    const box = getDiagramBounds(svg);
+    if (!box.width || !box.height) {
+      select(viewport).call(zoomRef.current.transform, zoomIdentity);
+      return;
+    }
+    const vw = viewport.clientWidth || 640;
+    const vh = viewport.clientHeight || 480;
+    const x = (vw - box.width) / 2 - box.x;
+    const y = (vh - box.height) / 2 - box.y;
+    select(viewport).call(zoomRef.current.transform, zoomIdentity.translate(x, y).scale(1));
   }, []);
 
   const animateTransform = useCallback((target: ZoomTransform) => {
@@ -430,6 +486,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         y: snapVal(row * stepY + maxH / 2),
       };
     });
+    pendingFitRef.current = true;
     onLayoutChange(next);
     requestAnimationFrame(() => fit());
   }, [fit, onLayoutChange]);
@@ -553,7 +610,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       void renderMermaid(document.code, settings)
         .then((result) => {
           if (!active) return;
-          setSvgMarkup(result.svg);
+          setRendered({ id: document.id, svg: result.svg });
           onTypeChange(result.type);
           onRenderError(undefined);
           setRendering(false);
@@ -572,6 +629,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       window.clearTimeout(timeout);
     };
   }, [
+    document.id,
     document.code,
     settings.theme,
     settings.look,
@@ -586,26 +644,32 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
 
   useEffect(() => {
     const graphic = graphicRef.current;
-    if (!graphic || !svgMarkup) return;
+    if (!graphic || !rendered.svg) return;
     try {
-      graphic.replaceChildren(parseMermaidSvg(svgMarkup));
+      graphic.replaceChildren(parseMermaidSvg(rendered.svg));
     } catch (error) {
       onRenderError({
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [svgMarkup, onRenderError]);
+  }, [rendered, onRenderError]);
 
   useEffect(() => {
     const graphic = graphicRef.current;
     const svg = graphic?.querySelector("svg");
     const viewport = viewportRef.current;
-    if (!graphic || !svg || !viewport) return;
-    const previousDocumentId = graphic.dataset.documentId;
-    graphic.dataset.documentId = document.id;
-    normalizeMarkers(svg, settingsRef.current.canvasColor);
-    if (!["flowchart", "class", "state", "er"].includes(detectDiagramType(document.code))) {
-      if (previousDocumentId !== document.id) requestAnimationFrame(() => fit());
+    if (!graphic || !svg || !viewport || rendered.id !== document.id) return;
+    const previousStructureKey = graphic.dataset.structureKey;
+    const palette = resolveDiagramPalette(settingsRef.current);
+    normalizeMarkers(svg, palette.canvasColor);
+    const kind = detectDiagramType(document.code);
+    if (!["flowchart", "class", "state", "er"].includes(kind)) {
+      const nonMovableKey = `${rendered.id}::${kind}`;
+      if (previousStructureKey !== nonMovableKey || pendingFitRef.current) {
+        graphic.dataset.structureKey = nonMovableKey;
+        pendingFitRef.current = false;
+        fit();
+      }
       return;
     }
     const candidates = Array.from(
@@ -897,8 +961,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       node.wrapper.dataset.sgsListeners = "true";
     });
 
-    if (previousDocumentId !== document.id) {
-      requestAnimationFrame(() => fit());
+    const structureKey = `${rendered.id}::${kind}::${nodes.map((n) => n.id).join(",")}`;
+    if (previousStructureKey !== structureKey || pendingFitRef.current) {
+      graphic.dataset.structureKey = structureKey;
+      pendingFitRef.current = false;
+      fit();
     }
 
     return () => {
@@ -913,9 +980,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         wrapper.replaceWith(...Array.from(wrapper.childNodes));
       });
     };
-  }, [svgMarkup, document.id, document.layout, onLayoutChange, onNodeMoved, onNodeSelect, fit]);
+  }, [rendered, document.id, document.code, document.layout, onLayoutChange, onNodeMoved, onNodeSelect, fit]);
 
   const gridSize = Math.max(4, settings.snapSize) * viewTransform.k;
+  const resolvedPalette = resolveDiagramPalette(settings);
 
   return (
     <div
@@ -923,7 +991,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       ref={viewportRef}
       data-tool={toolMode}
       style={{
-        backgroundColor: settings.canvasColor,
+        backgroundColor: resolvedPalette.canvasColor,
         backgroundSize: `${gridSize}px ${gridSize}px`,
         backgroundPosition: `${viewTransform.x % gridSize}px ${viewTransform.y % gridSize}px`,
       }}
@@ -937,7 +1005,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         style={{ fontFamily: settings.font, transform: cssTransform(viewTransform) }}
       />
       {rendering && <div className="render-indicator" aria-live="polite">Rendering…</div>}
-      {!svgMarkup && !rendering && (
+      {!rendered.svg && !rendering && (
         <div className="render-empty" role="status">Enter valid Mermaid syntax to preview.</div>
       )}
     </div>

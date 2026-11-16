@@ -172,6 +172,7 @@ function App() {
   const [diagramType, setDiagramType] = useState<DiagramType>("other");
   const [canvasTool, setCanvasTool] = useState<"move" | "hand">("move");
   const [mobilePane, setMobilePane] = useState<"code" | "preview">("preview");
+  const [expandedPane, setExpandedPane] = useState<"none" | "code" | "preview">("none");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [renameId, setRenameId] = useState("");
   const [renameValue, setRenameValue] = useState("");
@@ -974,6 +975,7 @@ function App() {
               type="button"
               onClick={() => {
                 setMobilePane("code");
+                setExpandedPane((current) => (current === "preview" ? "none" : current));
                 editorRef.current?.focusLine(renderError.line!);
               }}
             >
@@ -994,13 +996,29 @@ function App() {
 
       <section
         ref={splitRef}
-        className={`workspace mobile-${mobilePane}`}
+        className={`workspace mobile-${mobilePane}${expandedPane !== "none" ? ` expanded-${expandedPane}` : ""}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeDocument.id}`}
       >
         <section className="editor-pane" aria-label="Mermaid editor">
           <div className="pane-toolbar editor-toolbar">
-            <div className="pane-title"><Code2 aria-hidden="true" size={15} /><span>Source</span><span className="language-chip">Mermaid</span></div>
+            <div className="pane-title">
+              <button
+                className="icon-button compact pane-toggle"
+                type="button"
+                aria-label={expandedPane === "code" ? "Restore split view" : "Expand source editor"}
+                title={expandedPane === "code" ? "Restore split view" : "Expand source editor"}
+                aria-pressed={expandedPane === "code"}
+                onClick={() => {
+                  setExpandedPane((current) => (current === "code" ? "none" : "code"));
+                  requestAnimationFrame(() => canvasRef.current?.fit());
+                }}
+              >
+                <Code2 aria-hidden="true" size={15} />
+              </button>
+              <span>Source</span>
+              <span className="language-chip">Mermaid</span>
+            </div>
             <div className="pane-actions">
               <button className="icon-button compact" aria-label="Download .mmd file" title="Download .mmd file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
@@ -1093,7 +1111,23 @@ function App() {
 
         <section className="preview-pane" aria-label="Diagram preview">
           <div className="pane-toolbar preview-toolbar">
-            <div className="pane-title"><PanelRight aria-hidden="true" size={15} /><span>Preview</span><span className={`diagram-kind ${supportedMovement ? "movable" : ""}`}>{diagramType}</span></div>
+            <div className="pane-title">
+              <button
+                className="icon-button compact pane-toggle"
+                type="button"
+                aria-label={expandedPane === "preview" ? "Restore split view" : "Expand preview"}
+                title={expandedPane === "preview" ? "Restore split view" : "Expand preview"}
+                aria-pressed={expandedPane === "preview"}
+                onClick={() => {
+                  setExpandedPane((current) => (current === "preview" ? "none" : "preview"));
+                  requestAnimationFrame(() => canvasRef.current?.fit());
+                }}
+              >
+                <PanelRight aria-hidden="true" size={15} />
+              </button>
+              <span>Preview</span>
+              <span className={`diagram-kind ${supportedMovement ? "movable" : ""}`}>{diagramType}</span>
+            </div>
             <div className="preview-actions">
               <button
                 className="icon-button compact"
@@ -1131,7 +1165,10 @@ function App() {
                 aria-label="Reset node positions to automatic layout"
                 title="Reset node positions"
                 disabled={!Object.keys(activeDocument.layout).length}
-                onClick={() => changeLayout({})}
+                onClick={() => {
+                  changeLayout({});
+                  requestAnimationFrame(() => canvasRef.current?.fit());
+                }}
               >
                 <RotateCcw aria-hidden="true" size={15} />
               </button>
@@ -1170,6 +1207,7 @@ function App() {
             onNodeMoved={announceNodeMoved}
             onNodeSelect={(id) => {
               setMobilePane("code");
+              setExpandedPane((current) => (current === "preview" ? "none" : current));
               editorRef.current?.focusNode(id);
             }}
             onToolChange={setCanvasTool}

@@ -364,3 +364,43 @@ test("selecting a theme preset updates primary, text, connector, and canvas colo
   await expect(dialog.getByLabel("Connectors")).toHaveValue("#2d6a4f");
   await expect(dialog.getByLabel("Canvas")).toHaveValue("#f2f7f3");
 });
+
+test("expands preview pane, auto-focuses on grid layout, and enforces readable class diagram colors", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  const animal = page.locator('[data-sgs-node="Animal"]');
+  await expect(animal).toBeVisible();
+
+  const colors = await animal.evaluate((node) => {
+    const shape = node.querySelector<SVGElement>(".basic.label-container > path:first-child, rect");
+    const text = node.querySelector<SVGElement>("text, tspan, .nodeLabel");
+    return {
+      fill: shape ? getComputedStyle(shape).fill : "",
+      textFill: text ? getComputedStyle(text).fill : "",
+    };
+  });
+  expect(colors.fill).toBe("rgb(255, 255, 255)");
+  expect(colors.textFill).toBe("rgb(28, 52, 57)");
+
+  const expandBtn = page.getByRole("button", { name: "Expand preview" });
+  await expandBtn.click();
+  await expect(page.getByRole("region", { name: "Mermaid editor" })).toBeHidden();
+  await page.getByRole("button", { name: "Restore split view" }).click();
+  await expect(page.getByRole("region", { name: "Mermaid editor" })).toBeVisible();
+
+  const viewport = page.locator(".diagram-viewport");
+  const vpBox = await viewport.boundingBox();
+  if (!vpBox) throw new Error("Viewport has no bounds.");
+  await page.mouse.move(vpBox.x + 20, vpBox.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(vpBox.x + 320, vpBox.y + 260, { steps: 4 });
+  await page.mouse.up();
+
+  await page.getByRole("button", { name: "Arrange nodes in grid" }).click();
+  const dogBox = await page.locator('[data-sgs-node="Dog"]').boundingBox();
+  if (!dogBox) throw new Error("Dog node has no bounds.");
+  expect(dogBox.x).toBeGreaterThanOrEqual(vpBox.x);
+  expect(dogBox.y).toBeGreaterThanOrEqual(vpBox.y);
+  expect(dogBox.x + dogBox.width).toBeLessThanOrEqual(vpBox.x + vpBox.width);
+  expect(dogBox.y + dogBox.height).toBeLessThanOrEqual(vpBox.y + vpBox.height);
+});

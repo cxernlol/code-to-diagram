@@ -378,6 +378,22 @@ summary:focus-visible,
   min-block-size: 0;
 }
 
+.workspace.expanded-preview,
+.workspace.expanded-code {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace.expanded-preview .editor-pane,
+.workspace.expanded-preview .split-handle,
+.workspace.expanded-code .preview-pane,
+.workspace.expanded-code .split-handle {
+  display: none;
+}
+
+.workspace.expanded-preview .preview-pane {
+  border-inline-start: 0;
+}
+
 .editor-pane,
 .preview-pane {
   display: grid;

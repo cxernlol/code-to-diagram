@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { DEFAULT_SETTINGS, LEGACY_STORAGE_KEY, TEMPLATES, THEME_PRESETS } from "./constants";
+import { resolveDiagramPalette } from "./lib/mermaid";
 import type {
   DiagramDocument,
   LegacyState,
@@ -15,7 +16,7 @@ const SETTINGS_KEY = "main";
 const CREDENTIALS_KEY = "provider";
 const INITIALIZED_KEY = "initialized";
 const GRID_SNAP_MIGRATION_KEY = "grid-snap-enabled";
-const THEME_PALETTE_MIGRATION_KEY = "theme-palette-v2";
+const THEME_PALETTE_MIGRATION_KEY = "theme-palette-v3";
 const CHANNEL_NAME = "sgs-studio-updates";
 
 interface StudioDatabase extends DBSchema {
@@ -259,9 +260,16 @@ async function readStudioData(
   if (!settings || !credentials || !documents.length) {
     throw new Error("The IndexedDB workspace is incomplete.");
   }
+  const isLegacyPalette =
+    settings.primaryColor?.toLowerCase() === "#6366f1" &&
+    settings.lineColor?.toLowerCase() === "#334155";
+  const baseSettings = isLegacyPalette
+    ? { ...settings, ...(THEME_PRESETS[settings.theme] ?? THEME_PRESETS.default!) }
+    : settings;
+  const resolvedPalette = resolveDiagramPalette(baseSettings);
   return {
     documents,
-    settings,
+    settings: { ...baseSettings, ...resolvedPalette },
     credentials,
     migration,
   };

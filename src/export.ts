@@ -1,3 +1,5 @@
+import { getDiagramBounds } from "./DiagramCanvas";
+import { resolveDiagramPalette } from "./lib/mermaid";
 import type { Position, StudioSettings } from "./types";
 
 function download(blob: Blob, filename: string) {
@@ -19,7 +21,7 @@ interface SvgBounds {
 function sourceSvg(): { svg: SVGSVGElement; box: SvgBounds } {
   const liveSvg = document.querySelector<SVGSVGElement>(".diagram-graphic svg");
   if (!liveSvg) throw new Error("Render a diagram before exporting.");
-  const box = liveSvg.getBBox();
+  const box = getDiagramBounds(liveSvg);
   if (!box.width || !box.height) throw new Error("The current diagram has no exportable content.");
   return { svg: liveSvg.cloneNode(true) as SVGSVGElement, box };
 }
@@ -61,7 +63,7 @@ export async function exportPng(filename: string, settings: StudioSettings) {
   canvas.height = height * scale;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("This browser cannot create a PNG export.");
-  context.fillStyle = settings.canvasColor;
+  context.fillStyle = resolveDiagramPalette(settings).canvasColor;
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.scale(scale, scale);
 
