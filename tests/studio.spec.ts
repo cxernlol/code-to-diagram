@@ -404,3 +404,188 @@ test("expands preview pane, auto-focuses on grid layout, and enforces readable c
   expect(dogBox.x + dogBox.width).toBeLessThanOrEqual(vpBox.x + vpBox.width);
   expect(dogBox.y + dogBox.height).toBeLessThanOrEqual(vpBox.y + vpBox.height);
 });
+
+test("centers edge labels, supports movable lines, routes multi-class diagrams without spikes, and exports full SVG/PNG", async ({ page }) => {
+  await page.goto("/");
+  const checkNode = page.locator('[data-sgs-node="Check"]');
+  await expect(checkNode).toBeVisible();
+
+  const centering = await page.evaluate(() => {
+    const svg = document.querySelector<SVGSVGElement>(".diagram-graphic svg")!;
+    const check = svg.querySelector<SVGGElement>('[data-sgs-node="Check"]')!;
+    const checkRect = check.getBoundingClientRect();
+    const checkCenterX = checkRect.left + checkRect.width / 2;
+
+    const yesLabel = Array.from(svg.querySelectorAll<SVGGElement>("g.edgeLabel")).find(
+      (el) => el.textContent?.trim() === "Yes",
+    )!;
+    const textRect = yesLabel.querySelector("text")!.getBoundingClientRect();
+    const bgRect = yesLabel.querySelector("rect")!.getBoundingClientRect();
+    const edgeControl = svg.querySelector<SVGGElement>('[data-sgs-edge^="edge::Check->"]')!;
+    const edgeId = edgeControl.dataset.sgsEdge!;
+    const targetId = edgeId.split("->")[1]!.split("::")[0]!;
+    const edgePath = Array.from(
+      svg.querySelectorAll<SVGPathElement>("path.flowchart-link"),
+    ).find((p) => p.dataset.sgsSource === "Check" && p.dataset.sgsTarget === targetId)!;
+    const ctm = edgePath.getScreenCTM()!;
+    const startScreen = new DOMPoint(
+      edgePath.getPointAtLength(0).x,
+      edgePath.getPointAtLength(0).y,
+    ).matrixTransform(ctm);
+
+    return {
+      textCenterOffsetX: Math.abs((textRect.left + textRect.width / 2) - (bgRect.left + bgRect.width / 2)),
+      textCenterOffsetY: Math.abs((textRect.top + textRect.height / 2) - (bgRect.top + bgRect.height / 2)),
+      unclippedWidth: bgRect.width >= textRect.width + 4,
+      diamondExitOffsetX: Math.abs(startScreen.x - checkCenterX),
+    };
+  });
+  expect(centering.textCenterOffsetX).toBeLessThan(1.5);
+  expect(centering.textCenterOffsetY).toBeLessThan(1.5);
+  expect(centering.unclippedWidth).toBe(true);
+  expect(centering.diamondExitOffsetX).toBeLessThan(1.5);
+
+  const edgeCtrl = page.locator('[data-sgs-edge]').first();
+  const edgePath = page.locator(".diagram-graphic path.flowchart-link").first();
+  const initialEdgeD = await edgePath.getAttribute("d");
+  await edgeCtrl.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => edgePath.getAttribute("d")).not.toBe(initialEdgeD);
+  await expectEdgeEndsAtNodes(edgePath);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => edgePath.getAttribute("d")).toBe(initialEdgeD);
+
+  const ecommerceDiagram = [
+    "classDiagram",
+    "  class User {",
+    "    -int id_user",
+    "    +login()",
+    "  }",
+    "  class Customer {",
+    "    +register()",
+    "    +checkout()",
+    "    +bayarPesanan()",
+    "  }",
+    "  class Admin {",
+    "    +kelolaProduk()",
+    "    +inputResi()",
+    "  }",
+    "  class Order {",
+    "    -int id_order",
+    "    +buatPesanan()",
+    "  }",
+    "  class Cart {",
+    "    -int id_cart",
+    "    +hitungTotal()",
+    "  }",
+    "  class CartItem {",
+    "    -int id_cart_item",
+    "    +tambahItem()",
+    "  }",
+    "  class Address {",
+    "    -int id_address",
+    "    +validasi()",
+    "  }",
+    "  class OrderItem {",
+    "    -int id_order_item",
+    "    +hitungSubtotal()",
+    "  }",
+    "  class Payment {",
+    "    -int id_payment",
+    "    +transaksi()",
+    "  }",
+    "  class Category {",
+    "    -int id_category",
+    "    +tambah()",
+    "  }",
+    "  class Product {",
+    "    -int id_product",
+    "    +ubahStok()",
+    "  }",
+    "  User <|-- Customer",
+    "  User <|-- Admin",
+    '  Customer "1" --> "1" Cart : memiliki',
+    '  Customer "1" --> "0..*" Address : memiliki',
+    '  Customer "1" --> "0..*" Order : membuat',
+    '  Cart "1" *-- "0..*" CartItem : berisi',
+    '  CartItem "0..*" --> "1" Product : merujuk',
+    '  Order "0..*" --> "1" Address : dikirim ke',
+    '  Order "1" *-- "1..*" OrderItem : terdiri dari',
+    '  Order "1" --> "1" Payment : dibayar melalui',
+    '  OrderItem "0..*" --> "1" Product : merujuk',
+    '  Admin "1" --> "0..*" Category : mengelola',
+    '  Category "1" --> "0..*" Product : mengelompokkan',
+  ].join("\n");
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "Ecommerce.mmd",
+    mimeType: "text/plain",
+    buffer: Buffer.from(ecommerceDiagram, "utf8"),
+  });
+  await expect(page.locator('[data-sgs-node="Product"]')).toBeVisible();
+
+  await page.getByRole("button", { name: "Arrange nodes in grid" }).click();
+  const routingCheck = await page.evaluate(() => {
+    const svg = document.querySelector<SVGSVGElement>(".diagram-graphic svg")!;
+    const paths = Array.from(svg.querySelectorAll<SVGPathElement>("path.relation"));
+    let spikes = 0;
+    for (const p of paths) {
+      const cmds = (p.getAttribute("d") ?? "")
+        .trim()
+        .split(/\s+/)
+        .map((token) => {
+          const [x, y] = token.replace(/^[ML]/, "").split(",").map(Number);
+          return { x: x!, y: y! };
+        });
+      for (let i = 2; i < cmds.length; i += 1) {
+        const a = cmds[i - 2]!;
+        const b = cmds[i - 1]!;
+        const c = cmds[i]!;
+        const dot = (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y);
+        if (dot < -0.01) spikes += 1;
+      }
+    }
+    const labels = Array.from(svg.querySelectorAll<SVGGElement>("g.edgeLabel")).filter((l) =>
+      Boolean(l.textContent?.trim()),
+    );
+    const unclippedLabels = labels.every((l) => {
+      const t = l.querySelector("text")?.getBoundingClientRect();
+      const r = l.querySelector("rect")?.getBoundingClientRect();
+      return !t || !r || r.width >= t.width;
+    });
+    return { pathCount: paths.length, spikes, unclippedLabels };
+  });
+  expect(routingCheck.pathCount).toBe(13);
+  expect(routingCheck.spikes).toBe(0);
+  expect(routingCheck.unclippedLabels).toBe(true);
+
+  const svgDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export SVG" }).click();
+  const svgDownload = await svgDownloadPromise;
+  const svgPath = await svgDownload.path();
+  expect(svgPath).toBeTruthy();
+  const fs = await import("node:fs/promises");
+  const exportedSvg = await fs.readFile(svgPath!, "utf8");
+  const vbMatch = exportedSvg.match(/viewBox="([^"]+)"/);
+  expect(vbMatch).toBeTruthy();
+  const [, , vbW, vbH] = vbMatch![1]!.split(/\s+/).map(Number);
+  expect(vbW).toBeGreaterThan(500);
+  expect(vbH).toBeGreaterThan(500);
+  expect(exportedSvg).not.toContain("sgs-edge-controls");
+  expect(exportedSvg).toContain("Customer");
+  expect(exportedSvg).toContain("Product");
+
+  const pngDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export PNG" }).click();
+  const pngDownload = await pngDownloadPromise;
+  const pngPath = await pngDownload.path();
+  expect(pngPath).toBeTruthy();
+  const pngBytes = await fs.readFile(pngPath!);
+  expect(pngBytes[0]).toBe(0x89);
+  expect(pngBytes[1]).toBe(0x50);
+  const pngWidth = pngBytes.readUInt32BE(16);
+  const pngHeight = pngBytes.readUInt32BE(20);
+  expect(pngWidth).toBeGreaterThan(1000);
+  expect(pngHeight).toBeGreaterThan(1000);
+});

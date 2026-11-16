@@ -678,20 +678,37 @@ summary:focus-visible,
   overflow: visible;
 }
 
-.diagram-graphic [data-sgs-node] {
+.diagram-graphic [data-sgs-node],
+.diagram-graphic [data-sgs-edge] {
   cursor: grab;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
 }
 
-.diagram-graphic [data-sgs-node]:active {
+.diagram-graphic [data-sgs-node]:active,
+.diagram-graphic [data-sgs-edge]:active {
   cursor: grabbing;
 }
 
-.diagram-graphic [data-sgs-node]:focus-visible {
+.diagram-graphic [data-sgs-node]:focus-visible,
+.diagram-graphic [data-sgs-edge]:focus-visible {
   outline: none;
   filter: drop-shadow(0 0 3px #ab642e);
+}
+
+.sgs-edge-handle {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 1.75px;
+  opacity: 0;
+  transition: opacity 120ms ease, r 120ms ease;
+}
+
+[data-sgs-edge]:hover .sgs-edge-handle,
+[data-sgs-edge]:focus-visible .sgs-edge-handle,
+[data-sgs-edge][data-moved="true"] .sgs-edge-handle {
+  opacity: 0.92;
 }
 
 .sgs-guide-line {

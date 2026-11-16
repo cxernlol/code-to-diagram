@@ -46,6 +46,23 @@ export function parseMermaidSvg(markup: string): SVGSVGElement {
   svg.querySelectorAll("style").forEach((style) => {
     if (/@import|url\((?!\s*['"]?#)/i.test(style.textContent ?? "")) style.remove();
   });
+  const viewBox = svg
+    .getAttribute("viewBox")
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (
+    viewBox &&
+    viewBox.length === 4 &&
+    Number.isFinite(viewBox[2]) &&
+    Number.isFinite(viewBox[3]) &&
+    viewBox[2]! > 0 &&
+    viewBox[3]! > 0
+  ) {
+    svg.setAttribute("width", String(viewBox[2]));
+    svg.setAttribute("height", String(viewBox[3]));
+    svg.style.removeProperty("max-width");
+  }
   return document.importNode(svg, true);
 }
 
@@ -155,12 +172,17 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
       look: settings.look === "handDrawn" ? "handDrawn" : "classic",
       theme: "base",
       htmlLabels: false,
+      flowchart: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68, padding: 16 },
+      class: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68, diagramPadding: 16 },
+      state: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68 },
       themeCSS: `
-        .node rect, .node circle, .node ellipse, .node polygon, g.classGroup rect, .basic.label-container > path:first-child, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
+        .node > rect, .node > circle, .node > ellipse, .node > polygon, .node > path, .node .basic.label-container, g.classGroup rect, .basic.label-container > path:first-child, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
         .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }
-        .nodeLabel, .label text, .label tspan, .label span, .label div, g.classGroup text, .classTitleText, .node text, .entityLabel { fill: ${textColor} !important; color: ${textColor} !important; }
+        .nodeLabel, .label text, .label tspan, .label span, .label div, g.classGroup text, .classTitleText, .node text, .entityLabel, .edgeTerminals text, .edgeTerminals span { fill: ${textColor} !important; color: ${textColor} !important; }
         .edgePath .path, .flowchart-link, path.relation, .transition, .er.relationshipLine { stroke: ${lineColor}; }
         .edgeLabel, .edgeLabel rect, .edgeLabel span, .labelBkg { background-color: ${canvasColor}; fill: ${canvasColor}; color: ${textColor}; }
+        .edgeLabel p, .edgeTerminals p { margin: 0; padding: 0; }
+        foreignObject { overflow: visible; }
       `,
       themeVariables: {
         darkMode: relativeLuminance(canvasColor) < 0.25,

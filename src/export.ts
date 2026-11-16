@@ -21,8 +21,19 @@ interface SvgBounds {
 function sourceSvg(): { svg: SVGSVGElement; box: SvgBounds } {
   const liveSvg = document.querySelector<SVGSVGElement>(".diagram-graphic svg");
   if (!liveSvg) throw new Error("Render a diagram before exporting.");
-  const box = getDiagramBounds(liveSvg);
-  if (!box.width || !box.height) throw new Error("The current diagram has no exportable content.");
+  const rawBox = getDiagramBounds(liveSvg);
+  if (!rawBox.width || !rawBox.height) throw new Error("The current diagram has no exportable content.");
+  const ctm = liveSvg.getCTM();
+  const scaleX = ctm && Math.abs(ctm.a) > 0.0001 ? ctm.a : 1;
+  const scaleY = ctm && Math.abs(ctm.d) > 0.0001 ? ctm.d : 1;
+  const box = ctm
+    ? {
+        x: (rawBox.x - ctm.e) / scaleX,
+        y: (rawBox.y - ctm.f) / scaleY,
+        width: rawBox.width / scaleX,
+        height: rawBox.height / scaleY,
+      }
+    : rawBox;
   return { svg: liveSvg.cloneNode(true) as SVGSVGElement, box };
 }
 
@@ -33,17 +44,24 @@ function prepareSvg(svg: SVGSVGElement, box: SvgBounds) {
   svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   svg.setAttribute("width", String(width));
   svg.setAttribute("height", String(height));
+  svg.style.removeProperty("max-width");
   svg.setAttribute(
     "viewBox",
     `${box.x - padding} ${box.y - padding} ${width} ${height}`,
   );
-  svg.querySelectorAll("[tabindex], [aria-describedby], [data-sgs-node]").forEach((element) => {
-    element.removeAttribute("tabindex");
-    element.removeAttribute("aria-describedby");
-    element.removeAttribute("data-sgs-node");
-    element.removeAttribute("role");
-    element.removeAttribute("aria-label");
-  });
+  svg.querySelectorAll(".sgs-alignment-guides, .sgs-edge-controls").forEach((el) => el.remove());
+  svg
+    .querySelectorAll("[tabindex], [aria-describedby], [data-sgs-node], [data-sgs-edge], [data-sgs-source], [data-sgs-target]")
+    .forEach((element) => {
+      element.removeAttribute("tabindex");
+      element.removeAttribute("aria-describedby");
+      element.removeAttribute("data-sgs-node");
+      element.removeAttribute("data-sgs-edge");
+      element.removeAttribute("data-sgs-source");
+      element.removeAttribute("data-sgs-target");
+      element.removeAttribute("role");
+      element.removeAttribute("aria-label");
+    });
   return { width, height };
 }
 
