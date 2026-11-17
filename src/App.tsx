@@ -241,6 +241,7 @@ function App() {
   const guestRoomRef = useRef<GuestRoomSession | null>(null);
   const roomDocIdRef = useRef<string>("");
   const applyingRoomSyncRef = useRef(false);
+  const initPromiseRef = useRef<Promise<StudioData> | null>(null);
 
   const activeDocument = useMemo(() => {
     if (!data) return undefined;
@@ -391,11 +392,15 @@ function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [redo, undo]);
 
-  const boot = useCallback(async (ignoreLegacy = false) => {
+  const boot = useCallback(async (ignoreLegacy = false, isCancelled?: () => boolean) => {
     setBootError(undefined);
     setLegacyError(undefined);
     try {
-      const loaded = await initializeStudio(ignoreLegacy);
+      if (!initPromiseRef.current || ignoreLegacy || !isCancelled) {
+        initPromiseRef.current = initializeStudio(ignoreLegacy);
+      }
+      const loaded = await initPromiseRef.current;
+      if (isCancelled?.()) return;
       try {
         const sharedPayload = getSharedPayload(window.location.hash);
         if (sharedPayload) {
@@ -438,6 +443,7 @@ function App() {
                     ? { ...d, name: payload.name, code: payload.code, layout: payload.layout }
                     : d,
                 ),
+                settings: { ...current.settings, activeDocumentId: existing.id },
               });
               markDirty(existing.id);
             } else {
@@ -454,9 +460,6 @@ function App() {
               });
               markDirty(doc.id);
             }
-            window.setTimeout(() => {
-              applyingRoomSyncRef.current = false;
-            }, 0);
           },
           onEnded: (reason) => {
             guestRoomRef.current = null;
@@ -477,13 +480,18 @@ function App() {
         });
       }
     } catch (error) {
+      initPromiseRef.current = null;
       setBootError(error);
       if (error instanceof LegacyDataError) setLegacyError(error);
     }
   }, [updateData]);
 
   useEffect(() => {
-    void boot();
+    let cancelled = false;
+    void boot(false, () => cancelled);
+    return () => {
+      cancelled = true;
+    };
   }, [boot]);
 
   useEffect(() => {
@@ -879,22 +887,32 @@ function App() {
   };
 
   useEffect(() => {
-    if (!activeDocument || applyingRoomSyncRef.current) return;
+    if (!activeDocument) return;
+    if (roomMode === "host" && hostRoomRef.current) {
+      roomDocIdRef.current = activeDocument.id;
+    }
+    if (applyingRoomSyncRef.current) return;
     if (roomMode === "host" && hostRoomRef.current) {
       hostRoomRef.current.broadcast({
         name: activeDocument.name,
         code: activeDocument.code,
         layout: activeDocument.layout,
       });
-    } else if (roomMode === "guest" && guestRoomRef.current) {
+    } else if (roomMode === "guest" && guestRoomRef.current && activeDocument.id === roomDocIdRef.current) {
       guestRoomRef.current.sendEdit(activeDocument.code, activeDocument.layout);
     }
-  }, [activeDocument?.name, activeDocument?.code, activeDocument?.layout, roomMode]);
+  }, [activeDocument?.id, activeDocument?.name, activeDocument?.code, activeDocument?.layout, roomMode]);
+
+  useEffect(() => {
+    applyingRoomSyncRef.current = false;
+  }, [data]);
 
   useEffect(() => {
     return () => {
       hostRoomRef.current?.close();
+      hostRoomRef.current = null;
       guestRoomRef.current?.leave();
+      guestRoomRef.current = null;
     };
   }, []);
 
@@ -931,12 +949,9 @@ function App() {
         onDevicesChange: setRoomDevices,
         onGuestEdit: (code, layout) => {
           const targetId = roomDocIdRef.current;
-          if (!targetId) return;
+          if (!targetId || !dataRef.current?.documents.some((d) => d.id === targetId)) return;
           applyingRoomSyncRef.current = true;
           updateDocument(targetId, (doc) => ({ ...doc, code, layout }));
-          window.setTimeout(() => {
-            applyingRoomSyncRef.current = false;
-          }, 0);
         },
         onError: (msg) => setStorageError(msg),
       },
