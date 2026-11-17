@@ -895,14 +895,22 @@ function convertPlantUmlToMermaid(source) {
 		}
 		return out.join("\n");
 	}
-	if (rawLines.some((l) => /^(?:start|stop|endif)\b/i.test(l) || /^:[^;]+;$/.test(l) || /^if\s*\(.+\)\s*then\b/i.test(l))) {
+	if (rawLines.some((l) => /^(?:start|stop|endif|endwhile|end\s+fork|endfork|end\s+merge)\b/i.test(l) || /^:[^;]+;$/.test(l) || /^(?:if|while)\s*\(.+\)/i.test(l) || /^(?:repeat|fork)(?:\s|$)/i.test(l))) {
 		const out = ["flowchart TD"];
 		let step = 0;
 		const nextId = (prefix) => `${prefix}${++step}`;
 		let prevNodes = [];
 		let pendingLabel = "";
 		const branchStack = [];
+		const whileStack = [];
+		const repeatStack = [];
+		const forkStack = [];
+		const markRepeatTarget = (id) => {
+			for (let i = repeatStack.length - 1; i >= 0; i--) if (!repeatStack[i].targetId) repeatStack[i].targetId = id;
+			else break;
+		};
 		const linkFromPrev = (toId, label) => {
+			markRepeatTarget(toId);
 			const edgeLabel = label ? `|${label}|` : "";
 			for (const fromId of prevNodes) out.push(`  ${fromId} -->${edgeLabel} ${toId}`);
 			prevNodes = [toId];
@@ -922,6 +930,74 @@ function convertPlantUmlToMermaid(source) {
 				prevNodes = [];
 				continue;
 			}
+			const repeatMatch = line.match(/^repeat(?:\s*:([^;]+);)?$/i);
+			if (repeatMatch) {
+				repeatStack.push({ targetId: "" });
+				if (repeatMatch[1]) {
+					const id = nextId("Step");
+					out.push(`  ${id}["${repeatMatch[1].trim().replace(/"/g, "'")}"]`);
+					linkFromPrev(id, pendingLabel);
+				}
+				continue;
+			}
+			const repeatWhileMatch = line.match(/^repeat\s+while\s*\((.+?)\)(?:\s*is\s*\(([^)]*)\))?(?:\s*not\s*\(([^)]*)\))?/i);
+			if (repeatWhileMatch && repeatStack.length > 0) {
+				const top = repeatStack.pop();
+				const condId = nextId("Cond");
+				out.push(`  ${condId}{"${repeatWhileMatch[1].trim().replace(/"/g, "'")}"}`);
+				linkFromPrev(condId, pendingLabel);
+				if (top.targetId) {
+					const yesLabel = repeatWhileMatch[2]?.trim() || "yes";
+					out.push(`  ${condId} -->|${yesLabel}| ${top.targetId}`);
+				}
+				prevNodes = [condId];
+				pendingLabel = repeatWhileMatch[3]?.trim() || "no";
+				continue;
+			}
+			const whileMatch = line.match(/^while\s*\((.+?)\)(?:\s*is\s*\(([^)]*)\))?/i);
+			if (whileMatch) {
+				const condId = nextId("While");
+				out.push(`  ${condId}{"${whileMatch[1].trim().replace(/"/g, "'")}"}`);
+				linkFromPrev(condId, pendingLabel);
+				whileStack.push({ condId });
+				pendingLabel = whileMatch[2]?.trim() || "yes";
+				continue;
+			}
+			const endwhileMatch = line.match(/^endwhile(?:\s*\(([^)]*)\))?/i);
+			if (endwhileMatch && whileStack.length > 0) {
+				const top = whileStack.pop();
+				const edgeLabel = pendingLabel ? `|${pendingLabel}|` : "";
+				for (const fromId of prevNodes) out.push(`  ${fromId} -->${edgeLabel} ${top.condId}`);
+				prevNodes = [top.condId];
+				pendingLabel = endwhileMatch[1]?.trim() || "no";
+				continue;
+			}
+			if (/^fork$/i.test(line)) {
+				const forkId = nextId("Fork");
+				out.push(`  ${forkId}["Fork"]`);
+				linkFromPrev(forkId, pendingLabel);
+				forkStack.push({
+					forkId,
+					branchEnds: []
+				});
+				continue;
+			}
+			if (/^fork\s+again$/i.test(line) && forkStack.length > 0) {
+				const top = forkStack[forkStack.length - 1];
+				top.branchEnds.push(...prevNodes);
+				prevNodes = [top.forkId];
+				pendingLabel = "";
+				continue;
+			}
+			if (/^(?:end\s+fork|endfork|end\s+merge)$/i.test(line) && forkStack.length > 0) {
+				const top = forkStack.pop();
+				const joinId = nextId("Join");
+				out.push(`  ${joinId}["Join"]`);
+				for (const endId of [...top.branchEnds, ...prevNodes]) out.push(`  ${endId} --> ${joinId}`);
+				prevNodes = [joinId];
+				pendingLabel = "";
+				continue;
+			}
 			const act = line.match(/^:([^;]+);$/);
 			if (act) {
 				const id = nextId("Step");
@@ -937,8 +1013,7 @@ function convertPlantUmlToMermaid(source) {
 				branchStack.push({
 					condId,
 					afterThen: [],
-					inElse: false,
-					elseLabel: ""
+					inElse: false
 				});
 				pendingLabel = ifMatch[2]?.trim() || "yes";
 				continue;

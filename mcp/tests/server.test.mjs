@@ -158,6 +158,11 @@ test("to_mermaid converts DOT, PlantUML, D2, SQL, TypeScript, and XML (explicit,
       source: "@startuml\nstart\n:Validate;\nif (OK?) then (yes)\n:Save;\nelse (no)\n:Reject;\nendif\nstop\n@enduml",
       expectMatch: /flowchart TD[\s\S]*Start1\(\[Start\]\)[\s\S]*-->\|yes\| Step[\s\S]*-->\|no\| Step[\s\S]*\(\[Stop\]\)/,
     },
+    {
+      name: "PlantUML Activity while/repeat/fork",
+      source: "@startuml\nstart\nwhile (more?) is (yes)\n:Process;\nendwhile (done)\nrepeat\n:Retry;\nrepeat while (fail?) is (yes) not (ok)\nfork\n:Notify;\nfork again\n:Audit;\nend fork\nstop\n@enduml",
+      expectMatch: /flowchart TD[\s\S]*While\d+\{"more\?"\}[\s\S]*-->\|yes\| Step[\s\S]*--> While\d+[\s\S]*-->\|done\| Step[\s\S]*Cond\d+\{"fail\?"\}[\s\S]*-->\|yes\| Step[\s\S]*-->\|ok\| Fork\d+\["Fork"\][\s\S]*Fork\d+ --> Step[\s\S]*Fork\d+ --> Step[\s\S]*Join\d+\["Join"\][\s\S]*-->\(\[Stop\]\)|Join\d+ --> Stop/,
+    },
   ];
 
   for (const c of cases) {

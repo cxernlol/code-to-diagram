@@ -246,7 +246,11 @@ function convertPlantUmlToMermaid(source: string): string {
   }
 
   const isActivity = rawLines.some(
-    (l) => /^(?:start|stop|endif)\b/i.test(l) || /^:[^;]+;$/.test(l) || /^if\s*\(.+\)\s*then\b/i.test(l),
+    (l) =>
+      /^(?:start|stop|endif|endwhile|end\s+fork|endfork|end\s+merge)\b/i.test(l) ||
+      /^:[^;]+;$/.test(l) ||
+      /^(?:if|while)\s*\(.+\)/i.test(l) ||
+      /^(?:repeat|fork)(?:\s|$)/i.test(l),
   );
   if (isActivity) {
     const out = ["flowchart TD"];
@@ -254,8 +258,23 @@ function convertPlantUmlToMermaid(source: string): string {
     const nextId = (prefix: string) => `${prefix}${++step}`;
     let prevNodes: string[] = [];
     let pendingLabel = "";
-    const branchStack: Array<{ condId: string; afterThen: string[]; inElse: boolean; elseLabel: string }> = [];
+    const branchStack: Array<{ condId: string; afterThen: string[]; inElse: boolean }> = [];
+    const whileStack: Array<{ condId: string }> = [];
+    const repeatStack: Array<{ targetId: string }> = [];
+    const forkStack: Array<{ forkId: string; branchEnds: string[] }> = [];
+
+    const markRepeatTarget = (id: string) => {
+      for (let i = repeatStack.length - 1; i >= 0; i--) {
+        if (!repeatStack[i]!.targetId) {
+          repeatStack[i]!.targetId = id;
+        } else {
+          break;
+        }
+      }
+    };
+
     const linkFromPrev = (toId: string, label?: string) => {
+      markRepeatTarget(toId);
       const edgeLabel = label ? `|${label}|` : "";
       for (const fromId of prevNodes) {
         out.push(`  ${fromId} -->${edgeLabel} ${toId}`);
@@ -278,6 +297,78 @@ function convertPlantUmlToMermaid(source: string): string {
         prevNodes = [];
         continue;
       }
+      const repeatMatch = line.match(/^repeat(?:\s*:([^;]+);)?$/i);
+      if (repeatMatch) {
+        const entry = { targetId: "" };
+        repeatStack.push(entry);
+        if (repeatMatch[1]) {
+          const id = nextId("Step");
+          out.push(`  ${id}["${repeatMatch[1].trim().replace(/"/g, "'")}"]`);
+          linkFromPrev(id, pendingLabel);
+        }
+        continue;
+      }
+      const repeatWhileMatch = line.match(
+        /^repeat\s+while\s*\((.+?)\)(?:\s*is\s*\(([^)]*)\))?(?:\s*not\s*\(([^)]*)\))?/i,
+      );
+      if (repeatWhileMatch && repeatStack.length > 0) {
+        const top = repeatStack.pop()!;
+        const condId = nextId("Cond");
+        out.push(`  ${condId}{"${repeatWhileMatch[1]!.trim().replace(/"/g, "'")}"}`);
+        linkFromPrev(condId, pendingLabel);
+        if (top.targetId) {
+          const yesLabel = repeatWhileMatch[2]?.trim() || "yes";
+          out.push(`  ${condId} -->|${yesLabel}| ${top.targetId}`);
+        }
+        prevNodes = [condId];
+        pendingLabel = repeatWhileMatch[3]?.trim() || "no";
+        continue;
+      }
+      const whileMatch = line.match(/^while\s*\((.+?)\)(?:\s*is\s*\(([^)]*)\))?/i);
+      if (whileMatch) {
+        const condId = nextId("While");
+        out.push(`  ${condId}{"${whileMatch[1]!.trim().replace(/"/g, "'")}"}`);
+        linkFromPrev(condId, pendingLabel);
+        whileStack.push({ condId });
+        pendingLabel = whileMatch[2]?.trim() || "yes";
+        continue;
+      }
+      const endwhileMatch = line.match(/^endwhile(?:\s*\(([^)]*)\))?/i);
+      if (endwhileMatch && whileStack.length > 0) {
+        const top = whileStack.pop()!;
+        const edgeLabel = pendingLabel ? `|${pendingLabel}|` : "";
+        for (const fromId of prevNodes) {
+          out.push(`  ${fromId} -->${edgeLabel} ${top.condId}`);
+        }
+        prevNodes = [top.condId];
+        pendingLabel = endwhileMatch[1]?.trim() || "no";
+        continue;
+      }
+      if (/^fork$/i.test(line)) {
+        const forkId = nextId("Fork");
+        out.push(`  ${forkId}["Fork"]`);
+        linkFromPrev(forkId, pendingLabel);
+        forkStack.push({ forkId, branchEnds: [] });
+        continue;
+      }
+      if (/^fork\s+again$/i.test(line) && forkStack.length > 0) {
+        const top = forkStack[forkStack.length - 1]!;
+        top.branchEnds.push(...prevNodes);
+        prevNodes = [top.forkId];
+        pendingLabel = "";
+        continue;
+      }
+      if (/^(?:end\s+fork|endfork|end\s+merge)$/i.test(line) && forkStack.length > 0) {
+        const top = forkStack.pop()!;
+        const joinId = nextId("Join");
+        out.push(`  ${joinId}["Join"]`);
+        for (const endId of [...top.branchEnds, ...prevNodes]) {
+          out.push(`  ${endId} --> ${joinId}`);
+        }
+        prevNodes = [joinId];
+        pendingLabel = "";
+        continue;
+      }
       const act = line.match(/^:([^;]+);$/);
       if (act) {
         const id = nextId("Step");
@@ -290,7 +381,7 @@ function convertPlantUmlToMermaid(source: string): string {
         const condId = nextId("Cond");
         out.push(`  ${condId}{"${ifMatch[1]!.trim().replace(/"/g, "'")}"}`);
         linkFromPrev(condId, pendingLabel);
-        branchStack.push({ condId, afterThen: [], inElse: false, elseLabel: "" });
+        branchStack.push({ condId, afterThen: [], inElse: false });
         pendingLabel = ifMatch[2]?.trim() || "yes";
         continue;
       }
