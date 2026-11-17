@@ -1,4 +1,3 @@
-import { getDiagramBounds } from "./DiagramCanvas";
 import { relativeLuminance, resolveDiagramPalette } from "./lib/mermaid";
 import type { Position, StudioSettings } from "./types";
 
@@ -135,9 +134,10 @@ interface SvgBounds {
   height: number;
 }
 
-function sourceSvg(): { svg: SVGSVGElement; box: SvgBounds } {
+async function sourceSvg(): Promise<{ svg: SVGSVGElement; box: SvgBounds }> {
   const liveSvg = document.querySelector<SVGSVGElement>(".diagram-graphic svg");
   if (!liveSvg) throw new Error("Render a diagram before exporting.");
+  const { getDiagramBounds } = await import("./DiagramCanvas");
   const rawBox = getDiagramBounds(liveSvg);
   if (!rawBox.width || !rawBox.height) throw new Error("The current diagram has no exportable content.");
   const ctm = liveSvg.getCTM();
@@ -185,14 +185,14 @@ function prepareSvg(svg: SVGSVGElement, box: SvgBounds, settings?: StudioSetting
   return { width, height };
 }
 
-export function exportSvg(filename: string, settings?: StudioSettings) {
-  const { svg, box } = sourceSvg();
+export async function exportSvg(filename: string, settings?: StudioSettings) {
+  const { svg, box } = await sourceSvg();
   prepareSvg(svg, box, settings);
   download(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }), filename);
 }
 
 export async function exportPng(filename: string, settings: StudioSettings) {
-  const { svg, box } = sourceSvg();
+  const { svg, box } = await sourceSvg();
   const { width, height } = prepareSvg(svg, box, settings);
   const serialized = new XMLSerializer().serializeToString(svg);
   const scale = 2;

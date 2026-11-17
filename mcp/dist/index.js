@@ -2,6 +2,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import "dompurify";
 import { DOMParser as DOMParser$1 } from "@xmldom/xmldom";
 var package_default = {
 	name: "ctd-mcp",
@@ -1213,9 +1214,8 @@ function convertTypeScriptToMermaid(source) {
 	out.push(...Array.from(new Set(relations)));
 	return out.join("\n");
 }
-var MAX_SOURCE_CHARS = 524288;
 function toMermaidSource(source) {
-	if (source.length > MAX_SOURCE_CHARS) throw new Error("Diagram source exceeds the 512 KB limit.");
+	if (source.length > 524288) throw new Error("Diagram source exceeds the 512 KB limit.");
 	const format = detectCodeFormat(source);
 	switch (format) {
 		case "xml": return {
@@ -1249,7 +1249,7 @@ function toMermaidSource(source) {
 	}
 }
 function translateCodeFormat(source, target) {
-	if (source.length > MAX_SOURCE_CHARS) throw new Error("Diagram source exceeds the 512 KB limit.");
+	if (source.length > 524288) throw new Error("Diagram source exceeds the 512 KB limit.");
 	const format = detectCodeFormat(source);
 	if (format === target) return source;
 	return emitFromIR(format === "xml" ? parseXmlToIR(source) : parseMermaidToIR(toMermaidSource(source).mermaid), target);

@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import type { StudioSettings } from "../types";
 import { toMermaidSource } from "./formats";
 
@@ -19,23 +20,43 @@ export interface MermaidResult {
 }
 
 export function parseMermaidSvg(markup: string): SVGSVGElement {
-  const parsed = new DOMParser().parseFromString(markup, "image/svg+xml");
+  const sanitized = DOMPurify.sanitize(markup, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    PARSER_MEDIA_TYPE: "image/svg+xml",
+    ADD_TAGS: ["foreignObject", "div", "span", "p", "br", "b", "i", "em", "strong", "code"],
+    ADD_ATTR: ["xmlns"],
+    FORBID_TAGS: [
+      "script",
+      "iframe",
+      "object",
+      "embed",
+      "animate",
+      "animateTransform",
+      "animateMotion",
+      "set",
+      "form",
+      "input",
+      "button",
+      "textarea",
+      "select",
+      "link",
+      "meta",
+      "base",
+      "img",
+      "audio",
+      "video",
+    ],
+    ALLOW_UNKNOWN_PROTOCOLS: false,
+  });
+  const parsed = new DOMParser().parseFromString(sanitized, "image/svg+xml");
   const svg = parsed.documentElement;
   if (!(svg instanceof SVGSVGElement) || parsed.querySelector("parsererror")) {
     throw new Error("Mermaid returned an invalid SVG diagram.");
   }
-  svg
-    .querySelectorAll(
-      "script, iframe, object, embed, animate, animateTransform, animateMotion, set, form, input, button, textarea, select, link, meta, base, img, audio, video",
-    )
-    .forEach((element) => {
-      element.remove();
-    });
   [svg, ...Array.from(svg.querySelectorAll("*"))].forEach((element) => {
     Array.from(element.attributes).forEach((attribute) => {
       const name = attribute.name.toLowerCase();
       const value = attribute.value.trim();
-      if (name.startsWith("on")) element.removeAttribute(attribute.name);
       if (
         (name === "href" || name === "xlink:href") &&
         value !== "" &&
@@ -167,10 +188,10 @@ export function resolveDiagramPalette(
 
 export function renderMermaid(source: string, settings: StudioSettings): Promise<MermaidResult> {
   const sequence = ++renderSequence;
-  const compiled = toMermaidSource(source).mermaid;
-  const type = detectDiagramType(compiled);
   const result = renderQueue.then(async () => {
     if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
+    const compiled = toMermaidSource(source).mermaid;
+    const type = detectDiagramType(compiled);
     const { primaryColor, textColor, lineColor, canvasColor } = resolveDiagramPalette(settings);
     const mermaid = await ensureMermaid();
     mermaid.initialize({

@@ -25,11 +25,203 @@ interface DiagramCanvasProps {
   settings: StudioSettings;
   readOnly?: boolean;
   onLayoutChange: (layout: Record<string, Position>) => void;
+  onCodeChange?: (code: string) => void;
   onNodeMoved: (id: string) => void;
   onNodeSelect?: (id: string) => void;
   onToolChange?: (mode: "move" | "hand") => void;
   onRenderError: (error?: { message: string; line?: number }) => void;
   onTypeChange: (type: DiagramType) => void;
+}
+
+type CanvasContextMenu =
+  | { kind: "node"; x: number; y: number; id: string; label: string }
+  | { kind: "edge"; x: number; y: number; id: string; label: string }
+  | { kind: "canvas"; x: number; y: number };
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function updateNodeLabelInCode(code: string, nodeId: string, nextLabel: string): string | null {
+  const trimmed = nextLabel.trim();
+  if (!trimmed) return null;
+  const escapedId = escapeRegex(nodeId);
+  const safe = trimmed.replace(/"/g, "'");
+  const type = detectDiagramType(code);
+
+  if (type === "flowchart") {
+    const shapeRe = new RegExp(
+      `(\\b${escapedId})(\\[\\[|\\[\\(|\\(\\(|\\(\\[|\\{\\{|\\[|\\(|\\{)([^\\]\\)\\}]*)(\\]\\]|\\)\\]|\\)\\)|\\]\\)|\\}\\}|\\]|\\)|\\})`,
+      "m",
+    );
+    if (shapeRe.test(code)) {
+      return code.replace(shapeRe, `$1$2"${safe}"$4`);
+    }
+    if (new RegExp(`\\b${escapedId}\\b`).test(code)) {
+      return `${code.trimEnd()}\n  ${nodeId}["${safe}"]`;
+    }
+    return null;
+  }
+
+  if (type === "class") {
+    const aliasedRe = new RegExp(`(^\\s*class\\s+${escapedId})\\s*\\[[^\\]]*\\]`, "m");
+    if (aliasedRe.test(code)) {
+      return code.replace(aliasedRe, `$1["${safe}"]`);
+    }
+    const declRe = new RegExp(`(^\\s*class\\s+${escapedId})(\\s*(?:\\{|$))`, "m");
+    if (declRe.test(code)) {
+      return code.replace(declRe, `$1["${safe}"]$2`);
+    }
+    if (new RegExp(`\\b${escapedId}\\b`).test(code)) {
+      return `${code.trimEnd()}\n  class ${nodeId}["${safe}"]`;
+    }
+    return null;
+  }
+
+  if (type === "state") {
+    const stateAsRe = new RegExp(`(^\\s*state\\s+)"[^"]*"(\\s+as\\s+${escapedId}\\b)`, "m");
+    if (stateAsRe.test(code)) {
+      return code.replace(stateAsRe, `$1"${safe}"$2`);
+    }
+    const stateDescRe = new RegExp(`(^\\s*${escapedId}\\s*:\\s*)(.+)$`, "m");
+    if (stateDescRe.test(code)) {
+      return code.replace(stateDescRe, `$1${safe}`);
+    }
+    if (new RegExp(`\\b${escapedId}\\b`).test(code)) {
+      return `${code.trimEnd()}\n  state "${safe}" as ${nodeId}`;
+    }
+    return null;
+  }
+
+  if (type === "er") {
+    const erAliasedRe = new RegExp(`(^\\s*${escapedId})\\[[^\\]]*\\]`, "m");
+    if (erAliasedRe.test(code)) {
+      return code.replace(erAliasedRe, `$1["${safe}"]`);
+    }
+    const erBlockRe = new RegExp(`(^\\s*${escapedId})(\\s*\\{)`, "m");
+    if (erBlockRe.test(code)) {
+      return code.replace(erBlockRe, `$1["${safe}"]$2`);
+    }
+    if (new RegExp(`\\b${escapedId}\\b`).test(code)) {
+      return `${code.trimEnd()}\n  ${nodeId}["${safe}"]`;
+    }
+  }
+
+  return null;
+}
+
+function updateEdgeLabelInCode(code: string, edgeId: string, nextLabel: string): string | null {
+  const match = edgeId.match(/^edge::(.+?)->(.+?)::(\d+)$/);
+  if (!match) return null;
+  const safe = nextLabel.trim().replace(/"/g, "'");
+  if (!safe) return null;
+  const src = escapeRegex(match[1]!);
+  const tgt = escapeRegex(match[2]!);
+  const targetIndex = Number(match[3]!);
+  const type = detectDiagramType(code);
+  const lines = code.split(/\r?\n/);
+  let seen = 0;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (type === "flowchart") {
+      const pipeRe = new RegExp(
+        `^(\\s*${src}\\b(?:\\[[^\\]]*\\]|\\([^)]*\\)|\\{[^}]*\\})*\\s*(?:--+>?|==+>?|-\\.+->?|<-->))\\s*(?:\\|[^|]*\\|\\s*)?(${tgt}\\b.*)$`,
+      );
+      const textArrowRe = new RegExp(
+        `^(\\s*${src}\\b(?:\\[[^\\]]*\\]|\\([^)]*\\)|\\{[^}]*\\})*\\s*)(?:--\\s+[^\\n]+?\\s+-->|-\\.\\s+[^\\n]+?\\s+\\.->|==\\s+[^\\n]+?\\s+==>)(\\s*${tgt}\\b.*)$`,
+      );
+      if (pipeRe.test(line)) {
+        if (seen === targetIndex) {
+          lines[i] = line.replace(pipeRe, `$1|${safe}| $2`);
+          return lines.join("\n");
+        }
+        seen += 1;
+      } else if (textArrowRe.test(line)) {
+        if (seen === targetIndex) {
+          lines[i] = line.replace(textArrowRe, `$1-->|${safe}|$2`);
+          return lines.join("\n");
+        }
+        seen += 1;
+      }
+    } else if (type === "state") {
+      const stateEdgeRe = new RegExp(`^(\\s*${src}\\b\\s*-+>\\s*${tgt}\\b)(?:\\s*:\\s*.*)?$`);
+      if (stateEdgeRe.test(line)) {
+        if (seen === targetIndex) {
+          lines[i] = line.replace(stateEdgeRe, `$1 : ${safe}`);
+          return lines.join("\n");
+        }
+        seen += 1;
+      }
+    } else if (type === "class") {
+      const classEdgeRe = new RegExp(
+        `^(\\s*${src}\\b\\s*(?:<\\|--|\\*--|o--|-->|\\.\\.>|\\.\\.|--|<\\.\\.|<\\|\\.\\.|--\\|>|--\\*|--o|<--|<-->)\\s*${tgt}\\b)(?:\\s*:\\s*.*)?$`,
+      );
+      if (classEdgeRe.test(line)) {
+        if (seen === targetIndex) {
+          lines[i] = line.replace(classEdgeRe, `$1 : ${safe}`);
+          return lines.join("\n");
+        }
+        seen += 1;
+      }
+    } else if (type === "er") {
+      const erEdgeRe = new RegExp(`^(\\s*${src}\\b\\s*[|}o|][|o{}.-]+[|o{]\\s*${tgt}\\b)(?:\\s*:\\s*.*)?$`);
+      if (erEdgeRe.test(line)) {
+        if (seen === targetIndex) {
+          lines[i] = line.replace(erEdgeRe, `$1 : ${safe}`);
+          return lines.join("\n");
+        }
+        seen += 1;
+      }
+    }
+  }
+  return null;
+}
+
+function addManualItemInCode(code: string, anchorNodeId?: string): { code: string; label: string } | null {
+  const type = detectDiagramType(code);
+  const nextId = (prefix: string) => {
+    let n = 1;
+    while (new RegExp(`\\b${prefix}${n}\\b`).test(code)) n += 1;
+    return `${prefix}${n}`;
+  };
+  const base = code.trimEnd();
+  if (anchorNodeId) {
+    if (type === "flowchart") {
+      const id = nextId("Node");
+      return { code: `${base}\n  ${anchorNodeId} --> ${id}["New node"]`, label: "Add connected node" };
+    }
+    if (type === "class") {
+      const id = nextId("Class");
+      return { code: `${base}\n  class ${id}\n  ${anchorNodeId} --> ${id}`, label: "Add connected class" };
+    }
+    if (type === "state") {
+      const id = nextId("State");
+      return { code: `${base}\n  ${anchorNodeId} --> ${id}`, label: "Add connected state" };
+    }
+    if (type === "er") {
+      const id = nextId("ENTITY");
+      return { code: `${base}\n  ${anchorNodeId} ||--o{ ${id} : relates`, label: "Add connected entity" };
+    }
+    return null;
+  }
+  if (type === "flowchart") {
+    const id = nextId("Node");
+    return { code: `${base}\n  ${id}["New node"]`, label: "Add node" };
+  }
+  if (type === "class") {
+    const id = nextId("Class");
+    return { code: `${base}\n  class ${id} {\n    +id: string\n  }`, label: "Add class" };
+  }
+  if (type === "state") {
+    const id = nextId("State");
+    return { code: `${base}\n  state "New state" as ${id}`, label: "Add state" };
+  }
+  if (type === "er") {
+    const id = nextId("ENTITY");
+    return { code: `${base}\n  ${id} {\n    string id PK\n  }`, label: "Add entity" };
+  }
+  return null;
 }
 
 function readTranslation(transform: string | null): Position {
@@ -99,7 +291,7 @@ export function getDiagramBounds(svg: SVGSVGElement): {
       .filter((box) => box.width > 0 && box.height > 0);
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.relationshipLine",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine",
       ),
     ).filter((path) => path.getTotalLength() > 0);
     edgePaths.forEach((path) => {
@@ -727,7 +919,7 @@ function routeEdge(
 }
 
 export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>(function DiagramCanvas(
-  { document, settings, readOnly = false, onLayoutChange, onNodeMoved, onNodeSelect, onToolChange, onRenderError, onTypeChange },
+  { document, settings, readOnly = false, onLayoutChange, onCodeChange, onNodeMoved, onNodeSelect, onToolChange, onRenderError, onTypeChange },
   ref,
 ) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -747,6 +939,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const [rendering, setRendering] = useState(true);
   const [viewTransform, setViewTransform] = useState(zoomIdentity);
   const [toolMode, setToolMode] = useState<"move" | "hand">("move");
+  const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState("");
 
   settingsRef.current = settings;
   readOnlyRef.current = readOnly;
@@ -1262,7 +1457,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     });
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.relationshipLine",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine",
       ),
     ).filter((path) => path.getTotalLength() > 0);
     const selfLoops: { wrapper: SVGGElement; node: (typeof nodes)[number] }[] = [];
@@ -1377,6 +1572,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       }, undefined);
       if (!edge) return [];
       usedEdgesForLabels.add(edge);
+      const labelText = label.textContent?.trim() ?? "";
+      label.dataset.sgsEdgeId = edge.id;
+      label.dataset.sgsEdgeLabel = labelText;
+      edge.control.dataset.sgsEdgeLabel = labelText;
       const origTransform = label.getAttribute("transform");
       return [{ label, origTransform, edge }];
     });
@@ -1920,11 +2119,54 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const gridSize = Math.max(4, settings.snapSize) * viewTransform.k;
   const resolvedPalette = resolveDiagramPalette(settings);
 
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.min(event.clientX - rect.left, Math.max(8, rect.width - 210));
+    const y = Math.min(event.clientY - rect.top, Math.max(8, rect.height - 170));
+    const target = event.target instanceof Element ? event.target : null;
+    const nodeEl = target?.closest<SVGGElement>("[data-sgs-node]");
+    const edgeEl = target?.closest<SVGGElement>("[data-sgs-edge], [data-sgs-edge-id]");
+    setEditingLabel(false);
+    const edgeId = edgeEl?.dataset.sgsEdge || edgeEl?.dataset.sgsEdgeId;
+    if (nodeEl?.dataset.sgsNode) {
+      const id = nodeEl.dataset.sgsNode;
+      const label = nodeEl.textContent?.trim() || id;
+      setLabelDraft(label);
+      setContextMenu({ kind: "node", x, y, id, label });
+    } else if (edgeId) {
+      const label = edgeEl?.dataset.sgsEdgeLabel || "";
+      setLabelDraft(label);
+      setContextMenu({ kind: "edge", x, y, id: edgeId, label });
+    } else {
+      setContextMenu({ kind: "canvas", x, y });
+    }
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest(".canvas-context-menu")) return;
+      setContextMenu(null);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
+
   return (
     <div
       className="diagram-viewport"
       ref={viewportRef}
       data-tool={toolMode}
+      onContextMenu={handleContextMenu}
       style={{
         backgroundColor: resolvedPalette.canvasColor,
         backgroundSize: `${gridSize}px ${gridSize}px`,
@@ -1942,6 +2184,188 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       {rendering && <div className="render-indicator" aria-live="polite">Rendering…</div>}
       {!rendered.svg && !rendering && (
         <div className="render-empty" role="status">Enter valid Mermaid syntax to preview.</div>
+      )}
+      {contextMenu && (
+        <div
+          className="canvas-context-menu"
+          role="menu"
+          style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
+        >
+          {contextMenu.kind === "node" && (
+            <>
+              {editingLabel && onCodeChange ? (
+                <form
+                  className="canvas-context-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const updated = updateNodeLabelInCode(document.code, contextMenu.id, labelDraft);
+                    if (updated) onCodeChange(updated);
+                    setContextMenu(null);
+                  }}
+                >
+                  <input
+                    autoFocus
+                    aria-label="Node label"
+                    value={labelDraft}
+                    onChange={(event) => setLabelDraft(event.target.value)}
+                  />
+                  <button className="button primary compact" type="submit">Apply</button>
+                </form>
+              ) : (
+                <>
+                  {onCodeChange && !readOnly && updateNodeLabelInCode(document.code, contextMenu.id, contextMenu.label) && (
+                    <button type="button" role="menuitem" onClick={() => setEditingLabel(true)}>
+                      Edit label…
+                    </button>
+                  )}
+                  {onCodeChange && !readOnly && (() => {
+                    const addition = addManualItemInCode(document.code, contextMenu.id);
+                    return addition ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          onCodeChange(addition.code);
+                          setContextMenu(null);
+                        }}
+                      >
+                        {addition.label}
+                      </button>
+                    ) : null;
+                  })()}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onNodeSelect?.(contextMenu.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    Jump to code
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={readOnly || !(contextMenu.id in document.layout)}
+                    onClick={() => {
+                      const next = { ...document.layout };
+                      delete next[contextMenu.id];
+                      onLayoutChange(next);
+                      setContextMenu(null);
+                    }}
+                  >
+                    Reset node position
+                  </button>
+                </>
+              )}
+            </>
+          )}
+          {contextMenu.kind === "edge" && (
+            <>
+              {editingLabel && onCodeChange ? (
+                <form
+                  className="canvas-context-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const updated = updateEdgeLabelInCode(document.code, contextMenu.id, labelDraft);
+                    if (updated) onCodeChange(updated);
+                    setContextMenu(null);
+                  }}
+                >
+                  <input
+                    autoFocus
+                    aria-label="Edge label"
+                    value={labelDraft}
+                    onChange={(event) => setLabelDraft(event.target.value)}
+                  />
+                  <button className="button primary compact" type="submit">Apply</button>
+                </form>
+              ) : (
+                <>
+                  {onCodeChange && !readOnly && updateEdgeLabelInCode(document.code, contextMenu.id, contextMenu.label || "label") && (
+                    <button type="button" role="menuitem" onClick={() => setEditingLabel(true)}>
+                      Edit label…
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={readOnly || !(contextMenu.id in document.layout)}
+                    onClick={() => {
+                      const next = { ...document.layout };
+                      delete next[contextMenu.id];
+                      onLayoutChange(next);
+                      setContextMenu(null);
+                    }}
+                  >
+                    Reset line offset
+                  </button>
+                </>
+              )}
+            </>
+          )}
+          {contextMenu.kind === "canvas" && (
+            <>
+              {onCodeChange && !readOnly && (() => {
+                const addition = addManualItemInCode(document.code);
+                return addition ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onCodeChange(addition.code);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {addition.label}
+                  </button>
+                ) : null;
+              })()}
+              <button
+                type="button"
+                role="menuitem"
+                disabled={readOnly}
+                onClick={() => {
+                  arrangeGrid();
+                  setContextMenu(null);
+                }}
+              >
+                Auto-arrange (grid)
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  fit();
+                  setContextMenu(null);
+                }}
+              >
+                Fit to view
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  reset();
+                  setContextMenu(null);
+                }}
+              >
+                Reset zoom (100%)
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={readOnly || Object.keys(document.layout).length === 0}
+                onClick={() => {
+                  onLayoutChange({});
+                  setContextMenu(null);
+                }}
+              >
+                Reset all positions
+              </button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
