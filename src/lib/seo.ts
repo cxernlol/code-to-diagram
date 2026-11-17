@@ -34,7 +34,7 @@ const PAGE_SEO: Record<SeoView, PageSeo> = {
   terms: {
     title: "Terms of Use — CTD Studio",
     description:
-      "Terms of use for CTD Studio, an MIT-licensed open-source code-to-diagram editor.",
+      "Terms of use for CTD Studio (PolyForm Noncommercial License 1.0.0; commercial use requires a paid license).",
     canonical: `${SITE_ORIGIN}/terms`,
     robots: "index, follow",
   },
