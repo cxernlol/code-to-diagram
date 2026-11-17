@@ -283,6 +283,8 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
   const [activeFormat, setActiveFormat] = useState(FORMAT_DEMOS[0]!);
   const [activeMcpTab, setActiveMcpTab] = useState<(typeof MCP_SNIPPETS)[number]["id"]>("clients");
   const [mcpCopied, setMcpCopied] = useState(false);
+  const [heroMcpStatus, setHeroMcpStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const heroMcpTimerRef = useRef<number | undefined>(undefined);
   const [stars, setStars] = useState<number | null>(null);
   const [noticeDismissed, setNoticeDismissed] = useState(() => {
     try {
@@ -291,6 +293,24 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
       return false;
     }
   });
+
+  useEffect(() => () => window.clearTimeout(heroMcpTimerRef.current), []);
+
+  const copyHeroMcp = async () => {
+    window.clearTimeout(heroMcpTimerRef.current);
+    if (!navigator.clipboard?.writeText) {
+      setHeroMcpStatus("failed");
+      heroMcpTimerRef.current = window.setTimeout(() => setHeroMcpStatus("idle"), 2400);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText("npx -y ctd-mcp");
+      setHeroMcpStatus("copied");
+    } catch {
+      setHeroMcpStatus("failed");
+    }
+    heroMcpTimerRef.current = window.setTimeout(() => setHeroMcpStatus("idle"), 2400);
+  };
 
   const dismissNotice = () => {
     setNoticeDismissed(true);
@@ -412,7 +432,7 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
                 {stars !== null && <span className="home-star-count">{stars}</span>}
               </a>
             </div>
-            <div className="home-hero-mcp" aria-label="Install MCP server">
+            <div className="home-hero-mcp" role="group" aria-label="Install MCP server">
               <span className="home-hero-mcp-badge">
                 <Terminal aria-hidden="true" size={13} />
                 MCP Ready
@@ -420,21 +440,26 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
               <code className="home-hero-mcp-cmd">npx -y ctd-mcp</code>
               <button
                 type="button"
-                className="home-mcp-copy"
-                onClick={() => {
-                  void navigator.clipboard.writeText("npx -y ctd-mcp").then(() => {
-                    setMcpCopied(true);
-                    window.setTimeout(() => setMcpCopied(false), 1800);
-                  });
-                }}
+                className="home-open-template"
+                onClick={() => void copyHeroMcp()}
               >
-                {mcpCopied ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
-                <span>{mcpCopied ? "Copied" : "Install MCP"}</span>
+                {heroMcpStatus === "copied" ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
+                <span>
+                  {heroMcpStatus === "copied"
+                    ? "Copied"
+                    : heroMcpStatus === "failed"
+                      ? "Copy failed"
+                      : "Copy install command"}
+                </span>
               </button>
               <button
                 type="button"
                 className="home-hero-mcp-more"
-                onClick={() => document.getElementById("home-mcp-section")?.scrollIntoView({ behavior: "smooth" })}
+                onClick={() =>
+                  document
+                    .getElementById("home-mcp-section")
+                    ?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" })
+                }
               >
                 Client configs ↓
               </button>
