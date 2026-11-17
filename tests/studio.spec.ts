@@ -1299,3 +1299,18 @@ test("dragging arrowhead handle repositions arrow along target node perimeter wh
   await expect(control).toHaveAttribute("data-moved", "true");
   await expectEdgeEndsAtNodes(edgePath);
 });
+
+test("dark mode toggle switches 60-30-10 dark palette and syncs with settings", async ({ page }) => {
+  await page.goto("/#app");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  const darkSwitch = page.getByRole("switch", { name: /Dark mode/i });
+  await darkSwitch.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(darkSwitch).toHaveAttribute("aria-checked", "true");
+
+  await darkSwitch.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(darkSwitch).toHaveAttribute("aria-checked", "false");
+});

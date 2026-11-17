@@ -23,6 +23,7 @@ import {
   ImageDown,
   LayoutGrid,
   Menu,
+  Moon,
   MoreVertical,
   MousePointer,
   Palette,
@@ -36,6 +37,7 @@ import {
   Settings,
   Settings2,
   StopCircle,
+  Sun,
   Trash2,
   Undo2,
   Users,
@@ -563,6 +565,10 @@ function App() {
     const customTitle = view === "studio" && activeDocument ? `${activeDocument.name} — CTD Studio` : undefined;
     applyPageSeo(view, customTitle);
   }, [view, activeDocument?.name]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = data?.settings.theme === "dark" ? "dark" : "light";
+  }, [data?.settings.theme]);
 
   useEffect(() => {
     const onRouteChange = () => {
@@ -1304,6 +1310,26 @@ function App() {
                 <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); openHome(); }}>
                   <GitBranch aria-hidden="true" size={15} /> Back to home
                 </button>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={data.settings.theme === "dark"}
+                  className="theme-switch-row"
+                  onClick={() => {
+                    const nextTheme = data.settings.theme === "dark" ? "default" : "dark";
+                    changeSettings({ theme: nextTheme, ...THEME_PRESETS[nextTheme] });
+                  }}
+                >
+                  <span className="theme-switch-label">
+                    {data.settings.theme === "dark" ? <Moon aria-hidden="true" size={15} /> : <Sun aria-hidden="true" size={15} />}
+                    <span>Dark mode</span>
+                  </span>
+                  <span className={`theme-switch-track${data.settings.theme === "dark" ? " is-on" : ""}`} aria-hidden="true">
+                    <span className="theme-switch-thumb">
+                      {data.settings.theme === "dark" ? <Moon size={11} /> : <Sun size={11} />}
+                    </span>
+                  </span>
+                </button>
               </div>
             )}
           </div>
@@ -1855,6 +1881,26 @@ function App() {
           {settingsTab === "appearance" ? (
           <fieldset className="settings-card">
             <legend>Diagram appearance</legend>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={data.settings.theme === "dark"}
+              className="theme-switch-row settings-dark-row"
+              onClick={() => {
+                const nextTheme = data.settings.theme === "dark" ? "default" : "dark";
+                changeSettings({ theme: nextTheme, ...THEME_PRESETS[nextTheme] });
+              }}
+            >
+              <span className="theme-switch-label">
+                {data.settings.theme === "dark" ? <Moon aria-hidden="true" size={15} /> : <Sun aria-hidden="true" size={15} />}
+                <span>Dark mode (60-30-10)</span>
+              </span>
+              <span className={`theme-switch-track${data.settings.theme === "dark" ? " is-on" : ""}`} aria-hidden="true">
+                <span className="theme-switch-thumb">
+                  {data.settings.theme === "dark" ? <Moon size={11} /> : <Sun size={11} />}
+                </span>
+              </span>
+            </button>
             <div
               className="settings-preview-swatch"
               aria-hidden="true"
