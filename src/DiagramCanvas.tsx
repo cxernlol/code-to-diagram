@@ -24,11 +24,30 @@ interface DiagramCanvasProps {
   settings: StudioSettings;
   readOnly?: boolean;
   onLayoutChange: (layout: Record<string, Position>) => void;
+  onCodeChange?: (code: string) => void;
   onNodeMoved: (id: string) => void;
   onNodeSelect?: (id: string) => void;
   onToolChange?: (mode: "move" | "hand") => void;
   onRenderError: (error?: { message: string; line?: number }) => void;
   onTypeChange: (type: DiagramType) => void;
+}
+
+type CanvasContextMenu =
+  | { kind: "node"; x: number; y: number; id: string; label: string }
+  | { kind: "edge"; x: number; y: number; id: string }
+  | { kind: "canvas"; x: number; y: number };
+
+function updateNodeLabelInCode(code: string, nodeId: string, nextLabel: string): string | null {
+  const trimmed = nextLabel.trim();
+  if (!trimmed) return null;
+  const escapedId = nodeId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const safe = trimmed.replace(/"/g, "'");
+  // Update flowchart node label shapes: id[...], id(...), id{...}, id([...]), id((...)), etc.
+  const shapeRe = new RegExp(`(\\b${escapedId})(\\[\\[|\\[\\(|\\(\\(|\\(\\[|\\{\\{|\\[|\\(|\\{)([^\\]\\)\\}]*)(\\]\\]|\\)\\]|\\)\\)|\\]\\)|\\}\\}|\\]|\\)|\\})`, "m");
+  if (shapeRe.test(code)) {
+    return code.replace(shapeRe, `$1$2"${safe}"$4`);
+  }
+  return null;
 }
 
 function readTranslation(transform: string | null): Position {
@@ -723,7 +742,7 @@ function routeEdge(
 }
 
 export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>(function DiagramCanvas(
-  { document, settings, readOnly = false, onLayoutChange, onNodeMoved, onNodeSelect, onToolChange, onRenderError, onTypeChange },
+  { document, settings, readOnly = false, onLayoutChange, onCodeChange, onNodeMoved, onNodeSelect, onToolChange, onRenderError, onTypeChange },
   ref,
 ) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -743,6 +762,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const [rendering, setRendering] = useState(true);
   const [viewTransform, setViewTransform] = useState(zoomIdentity);
   const [toolMode, setToolMode] = useState<"move" | "hand">("move");
+  const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState("");
 
   settingsRef.current = settings;
   readOnlyRef.current = readOnly;
@@ -1884,11 +1906,51 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const gridSize = Math.max(4, settings.snapSize) * viewTransform.k;
   const resolvedPalette = resolveDiagramPalette(settings);
 
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.min(event.clientX - rect.left, Math.max(8, rect.width - 210));
+    const y = Math.min(event.clientY - rect.top, Math.max(8, rect.height - 170));
+    const target = event.target instanceof Element ? event.target : null;
+    const nodeEl = target?.closest<SVGGElement>("[data-sgs-node]");
+    const edgeEl = target?.closest<SVGGElement>("[data-sgs-edge]");
+    setEditingLabel(false);
+    if (nodeEl?.dataset.sgsNode) {
+      const id = nodeEl.dataset.sgsNode;
+      const label = nodeEl.textContent?.trim() || id;
+      setLabelDraft(label);
+      setContextMenu({ kind: "node", x, y, id, label });
+    } else if (edgeEl?.dataset.sgsEdge) {
+      setContextMenu({ kind: "edge", x, y, id: edgeEl.dataset.sgsEdge });
+    } else {
+      setContextMenu({ kind: "canvas", x, y });
+    }
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest(".canvas-context-menu")) return;
+      setContextMenu(null);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
+
   return (
     <div
       className="diagram-viewport"
       ref={viewportRef}
       data-tool={toolMode}
+      onContextMenu={handleContextMenu}
       style={{
         backgroundColor: resolvedPalette.canvasColor,
         backgroundSize: `${gridSize}px ${gridSize}px`,
@@ -1906,6 +1968,129 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       {rendering && <div className="render-indicator" aria-live="polite">Rendering…</div>}
       {!rendered.svg && !rendering && (
         <div className="render-empty" role="status">Enter valid Mermaid syntax to preview.</div>
+      )}
+      {contextMenu && (
+        <div
+          className="canvas-context-menu"
+          role="menu"
+          style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
+        >
+          {contextMenu.kind === "node" && (
+            <>
+              {editingLabel && onCodeChange ? (
+                <form
+                  className="canvas-context-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const updated = updateNodeLabelInCode(document.code, contextMenu.id, labelDraft);
+                    if (updated) onCodeChange(updated);
+                    setContextMenu(null);
+                  }}
+                >
+                  <input
+                    autoFocus
+                    aria-label="Node label"
+                    value={labelDraft}
+                    onChange={(event) => setLabelDraft(event.target.value)}
+                  />
+                  <button className="button primary compact" type="submit">Apply</button>
+                </form>
+              ) : (
+                <>
+                  {onCodeChange && !readOnly && updateNodeLabelInCode(document.code, contextMenu.id, contextMenu.label) && (
+                    <button type="button" role="menuitem" onClick={() => setEditingLabel(true)}>
+                      Edit label…
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onNodeSelect?.(contextMenu.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    Jump to code
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={readOnly || !(contextMenu.id in document.layout)}
+                    onClick={() => {
+                      const next = { ...document.layout };
+                      delete next[contextMenu.id];
+                      onLayoutChange(next);
+                      setContextMenu(null);
+                    }}
+                  >
+                    Reset node position
+                  </button>
+                </>
+              )}
+            </>
+          )}
+          {contextMenu.kind === "edge" && (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={readOnly || !(contextMenu.id in document.layout)}
+              onClick={() => {
+                const next = { ...document.layout };
+                delete next[contextMenu.id];
+                onLayoutChange(next);
+                setContextMenu(null);
+              }}
+            >
+              Reset line offset
+            </button>
+          )}
+          {contextMenu.kind === "canvas" && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={readOnly}
+                onClick={() => {
+                  arrangeGrid();
+                  setContextMenu(null);
+                }}
+              >
+                Auto-arrange (grid)
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  fit();
+                  setContextMenu(null);
+                }}
+              >
+                Fit to view
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  reset();
+                  setContextMenu(null);
+                }}
+              >
+                Reset zoom (100%)
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={readOnly || Object.keys(document.layout).length === 0}
+                onClick={() => {
+                  onLayoutChange({});
+                  setContextMenu(null);
+                }}
+              >
+                Reset all positions
+              </button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
