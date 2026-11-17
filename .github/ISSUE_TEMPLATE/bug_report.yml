@@ -1,0 +1,64 @@
+name: Bug Report
+description: Report a bug in CTD Studio or ctd-mcp
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the fields below. For syntax examples, check [Syntax & Template Docs](https://code-to-diagram.vercel.app/#docs).
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web App (Editor / Canvas / Export)
+        - ctd-mcp (npx / stdio MCP)
+        - Parser / Format Translation
+        - Docs / Website
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Diagram / Code Format
+      options:
+        - Mermaid
+        - Graphviz DOT
+        - PlantUML
+        - D2
+        - SQL DDL
+        - TypeScript
+        - XML (Draw.io / BPMN / Generic)
+        - Not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Paste ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal input snippet (no API keys or secrets)
+      render: text
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs Actual behavior
+      placeholder: What did you expect to happen, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment (Browser / OS / Node version)
+      placeholder: e.g. Chrome 131 on Windows 11, or Node 22 + Cursor
+    validations:
+      required: true
