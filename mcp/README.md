@@ -71,3 +71,8 @@ npm run typecheck
 npm run mcp:build
 npm run mcp:test
 ```
+
+## License
+
+- **Individual & internal use (free forever):** [Elastic License 2.0 (ELv2)](https://github.com/cxernlol/code-to-diagram/blob/main/LICENSE)
+- **Commercial SaaS, reselling, or white-labeling:** Requires a paid license under [COMMERCIAL-LICENSE-AGREEMENT.md](https://github.com/cxernlol/code-to-diagram/blob/main/COMMERCIAL-LICENSE-AGREEMENT.md) (contact `mrshimn@proton.me`).
