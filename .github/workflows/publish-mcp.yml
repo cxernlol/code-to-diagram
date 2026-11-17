@@ -31,16 +31,6 @@ jobs:
           npm run mcp:build
           npm run mcp:test
 
-      - name: Publish ctd-mcp to npm (OIDC Trusted Publishing)
-        working-directory: mcp
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view "ctd-mcp@${VERSION}" version >/dev/null 2>&1; then
-            echo "ctd-mcp@${VERSION} already published on npm; skipping."
-          else
-            npm publish --provenance --access public
-          fi
-
       - name: Mirror @cxernlol/ctd-mcp to GitHub Packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,4 +45,22 @@ jobs:
           else
             printf "@cxernlol:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n" "$NODE_AUTH_TOKEN" > .npmrc
             npm publish --registry=https://npm.pkg.github.com
+          fi
+
+      - name: Publish ctd-mcp to npm (OIDC Trusted Publishing)
+        working-directory: mcp
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "ctd-mcp@${VERSION}" version >/dev/null 2>&1; then
+            echo "ctd-mcp@${VERSION} already published on npm; skipping."
+          else
+            OUT=$(npm publish --provenance --access public 2>&1) || {
+              echo "$OUT"
+              if echo "$OUT" | grep -q "E409"; then
+                echo "ctd-mcp@${VERSION} is already staged on npm; skipping."
+                exit 0
+              fi
+              exit 1
+            }
+            echo "$OUT"
           fi
