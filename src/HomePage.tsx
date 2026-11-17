@@ -1,11 +1,44 @@
 import { animate, stagger, svg as animeSvg } from "animejs";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, GitBranch, Grid3x3, HardDrive, ImageDown, Star } from "lucide-react";
+import { ArrowRight, Check, Copy, GitBranch, Grid3x3, HardDrive, ImageDown, Star, Terminal } from "lucide-react";
 
 const GITHUB_URL = "https://github.com/cxernlol/sgs-chify";
 const GITHUB_API_URL = "https://api.github.com/repos/cxernlol/sgs-chify";
 const STORAGE_NOTICE_KEY = "sgs-storage-notice";
+
+const MCP_SNIPPETS = [
+  {
+    id: "clients",
+    label: "Claude / Cursor / Windsurf",
+    code: `{
+  "mcpServers": {
+    "sgs-studio": {
+      "command": "npx",
+      "args": ["-y", "github:cxernlol/sgs-chify"]
+    }
+  }
+}`,
+  },
+  {
+    id: "vscode",
+    label: "VS Code (.vscode/mcp.json)",
+    code: `{
+  "servers": {
+    "sgs-studio": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:cxernlol/sgs-chify"]
+    }
+  }
+}`,
+  },
+  {
+    id: "cli",
+    label: "Terminal / npx",
+    code: `npx -y github:cxernlol/sgs-chify`,
+  },
+] as const;
 
 interface HomePageProps {
   onStart: (templateName?: string) => void;
@@ -247,6 +280,8 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
   const reduceMotion = useReducedMotion();
   const previewCanvasRef = useRef<HTMLDivElement>(null);
   const [activeFormat, setActiveFormat] = useState(FORMAT_DEMOS[0]!);
+  const [activeMcpTab, setActiveMcpTab] = useState<(typeof MCP_SNIPPETS)[number]["id"]>("clients");
+  const [mcpCopied, setMcpCopied] = useState(false);
   const [stars, setStars] = useState<number | null>(null);
   const [noticeDismissed, setNoticeDismissed] = useState(() => {
     try {
@@ -372,6 +407,7 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
               <li>7 code formats</li>
               <li>SVG &amp; PNG export</li>
               <li>5-device live rooms</li>
+              <li>MCP via npx</li>
             </ul>
           </motion.div>
 
@@ -471,6 +507,82 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
               provider key directly from the browser.
             </p>
           </motion.article>
+        </section>
+
+        <section className="home-mcp" aria-label="MCP integration">
+          <div className="home-mcp-copy">
+            <span className="home-eyebrow">
+              <Terminal aria-hidden="true" size={13} /> Model Context Protocol
+            </span>
+            <h2>Use SGS Studio as an MCP server</h2>
+            <p>
+              Run the same 7-format detector, Mermaid converter, and DiagramIR translator inside{" "}
+              <strong>Claude Desktop</strong>, <strong>Cursor</strong>, <strong>Windsurf</strong>,{" "}
+              <strong>VS Code</strong>, or <strong>Claude Code</strong> via <code>npx</code>.
+            </p>
+            <div className="home-mcp-tools" aria-label="Exposed MCP tools">
+              {[
+                "detect_format",
+                "to_mermaid",
+                "translate_format",
+                "parse_diagram_ir",
+                "emit_from_ir",
+                "list_templates",
+                "get_studio_info",
+              ].map((tool) => (
+                <code key={tool}>{tool}</code>
+              ))}
+            </div>
+          </div>
+
+          <div className="home-mcp-card">
+            <div className="home-mcp-bar">
+              <div className="home-format-tabs" role="tablist" aria-label="MCP client config">
+                {MCP_SNIPPETS.map((snippet) => {
+                  const active = activeMcpTab === snippet.id;
+                  return (
+                    <button
+                      key={snippet.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      className={`home-format-tab${active ? " active" : ""}`}
+                      onClick={() => {
+                        setActiveMcpTab(snippet.id);
+                        setMcpCopied(false);
+                      }}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="home-mcp-pill"
+                          className="home-format-pill"
+                          transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+                        />
+                      )}
+                      <span className="home-format-label">{snippet.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                className="home-open-template"
+                onClick={() => {
+                  const code = MCP_SNIPPETS.find((s) => s.id === activeMcpTab)?.code ?? "";
+                  void navigator.clipboard?.writeText(code).then(() => {
+                    setMcpCopied(true);
+                    window.setTimeout(() => setMcpCopied(false), 1800);
+                  });
+                }}
+              >
+                {mcpCopied ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
+                {mcpCopied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <pre className="home-mcp-code">
+              {MCP_SNIPPETS.find((s) => s.id === activeMcpTab)?.code}
+            </pre>
+          </div>
         </section>
       </main>
 

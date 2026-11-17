@@ -37,11 +37,47 @@ npm test
 
 ## MCP Server (`npx`)
 
-SGS Studio includes a Model Context Protocol (MCP) server in [`mcp/`](mcp/README.md) that reuses the same multi-format parsers and translators:
+SGS Studio includes a Model Context Protocol (MCP) server ([`mcp/`](mcp/README.md)) that reuses the same multi-format parsers and translators. Use it anywhere that supports stdio MCP servers: **Claude Desktop**, **Cursor**, **Windsurf**, **VS Code**, **Claude Code**, or directly from your terminal.
+
+Run directly with `npx`:
 
 ```bash
 npx -y github:cxernlol/sgs-chify
 ```
+
+### Claude Desktop / Cursor / Windsurf
+
+Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "sgs-studio": {
+      "command": "npx",
+      "args": ["-y", "github:cxernlol/sgs-chify"]
+    }
+  }
+}
+```
+
+### VS Code (`.vscode/mcp.json`)
+
+```json
+{
+  "servers": {
+    "sgs-studio": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:cxernlol/sgs-chify"]
+    }
+  }
+}
+```
+
+### Available MCP Tools & Resources
+
+- **Tools:** `detect_format`, `to_mermaid`, `translate_format`, `parse_diagram_ir`, `emit_from_ir`, `list_templates`, `get_studio_info`
+- **Resources & Prompt:** `sgs://formats`, `sgs://themes`, `sgs://templates/{name}`, `code_to_diagram`
 
 Build and test the MCP server locally:
 
