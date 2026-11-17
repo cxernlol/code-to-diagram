@@ -40,9 +40,12 @@ function cssTransform(transform: ZoomTransform): string {
   return `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`;
 }
 
-function stableNodeId(id: string): string {
-  const withoutWrapper = id.match(/^(?:\d+-)?[^-]+-(.+)-\d+$/)?.[1] ?? id;
-  return withoutWrapper.replace(/^(?:\d+-)?(?:flowchart|classId|state|entity|node)-/, "");
+export function stableNodeId(id: string): string {
+  return (
+    id.match(/^sgs-\d+-(?:flowchart|classId|state|entity|node)-(.+)-\d+$/)?.[1] ??
+    id.match(/^sgs-\d+-(.+)-\d+$/)?.[1] ??
+    id
+  );
 }
 
 function pointInRoot(svg: SVGSVGElement, element: SVGGraphicsElement, x: number, y: number) {
@@ -1234,7 +1237,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       return !hasNodeAncestor && Boolean(element.id || element.dataset.id);
     });
     const nodes = candidates.map((element) => {
-      const id = stableNodeId(element.dataset.id || element.id);
+      const id = element.dataset.id || stableNodeId(element.id);
       const base = readTranslation(element.getAttribute("transform"));
       const initialBounds = boundsInRoot(svg, element);
       const position = document.layout[id] ?? base;

@@ -740,3 +740,47 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(guests[0]!.getByRole("button", { name: "Export SVG" })).toBeEnabled();
   await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
 });
+
+test("preserves prefix-like user node IDs without collisions and respects data-id", async ({ page }) => {
+  const code = btoa(
+    "flowchart TD\n  node-1[Node One] --> 1[One]\n  state-A[State A] --> A[Just A]\n  node-Check[Node Check] --> Check[Just Check]",
+  );
+  await page.goto(`/#d=${encodeURIComponent(code)}`);
+
+  for (const id of ["node-1", "1", "state-A", "A", "node-Check", "Check"]) {
+    await expect(page.locator(`[data-sgs-node="${id}"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-sgs-node="${id}"]`)).toBeVisible();
+  }
+
+  const node1 = page.locator('[data-sgs-node="node-1"]');
+  const plain1 = page.locator('[data-sgs-node="1"]');
+  const box = await node1.boundingBox();
+  if (!box) throw new Error("node-1 has no visible bounding box.");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 64, box.y + box.height / 2 + 40, { steps: 5 });
+  await page.mouse.up();
+
+  await expect(node1).not.toHaveAttribute("transform", "translate(0,0)");
+  await expect(plain1).toHaveAttribute("transform", "translate(0,0)");
+
+  const compositeState = btoa(
+    "stateDiagram-v2\n  [*] --> Active\n  state Active {\n    [*] --> Running\n  }",
+  );
+  await page.goto("about:blank");
+  await page.goto(`/#d=${encodeURIComponent(compositeState)}`);
+  await expect(page.locator('[data-sgs-node="Active"]')).toHaveCount(1);
+  await expect(page.locator('[data-sgs-node="Running"]')).toHaveCount(1);
+
+  const classDiagram = btoa("classDiagram\n  class classId-Foo\n  class Foo\n  classId-Foo --> Foo");
+  await page.goto("about:blank");
+  await page.goto(`/#d=${encodeURIComponent(classDiagram)}`);
+  await expect(page.locator('[data-sgs-node="classId-Foo"]')).toHaveCount(1);
+  await expect(page.locator('[data-sgs-node="Foo"]')).toHaveCount(1);
+
+  const erDiagram = btoa("erDiagram\n  entity-Item ||--o{ Item : contains");
+  await page.goto("about:blank");
+  await page.goto(`/#d=${encodeURIComponent(erDiagram)}`);
+  await expect(page.locator('[data-sgs-node="entity-Item"]')).toHaveCount(1);
+  await expect(page.locator('[data-sgs-node="Item"]')).toHaveCount(1);
+});
