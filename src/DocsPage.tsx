@@ -1,3 +1,5 @@
+import { motion, useReducedMotion } from "framer-motion";
+import { useState } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, GitBranch } from "lucide-react";
 import { TEMPLATES } from "./constants";
 
@@ -32,12 +34,159 @@ const SHAPE_SYNTAX = [
 
 const FORMAT_SUPPORT = [
   { format: "Mermaid (v11.4.1)", scope: "Full local runtime: flowchart, class, state, ER, sequence, gantt, mindmap, pie, journey, gitGraph, C4, requirement." },
-  { format: "Graphviz DOT", scope: "digraph / graph, rankdir, node labels & shapes, and -> / -- edges." },
-  { format: "PlantUML", scope: "@startuml blocks for class, sequence, and flowchart nodes/edges." },
-  { format: "D2", scope: "Nodes, -> / -- / <-> edges with labels, and nested container blocks." },
+  { format: "Graphviz DOT", scope: "digraph / graph, rankdir, node label & shape (diamond, circle, doublecircle, ellipse, oval, cylinder), and -> / -- edges." },
+  { format: "PlantUML", scope: "@startuml blocks for sequence (actor/participant), state ([*] transitions), and class (<|--, *--, o--, ..>, -->)." },
+  { format: "D2", scope: "direction, nested { ... } containers, .shape, and -> / <- / <-> / -- edges with labels." },
   { format: "SQL DDL", scope: "CREATE TABLE columns, PRIMARY KEY, and FOREIGN KEY / REFERENCES into Mermaid ER." },
-  { format: "TypeScript", scope: "interface, class, and type blocks with extends / implements into Mermaid class diagrams." },
-  { format: "XML", scope: "Explicit <diagram>, Draw.io mxGraphModel, BPMN, and generic XML element trees." },
+  { format: "TypeScript", scope: "interface, class, and object type declarations with extends / implements into Mermaid class diagrams." },
+  { format: "XML", scope: "Explicit <diagram>, Draw.io mxGraphModel, BPMN sequenceFlow, and generic XML element trees." },
+];
+
+interface FormatSyntaxGuide {
+  id: string;
+  label: string;
+  template: string;
+  summary: string;
+  items: { syntax: string; meaning: string }[];
+  example: string;
+}
+
+const FORMAT_GUIDES: FormatSyntaxGuide[] = [
+  {
+    id: "mermaid",
+    label: "Mermaid",
+    template: "Flowchart",
+    summary: "Native Mermaid v11.4.1 renderer with draggable boxes and connectors for flowchart, class, state, and ER.",
+    items: [
+      { syntax: "A --> B / A -.-> B", meaning: "Solid arrow / dotted arrow (async or optional)" },
+      { syntax: "A ==> B / A --- B", meaning: "Thick arrow / line without arrowhead" },
+      { syntax: "id[Box] / id{Check}", meaning: "Rectangle / diamond decision" },
+      { syntax: "id([Pill]) / id[(DB)]", meaning: "Stadium start-end / database cylinder" },
+    ],
+    example: `flowchart LR
+  Client([Web App]) --> API[Gateway]
+  API --> Auth{Valid?}
+  Auth -->|Yes| DB[(Postgres)]
+  Auth -.->|Log| Audit[Audit Queue]`,
+  },
+  {
+    id: "dot",
+    label: "Graphviz DOT",
+    template: "DOT Graph",
+    summary: "Compiles digraph/graph blocks, rankdir, node attributes, and chained edges into Mermaid flowcharts.",
+    items: [
+      { syntax: "digraph G { rankdir=LR; }", meaning: "Directed graph with left-to-right layout" },
+      { syntax: "A -> B -> C [label=\"ok\"]", meaning: "Chained directed edges with label" },
+      { syntax: "A -> B [style=dashed]", meaning: "Dotted/dashed edge (style=dotted also works)" },
+      { syntax: "N [shape=diamond, label=\"?\"]", meaning: "Shapes: diamond, circle, ellipse, cylinder" },
+    ],
+    example: `digraph Architecture {
+  rankdir=LR;
+  Web [label="Web App"];
+  Check [label="Valid?", shape=diamond];
+  DB [label="Postgres", shape=cylinder];
+  Web -> Check -> DB [label="SQL"];
+  Check -> Web [label="401", style=dashed];
+}`,
+  },
+  {
+    id: "plantuml",
+    label: "PlantUML",
+    template: "PlantUML Class",
+    summary: "Parses @startuml sequence, state, and class diagrams with relationships and visibility.",
+    items: [
+      { syntax: "A <|-- B / A *-- B", meaning: "Class inheritance / composition (also o--, ..>)" },
+      { syntax: "A ->> B / A -->> B", meaning: "Sequence solid call / dashed reply" },
+      { syntax: "[*] --> Idle", meaning: "State diagram initial/final transitions" },
+      { syntax: "class User { +id: string }", meaning: "Class, interface, enum, or abstract class block" },
+    ],
+    example: `@startuml
+class Service {
+  +handle()
+}
+class AuthService
+Service <|-- AuthService
+AuthService ..> TokenStore : verifies
+@enduml`,
+  },
+  {
+    id: "d2",
+    label: "D2",
+    template: "D2 Flow",
+    summary: "Parses D2 nodes, arrows, labels, shapes, direction, and nested { ... } containers.",
+    items: [
+      { syntax: "direction: right", meaning: "Set layout direction (right, left, down, up)" },
+      { syntax: "a -> b: HTTPS", meaning: "Labeled edge (also <-, <->, --)" },
+      { syntax: "db.shape: cylinder", meaning: "Node shape (diamond, circle, cylinder, oval)" },
+      { syntax: "vpc: VPC { api -> db }", meaning: "Nested container / subgraph block" },
+    ],
+    example: `direction: right
+client: Web App
+api: API Gateway
+db.shape: cylinder
+client -> api: HTTPS
+api -> db: Query`,
+  },
+  {
+    id: "sql",
+    label: "SQL DDL",
+    template: "SQL Schema",
+    summary: "Parses CREATE TABLE statements, primary keys, and foreign key references into Mermaid ER diagrams.",
+    items: [
+      { syntax: "CREATE TABLE users (...)", meaning: "Creates an ER entity table" },
+      { syntax: "id INT PRIMARY KEY", meaning: "Marks column as PK" },
+      { syntax: "user_id INT REFERENCES users(id)", meaning: "Inline FK + ||--o{ relationship" },
+      { syntax: "FOREIGN KEY (x) REFERENCES y(id)", meaning: "Table-level foreign key relationship" },
+    ],
+    example: `CREATE TABLE users (
+  id INT PRIMARY KEY,
+  email TEXT
+);
+CREATE TABLE diagrams (
+  id INT PRIMARY KEY,
+  user_id INT REFERENCES users(id),
+  title TEXT
+);`,
+  },
+  {
+    id: "typescript",
+    label: "TypeScript",
+    template: "TypeScript Types",
+    summary: "Converts TypeScript interfaces, classes, and object types into Mermaid class diagrams.",
+    items: [
+      { syntax: "interface A extends B", meaning: "Class box + inheritance (<|--)" },
+      { syntax: "class C implements A", meaning: "Class box + interface link" },
+      { syntax: "type User = { id: string }", meaning: "Object type alias as class box" },
+      { syntax: "owner: User", meaning: "PascalCase property type adds association (-->)" },
+    ],
+    example: `interface Node {
+  id: string;
+}
+class Diagram implements Node {
+  id: string;
+  owner: User;
+  render(): string;
+}`,
+  },
+  {
+    id: "xml",
+    label: "XML",
+    template: "XML Diagram",
+    summary: "Supports explicit <diagram> XML, Draw.io mxGraphModel, BPMN 2.0 sequenceFlow, and generic XML trees.",
+    items: [
+      { syntax: "<diagram direction=\"LR\">", meaning: "Explicit diagram root (flowchart, class, er)" },
+      { syntax: "<node id=\"A\" shape=\"diamond\"/>", meaning: "Node with optional label and shape" },
+      { syntax: "<edge from=\"A\" to=\"B\" style=\"dashed\"/>", meaning: "Solid or dashed/dotted connector" },
+      { syntax: "<mxGraphModel> / <sequenceFlow>", meaning: "Draw.io cells & BPMN flows auto-detected" },
+    ],
+    example: `<diagram kind="flowchart" direction="LR">
+  <node id="Client" label="Web App" />
+  <node id="API" shape="diamond" />
+  <node id="DB" shape="cylinder" />
+  <edge from="Client" to="API" label="HTTPS" />
+  <edge from="API" to="DB" style="dashed" />
+</diagram>`,
+  },
 ];
 
 const FEATURED_TEMPLATES = [
@@ -58,6 +207,10 @@ const FEATURED_TEMPLATES = [
 ] as const;
 
 export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
+  const reduceMotion = useReducedMotion();
+  const [activeGuideId, setActiveGuideId] = useState(FORMAT_GUIDES[0]!.id);
+  const activeGuide = FORMAT_GUIDES.find((g) => g.id === activeGuideId) ?? FORMAT_GUIDES[0]!;
+
   return (
     <div className="home-page">
       <header className="home-nav">
@@ -136,6 +289,66 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
             </table>
           </article>
         </section>
+
+        <article className="legal-card docs-format-guide" aria-label="Syntax by format">
+          <div className="docs-guide-head">
+            <div>
+              <h2>Syntax by Format (All 7 Languages)</h2>
+              <p>{activeGuide.summary}</p>
+            </div>
+            <button
+              type="button"
+              className="home-open-template"
+              onClick={() => onStart(activeGuide.template)}
+            >
+              Try {activeGuide.label} in editor
+              <ArrowRight aria-hidden="true" size={13} />
+            </button>
+          </div>
+          <div className="home-format-tabs docs-guide-tabs" role="tablist" aria-label="Format syntax tabs">
+            {FORMAT_GUIDES.map((guide) => {
+              const active = guide.id === activeGuide.id;
+              return (
+                <button
+                  key={guide.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`home-format-tab${active ? " active" : ""}`}
+                  onClick={() => setActiveGuideId(guide.id)}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="docs-syntax-pill"
+                      className="home-format-pill"
+                      transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+                    />
+                  )}
+                  <span className="home-format-label">{guide.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="docs-guide-split">
+            <table className="docs-table">
+              <thead>
+                <tr>
+                  <th>Syntax</th>
+                  <th>Meaning</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeGuide.items.map((item) => (
+                  <tr key={item.syntax}>
+                    <td><code>{item.syntax}</code></td>
+                    <td>{item.meaning}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <pre className="docs-template-code docs-guide-code">{activeGuide.example}</pre>
+          </div>
+        </article>
 
         <article className="legal-card">
           <h2>Supported Formats (7)</h2>
