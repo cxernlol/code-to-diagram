@@ -741,6 +741,146 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
 });
 
+const XSS_MERMAID_PAYLOAD = [
+  "flowchart TD",
+  `  A["<foreignObject><img src=x onerror='window.__xss=1'><script>window.__xss=2</script></foreignObject>"] --> B["<a href='javascript:window.__xss=3'>js</a>"]`,
+  `  B --> C["<a xlink:href='data:text/html,<script>window.__xss=4</script>'>data</a>"]`,
+  `  C --> D["<animate onbegin='window.__xss=5'/><set attributeName='onmouseover' to='window.__xss=6'/>"]`,
+  `  D --> E["SafeText"]`,
+].join("\n");
+
+async function assertSvgSanitized(page: import("@playwright/test").Page) {
+  const result = await page.evaluate(() => {
+    const svg = document.querySelector(".diagram-graphic svg");
+    if (!svg) return { hasSvg: false };
+    const dangerous = svg.querySelectorAll(
+      "script, iframe, object, embed, animate, animateTransform, animateMotion, set, img, [onerror], [onload], [onbegin], [onmouseover]",
+    );
+    const badHrefs = Array.from(svg.querySelectorAll("[href], [xlink\\:href]")).filter((el) => {
+      const val = (el.getAttribute("href") ?? el.getAttribute("xlink:href") ?? "").trim();
+      return val !== "" && !val.startsWith("#");
+    });
+    return {
+      hasSvg: true,
+      xss: (window as unknown as { __xss?: unknown }).__xss ?? null,
+      dangerousCount: dangerous.length,
+      badHrefCount: badHrefs.length,
+    };
+  });
+  expect(result.hasSvg).toBe(true);
+  expect(result.xss).toBeNull();
+  expect(result.dangerousCount).toBe(0);
+  expect(result.badHrefCount).toBe(0);
+}
+
+test("sanitizes malicious #d= share links and .mmd/.md imports against SVG XSS", async ({ page }) => {
+  const encoded = Buffer.from(XSS_MERMAID_PAYLOAD, "utf8").toString("base64");
+  await page.goto(`/#d=${encodeURIComponent(encoded)}`);
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
+  await assertSvgSanitized(page);
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "malicious.mmd",
+    mimeType: "text/plain",
+    buffer: Buffer.from(XSS_MERMAID_PAYLOAD, "utf8"),
+  });
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
+  await assertSvgSanitized(page);
+
+  const mdPayload = `# Diagram\n\n\`\`\`mermaid\n${XSS_MERMAID_PAYLOAD}\n\`\`\`\n`;
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "malicious.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(mdPayload, "utf8"),
+  });
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
+  await assertSvgSanitized(page);
+
+  const xxeXml = '<!DOCTYPE lolz [<!ENTITY lol "lol">]><diagram><node id="A" label="&lol;"/></diagram>';
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "xxe.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(`\`\`\`mermaid\n${xxeXml}\n\`\`\``, "utf8"),
+  });
+  await expect(page.getByText(/DOCTYPE and ENTITY/i)).toBeVisible();
+});
+
+test("sanitizes live-room XSS payloads and enforces 512 KB and layout bounds", async ({ context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const host = await context.newPage();
+  await host.goto("/#app");
+  await expect(host.locator('[data-sgs-node="Check"]')).toBeVisible();
+
+  await host.getByRole("button", { name: "Host live room (max 5 devices)" }).click();
+  await expect(host.getByText(/Hosting live room \(1\/5 devices\)/)).toBeVisible();
+  const roomUrl = await host.evaluate(() => navigator.clipboard.readText());
+  const roomId = new URL(roomUrl).hash.slice("#room=".length);
+
+  const guest = await context.newPage();
+  await guest.goto(roomUrl);
+  await expect(guest.getByText(/Connected to live room \(2\/5 devices\)/)).toBeVisible();
+
+  // Inject XSS payload via BroadcastChannel sync message
+  await host.evaluate(
+    ({ id, code }) => {
+      const ch = new BroadcastChannel(`sgs-room-${id}`);
+      ch.postMessage({
+        type: "sync",
+        name: "Injected",
+        code,
+        layout: {},
+        devices: 2,
+      });
+      ch.close();
+    },
+    { id: roomId, code: XSS_MERMAID_PAYLOAD },
+  );
+
+  await expect(guest.locator('[data-sgs-node="E"]')).toBeVisible({ timeout: 10000 });
+  await assertSvgSanitized(guest);
+
+  // Send layout with out-of-bounds, NaN, and valid coordinates
+  await host.evaluate(
+    ({ id, code }) => {
+      const ch = new BroadcastChannel(`sgs-room-${id}`);
+      ch.postMessage({
+        type: "sync",
+        name: "Injected",
+        code,
+        layout: {
+          A: { x: 1e9, y: 50 },
+          B: { x: 480, y: 420 },
+          C: { x: Number.NaN, y: 20 },
+        },
+        devices: 2,
+      });
+      ch.close();
+    },
+    { id: roomId, code: XSS_MERMAID_PAYLOAD },
+  );
+
+  // Verify out-of-bounds A was ignored while valid B was kept
+  await expect(guest.locator('[data-sgs-node="B"]')).not.toHaveAttribute("transform", "translate(0,0)");
+  await expect(guest.locator('[data-sgs-node="A"]')).toHaveAttribute("transform", "translate(0,0)");
+
+  // Oversized (> 512 KB) sync message must be rejected
+  await host.evaluate((id) => {
+    const ch = new BroadcastChannel(`sgs-room-${id}`);
+    ch.postMessage({
+      type: "sync",
+      name: "Oversized",
+      code: `flowchart TD\n${"  X --> Y\n".repeat(60000)}`,
+      layout: {},
+      devices: 2,
+    });
+    ch.close();
+  }, roomId);
+
+  // Guest should still display E from the previous valid diagram, not X/Y
+  await guest.waitForTimeout(300);
+  await expect(guest.locator('[data-sgs-node="E"]')).toBeVisible();
+});
+
 test("preserves prefix-like user node IDs without collisions and respects data-id", async ({ page }) => {
   const code = btoa(
     "flowchart TD\n  node-1[Node One] --> 1[One]\n  state-A[State A] --> A[Just A]\n  node-Check[Node Check] --> Check[Just Check]",

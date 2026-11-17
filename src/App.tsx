@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -45,8 +47,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
-import { CodeEditor, type CodeEditorHandle } from "./CodeEditor";
-import { DiagramCanvas, type DiagramCanvasHandle } from "./DiagramCanvas";
+import type { CodeEditorHandle } from "./CodeEditor";
+import type { DiagramCanvasHandle } from "./DiagramCanvas";
 import { DocsPage } from "./DocsPage";
 import { HomePage } from "./HomePage";
 import { LegalPage, type LegalTab } from "./LegalPage";
@@ -75,16 +77,26 @@ import {
   type CodeFormat,
 } from "./lib/formats";
 import { detectDiagramType, type DiagramType } from "./lib/mermaid";
-import {
-  createRoomId,
-  createRoomUrl,
-  getRoomIdFromHash,
-  joinHostRoom,
-  MAX_ROOM_DEVICES,
-  startHostRoom,
-  type GuestRoomSession,
-  type HostRoomSession,
-} from "./lib/room";
+import type { GuestRoomSession, HostRoomSession } from "./lib/room";
+
+const MAX_ROOM_DEVICES = 5;
+
+function getRoomIdFromHash(hash: string): string | undefined {
+  if (!hash.startsWith("#room=")) return undefined;
+  try {
+    const raw = decodeURIComponent(hash.slice("#room=".length)).trim();
+    return raw || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const CodeEditor = lazy(() =>
+  import("./CodeEditor").then((m) => ({ default: m.CodeEditor })),
+);
+const DiagramCanvas = lazy(() =>
+  import("./DiagramCanvas").then((m) => ({ default: m.DiagramCanvas })),
+);
 import {
   broadcastDocumentChange,
   deleteDocument as deleteStoredDocument,
@@ -433,55 +445,58 @@ function App() {
       if (roomId && !guestRoomRef.current && !hostRoomRef.current) {
         setRoomMode("guest");
         setRoomNotice("");
-        guestRoomRef.current = joinHostRoom(roomId, {
-          onSync: (payload, devices) => {
-            setRoomDevices(devices);
-            const current = dataRef.current;
-            if (!current) return;
-            applyingRoomSyncRef.current = true;
-            const existing = current.documents.find((d) => d.id === roomDocIdRef.current);
-            if (existing) {
-              updateData({
-                ...current,
-                documents: current.documents.map((d) =>
-                  d.id === existing.id
-                    ? { ...d, name: payload.name, code: payload.code, layout: payload.layout }
-                    : d,
-                ),
-                settings: { ...current.settings, activeDocumentId: existing.id },
-              });
-              markDirty(existing.id);
-            } else {
-              const doc = {
-                ...createDocument(payload.name || "Live room", payload.code, current.documents.length),
-                layout: payload.layout,
-              };
-              roomDocIdRef.current = doc.id;
-              expectedUpdatedAt.current.set(doc.id, 0);
-              updateData({
-                ...current,
-                documents: [...current.documents, doc],
-                settings: { ...current.settings, activeDocumentId: doc.id },
-              });
-              markDirty(doc.id);
-            }
-          },
-          onEnded: (reason) => {
-            guestRoomRef.current = null;
-            setRoomMode("none");
-            if (roomDocIdRef.current) {
-              setEndedRoomDocIds((prev) => new Set(prev).add(roomDocIdRef.current));
-            }
-            setRoomNotice(`${reason} Editing is locked; you can still export SVG, PNG, or source.`);
-            if (window.location.hash.startsWith("#room=")) {
-              history.replaceState(null, "", `${window.location.pathname}${window.location.search}#app`);
-            }
-          },
-          onError: (message) => {
-            guestRoomRef.current = null;
-            setRoomMode("none");
-            setStorageError(message);
-          },
+        void import("./lib/room").then(({ joinHostRoom }) => {
+          if (guestRoomRef.current || hostRoomRef.current) return;
+          guestRoomRef.current = joinHostRoom(roomId, {
+            onSync: (payload, devices) => {
+              setRoomDevices(devices);
+              const current = dataRef.current;
+              if (!current) return;
+              applyingRoomSyncRef.current = true;
+              const existing = current.documents.find((d) => d.id === roomDocIdRef.current);
+              if (existing) {
+                updateData({
+                  ...current,
+                  documents: current.documents.map((d) =>
+                    d.id === existing.id
+                      ? { ...d, name: payload.name, code: payload.code, layout: payload.layout }
+                      : d,
+                  ),
+                  settings: { ...current.settings, activeDocumentId: existing.id },
+                });
+                markDirty(existing.id);
+              } else {
+                const doc = {
+                  ...createDocument(payload.name || "Live room", payload.code, current.documents.length),
+                  layout: payload.layout,
+                };
+                roomDocIdRef.current = doc.id;
+                expectedUpdatedAt.current.set(doc.id, 0);
+                updateData({
+                  ...current,
+                  documents: [...current.documents, doc],
+                  settings: { ...current.settings, activeDocumentId: doc.id },
+                });
+                markDirty(doc.id);
+              }
+            },
+            onEnded: (reason) => {
+              guestRoomRef.current = null;
+              setRoomMode("none");
+              if (roomDocIdRef.current) {
+                setEndedRoomDocIds((prev) => new Set(prev).add(roomDocIdRef.current));
+              }
+              setRoomNotice(`${reason} Editing is locked; you can still export SVG, PNG, or source.`);
+              if (window.location.hash.startsWith("#room=")) {
+                history.replaceState(null, "", `${window.location.pathname}${window.location.search}#app`);
+              }
+            },
+            onError: (message) => {
+              guestRoomRef.current = null;
+              setRoomMode("none");
+              setStorageError(message);
+            },
+          });
         });
       }
     } catch (error) {
@@ -947,6 +962,7 @@ function App() {
 
   const startLiveRoom = async () => {
     if (!activeDocument) return;
+    const { createRoomId, createRoomUrl, startHostRoom } = await import("./lib/room");
     if (roomMode === "host" && hostRoomRef.current) {
       try {
         await navigator.clipboard.writeText(createRoomUrl(hostRoomRef.current.roomId));
@@ -1033,10 +1049,10 @@ function App() {
     setNotice(`${FORMAT_LABELS[format]} file downloaded.`);
   };
 
-  const saveSvg = () => {
+  const saveSvg = async () => {
     if (!activeDocument || !data) return;
     try {
-      exportSvg(
+      await exportSvg(
         `${activeDocument.name.replace(/[\\/:*?"<>|]/g, "-")}.svg`,
         data.settings,
       );
@@ -1444,15 +1460,17 @@ function App() {
             </div>
           </div>
           <div className="editor-content">
-            <CodeEditor
-              ref={editorRef}
-              value={activeDocument.code}
-              readOnly={isReadOnlySnapshot}
-              error={renderError}
-              onChange={changeCode}
-              onUndo={undo}
-              onRedo={redo}
-            />
+            <Suspense fallback={null}>
+              <CodeEditor
+                ref={editorRef}
+                value={activeDocument.code}
+                readOnly={isReadOnlySnapshot}
+                error={renderError}
+                onChange={changeCode}
+                onUndo={undo}
+                onRedo={redo}
+              />
+            </Suspense>
           </div>
           <div className="editor-footer">
             <span>{activeDocument.code.split(/\r?\n/).length} lines</span>
@@ -1609,22 +1627,24 @@ function App() {
                 ? <span id="node-movement-help">V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Arrow keys: nudge a box. Alt: bypass grid.</span>
                 : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
           </div>
-          <DiagramCanvas
-            ref={canvasRef}
-            document={activeDocument}
-            settings={data.settings}
-            readOnly={isReadOnlySnapshot}
-            onLayoutChange={changeLayout}
-            onNodeMoved={announceNodeMoved}
-            onNodeSelect={(id) => {
-              setMobilePane("code");
-              setExpandedPane((current) => (current === "preview" ? "none" : current));
-              editorRef.current?.focusNode(id);
-            }}
-            onToolChange={setCanvasTool}
-            onRenderError={setRenderError}
-            onTypeChange={setDiagramType}
-          />
+          <Suspense fallback={null}>
+            <DiagramCanvas
+              ref={canvasRef}
+              document={activeDocument}
+              settings={data.settings}
+              readOnly={isReadOnlySnapshot}
+              onLayoutChange={changeLayout}
+              onNodeMoved={announceNodeMoved}
+              onNodeSelect={(id) => {
+                setMobilePane("code");
+                setExpandedPane((current) => (current === "preview" ? "none" : current));
+                editorRef.current?.focusNode(id);
+              }}
+              onToolChange={setCanvasTool}
+              onRenderError={setRenderError}
+              onTypeChange={setDiagramType}
+            />
+          </Suspense>
         </section>
       </section>
 
