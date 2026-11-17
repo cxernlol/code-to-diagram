@@ -1,5 +1,7 @@
 :root {
-  font-family: "Segoe UI Variable", "Segoe UI", "Aptos", sans-serif;
+  font-family: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   color: #23363b;
   background: #e9eeec;
   font-synthesis: none;
@@ -74,9 +76,42 @@ html[data-theme="dark"] .template-picker select,
 html[data-theme="dark"] .settings-grid input:not([type="color"]):not([type="checkbox"]),
 html[data-theme="dark"] .settings-grid select,
 html[data-theme="dark"] .sensitivity-menu summary,
-html[data-theme="dark"] .sensitivity-popover {
+html[data-theme="dark"] .sensitivity-popover,
+html[data-theme="dark"] .sensitivity-popover select,
+html[data-theme="dark"] .sensitivity-popover input[type="number"],
+html[data-theme="dark"] .format-convert-select {
   color: var(--ink);
   background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+html[data-theme="dark"] .language-chip,
+html[data-theme="dark"] .diagram-kind {
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+html[data-theme="dark"] .diagram-kind.movable {
+  color: #f0a36b;
+  background: #2d2119;
+  border-color: #6b4326;
+}
+
+html[data-theme="dark"] .split-handle {
+  background: var(--border);
+}
+
+html[data-theme="dark"] .split-handle:hover {
+  background: var(--accent);
+}
+
+html[data-theme="dark"] .diagram-graphic .edgeLabel rect,
+html[data-theme="dark"] .diagram-graphic .edgeLabel .labelBkg,
+html[data-theme="dark"] .diagram-graphic .edgeLabel span {
+  fill: var(--canvas) !important;
+  background-color: var(--canvas) !important;
+  color: var(--ink) !important;
 }
 
 html[data-theme="dark"] .ai-floating-pill {
@@ -859,8 +894,7 @@ summary:focus-visible,
 }
 
 [data-sgs-edge]:hover .sgs-edge-handle,
-[data-sgs-edge]:focus-visible .sgs-edge-handle,
-[data-sgs-edge][data-moved="true"] .sgs-edge-handle {
+[data-sgs-edge]:focus-within .sgs-edge-handle {
   opacity: 0.92;
 }
 
@@ -1725,7 +1759,7 @@ summary:focus-visible,
   inset-inline-end: 0;
   z-index: 40;
   display: grid;
-  min-inline-size: 196px;
+  min-inline-size: 224px;
   padding: 5px;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
@@ -1760,6 +1794,12 @@ summary:focus-visible,
 
 .direction-popover button {
   justify-content: space-between;
+}
+
+.direction-popover button.active-dir {
+  color: var(--accent);
+  background: var(--surface-2);
+  font-weight: 700;
 }
 
 .menu-section-title {
@@ -1803,6 +1843,7 @@ summary:focus-visible,
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .theme-switch-track {

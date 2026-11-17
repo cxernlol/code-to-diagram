@@ -1674,7 +1674,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [rendered, onRenderError, settings.colorizeBoxes]);
+  }, [rendered, onRenderError, settings.colorizeBoxes, settings.theme, settings.canvasColor, settings.primaryColor, settings.textColor, settings.lineColor]);
 
   useEffect(() => {
     const graphic = graphicRef.current;

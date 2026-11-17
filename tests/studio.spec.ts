@@ -1,4 +1,9 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function openTemplate(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "New diagram" }).click();
+  await page.locator(".new-diagram-dialog").getByRole("button", { name, exact: true }).click();
+}
 
 async function expectEdgeEndsAtNodes(edge: Locator): Promise<void> {
   const endpoints = await edge.evaluate((element) => {
@@ -111,7 +116,7 @@ test("moves one flowchart node and keeps its connectors attached", async ({ page
 
 test("class relationships follow a snapped class move", async ({ page }) => {
   await page.goto("/#app");
-  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(page, "Class" );
   const node = page.locator('[data-sgs-node="Dog"]');
   const edge = page.locator(".diagram-graphic .edgePaths path.relation").first();
   await expect(node).toBeVisible();
@@ -344,7 +349,7 @@ test("supports a narrow Code/Preview switch and disables node movement for seque
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#app");
   await expect(page.getByRole("button", { name: "Code", exact: false })).toBeVisible();
-  await page.getByLabel("Start from a template").selectOption({ label: "Sequence" });
+  await openTemplate(page, "Sequence" );
   await expect(page.getByText(/sequence diagrams use automatic layout/i)).toBeVisible();
   await expect(page.locator("[data-sgs-node]")).toHaveCount(0);
   await page.getByRole("button", { name: "Code", exact: false }).click();
@@ -366,7 +371,7 @@ test("pans when dragging empty canvas space and preserves mindmap foreignObject 
   await page.mouse.up();
   await expect.poll(() => graphic.getAttribute("style")).not.toBe(beforePan);
 
-  await page.getByLabel("Start from a template").selectOption({ label: "Mindmap" });
+  await openTemplate(page, "Mindmap" );
   await expect(page.locator(".diagram-graphic")).toContainText("Planning");
 });
 
@@ -402,7 +407,7 @@ test("restores both Mermaid source and manual node layout from a share link", as
 
 test("arranges nodes into a grid with one click and undo restores the original layout", async ({ page }) => {
   await page.goto("/#app");
-  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(page, "Class" );
   const dog = page.locator('[data-sgs-node="Dog"]');
   await expect(dog).toBeVisible();
   const initialTransform = await dog.getAttribute("transform");
@@ -429,7 +434,7 @@ test("selecting a theme preset updates primary, text, connector, and canvas colo
 
 test("expands preview pane, auto-focuses on grid layout, and enforces readable class diagram colors", async ({ page }) => {
   await page.goto("/#app");
-  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(page, "Class" );
   const animal = page.locator('[data-sgs-node="Animal"]');
   await expect(animal).toBeVisible();
 
@@ -662,7 +667,7 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(pngWidth).toBeGreaterThan(1000);
   expect(pngHeight).toBeGreaterThan(1000);
 
-  await page.getByLabel("Start from a template").selectOption({ label: "Sequence" });
+  await openTemplate(page, "Sequence" );
   await expect(page.locator(".diagram-graphic svg")).toContainText("DB");
   const seqSvgPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export SVG" }).click();
@@ -695,7 +700,7 @@ test("renders DOT, PlantUML, D2, SQL DDL, TypeScript, and XML code and translate
   ];
 
   for (const item of cases) {
-    await page.getByLabel("Start from a template").selectOption({ label: item.template });
+    await openTemplate(page, item.template );
     await expect(page.locator(".language-chip")).toHaveText(item.chip);
     await expect(page.locator(".diagram-graphic")).toContainText(item.text);
     if (item.node) {
@@ -737,7 +742,7 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(sixthDevice.getByText(/Room is full \(maximum 5 devices\)/)).toBeVisible();
   await sixthDevice.close();
 
-  await host.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(host, "Class" );
   await expect(guests[0]!.locator('[data-sgs-node="Animal"]')).toBeVisible({ timeout: 10000 });
 
   await host.close();
@@ -857,7 +862,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(node1.locator("polygon")).toBeVisible();
 
   // Class diagram node label edit & Add class
-  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(page, "Class" );
   const animalNode = page.locator('[data-sgs-node="Animal"]');
   await expect(animalNode).toBeVisible({ timeout: 10000 });
   await animalNode.click({ button: "right" });
@@ -886,7 +891,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(page.locator('[data-sgs-node="Class1"]')).toBeVisible();
 
   // State diagram node/edge label edit & Add state
-  await page.getByLabel("Start from a template").selectOption({ label: "State" });
+  await openTemplate(page, "State" );
   const idleNode = page.locator('[data-sgs-node="Idle"]');
   await expect(idleNode).toBeVisible({ timeout: 10000 });
   await idleNode.click({ button: "right" });
@@ -908,7 +913,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(page.locator('[data-sgs-node="State1"]')).toBeVisible();
 
   // ER diagram node/edge label edit & Add entity
-  await page.getByLabel("Start from a template").selectOption({ label: "ER" });
+  await openTemplate(page, "ER" );
   const userNode = page.locator('[data-sgs-node="USER"]');
   await expect(userNode).toBeVisible({ timeout: 10000 });
   await userNode.click({ button: "right" });
@@ -1246,7 +1251,7 @@ test("diagram actions menu duplicates and renames, and direction menu updates fl
 
 test("node context menu toggles visibility of multiple class members like Canva", async ({ page }) => {
   await page.goto("/#app");
-  await page.getByLabel("Start from a template").selectOption("Class");
+  await openTemplate(page, "Class");
   const animalNode = page.locator('[data-sgs-node="Animal"]');
   await expect(animalNode).toBeVisible();
 
@@ -1268,7 +1273,7 @@ test("node context menu toggles visibility of multiple class members like Canva"
 
 test("deletes nodes via right-click menu and Delete key", async ({ page }) => {
   await page.goto("/#app");
-  await page.getByLabel("Start from a template").selectOption("Class");
+  await openTemplate(page, "Class");
   const dogNode = page.locator('[data-sgs-node="Dog"]');
   await expect(dogNode).toBeVisible();
 

@@ -9,7 +9,6 @@ import {
   ArrowUp,
   BookOpen,
   Check,
-  ChevronDown,
   Code2,
   Copy,
   Download,
@@ -210,6 +209,24 @@ type AppView = "home" | "studio" | "docs" | "privacy" | "terms" | "notFound";
 
 function isStudioHash(hash: string): boolean {
   return hash === "#app" || hash.startsWith("#d=") || hash.startsWith("#room=");
+}
+
+function detectDirectionFromCode(source: string): "TD" | "BT" | "LR" | "RL" {
+  const lines = source.split(/\r?\n/);
+  const first = lines[0]?.trim() ?? "";
+  const headerMatch = first.match(/^(?:flowchart|graph)\s+(TD|TB|BT|LR|RL)\b/i);
+  if (headerMatch) {
+    const dir = headerMatch[1]!.toUpperCase();
+    return dir === "TB" ? "TD" : (dir as "TD" | "BT" | "LR" | "RL");
+  }
+  for (let i = 1; i < lines.length; i += 1) {
+    const dirMatch = lines[i]?.match(/^\s*direction\s+(TD|TB|BT|LR|RL)\b/i);
+    if (dirMatch) {
+      const dir = dirMatch[1]!.toUpperCase();
+      return dir === "TB" ? "TD" : (dir as "TD" | "BT" | "LR" | "RL");
+    }
+  }
+  return "TD";
 }
 
 function applyDiagramDirection(source: string, dir: "TD" | "BT" | "LR" | "RL"): string {
@@ -569,6 +586,36 @@ function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = data?.settings.theme === "dark" ? "dark" : "light";
   }, [data?.settings.theme]);
+
+  const closeAllMenus = useCallback(() => {
+    setStudioMenuOpen(false);
+    setTabMenuOpen(false);
+    setDirectionMenuOpen(false);
+    setAiMenuOpen(false);
+    document.querySelectorAll("details.history-menu[open], details.sensitivity-menu[open]").forEach((el) => {
+      el.removeAttribute("open");
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!studioMenuOpen && !tabMenuOpen && !directionMenuOpen && !aiMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (studioMenuOpen && !target?.closest(".studio-menu-wrap")) setStudioMenuOpen(false);
+      if (tabMenuOpen && !target?.closest(".tab-actions-wrap")) setTabMenuOpen(false);
+      if (directionMenuOpen && !target?.closest(".direction-menu-wrap")) setDirectionMenuOpen(false);
+      if (aiMenuOpen && !target?.closest(".ai-floating-wrap")) setAiMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeAllMenus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [studioMenuOpen, tabMenuOpen, directionMenuOpen, aiMenuOpen, closeAllMenus]);
 
   useEffect(() => {
     const onRouteChange = () => {
@@ -1238,6 +1285,15 @@ function App() {
   }
 
   const supportedMovement = ["flowchart", "class", "state", "er"].includes(diagramType);
+  const currentDirection = detectDirectionFromCode(activeDocument.code);
+  const DirectionIcon =
+    currentDirection === "BT"
+      ? ArrowUp
+      : currentDirection === "LR"
+        ? ArrowRight
+        : currentDirection === "RL"
+          ? ArrowLeft
+          : ArrowDown;
   const codeFormat = detectCodeFormat(activeDocument.code);
   const isReadOnlySnapshot = endedRoomDocIds.has(activeDocument.id);
 
@@ -1289,7 +1345,11 @@ function App() {
               title="Menu"
               aria-label="Studio menu"
               aria-expanded={studioMenuOpen}
-              onClick={() => setStudioMenuOpen((open) => !open)}
+              onClick={() => {
+                const next = !studioMenuOpen;
+                closeAllMenus();
+                setStudioMenuOpen(next);
+              }}
             >
               <Menu aria-hidden="true" size={17} />
             </button>
@@ -1405,7 +1465,11 @@ function App() {
             title="Diagram actions (Rename, Duplicate, Delete)"
             aria-label="Diagram actions"
             aria-expanded={tabMenuOpen}
-            onClick={() => setTabMenuOpen((open) => !open)}
+            onClick={() => {
+              const next = !tabMenuOpen;
+              closeAllMenus();
+              setTabMenuOpen(next);
+            }}
           >
             <MoreVertical aria-hidden="true" size={16} />
           </button>
@@ -1423,21 +1487,6 @@ function App() {
             </div>
           )}
         </div>
-        <label className="template-picker">
-          <span className="visually-hidden">Start from a template</span>
-          <select
-            value=""
-            aria-label="Start from a template"
-            onChange={(event) => {
-              const name = event.target.value;
-              if (name && TEMPLATES[name]) createTab(name, TEMPLATES[name]);
-            }}
-          >
-            <option value="">Templates</option>
-            {Object.keys(TEMPLATES).map((name) => <option key={name}>{name}</option>)}
-          </select>
-          <ChevronDown aria-hidden="true" size={13} />
-        </label>
       </section>
 
       <div className="message-stack">
@@ -1686,9 +1735,13 @@ function App() {
                   aria-label="Diagram direction"
                   aria-expanded={directionMenuOpen}
                   disabled={!supportedMovement || isReadOnlySnapshot}
-                  onClick={() => setDirectionMenuOpen((open) => !open)}
+                  onClick={() => {
+                    const next = !directionMenuOpen;
+                    closeAllMenus();
+                    setDirectionMenuOpen(next);
+                  }}
                 >
-                  <ArrowDown aria-hidden="true" size={15} />
+                  <DirectionIcon aria-hidden="true" size={15} />
                 </button>
                 {directionMenuOpen && (
                   <div className="studio-menu-popover direction-popover" role="menu">
@@ -1705,6 +1758,7 @@ function App() {
                         key={dir}
                         type="button"
                         role="menuitem"
+                        className={currentDirection === dir ? "active-dir" : undefined}
                         onClick={() => {
                           setDirectionMenuOpen(false);
                           changeCode(applyDiagramDirection(activeDocument.code, dir));
@@ -2194,7 +2248,11 @@ function App() {
             title="AI actions"
             aria-label="AI actions"
             aria-expanded={aiMenuOpen}
-            onClick={() => setAiMenuOpen((open) => !open)}
+            onClick={() => {
+              const next = !aiMenuOpen;
+              closeAllMenus();
+              setAiMenuOpen(next);
+            }}
           >
             <Plus aria-hidden="true" size={16} />
           </button>
