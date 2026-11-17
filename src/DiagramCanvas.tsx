@@ -743,6 +743,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const [rendering, setRendering] = useState(true);
   const [viewTransform, setViewTransform] = useState(zoomIdentity);
   const [toolMode, setToolMode] = useState<"move" | "hand">("move");
+  const selectedIdsRef = useRef<Set<string>>(new Set());
+  const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
   settingsRef.current = settings;
   readOnlyRef.current = readOnly;
@@ -1034,7 +1036,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
             button === 1 ||
             spaceDown.current ||
             toolModeRef.current === "hand" ||
-            (button === 0 && !target?.closest("[data-sgs-node], [data-sgs-edge]"))
+            (button === 0 && !(event as MouseEvent).shiftKey && !target?.closest("[data-sgs-node], [data-sgs-edge]"))
           );
         }
         if (event.type === "touchstart") {
@@ -1091,6 +1093,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       } else if (key === "v" || event.key === "Escape") {
         event.preventDefault();
         activateTool("move");
+        if (event.key === "Escape" && selectedIdsRef.current.size > 0) {
+          selectedIdsRef.current.clear();
+          graphicRef.current?.querySelectorAll<SVGGElement>("[data-sgs-node]").forEach((el) => {
+            delete el.dataset.selected;
+          });
+        }
       } else if (event.shiftKey && event.code === "Digit1") {
         event.preventDefault();
         fit();
@@ -1635,15 +1643,6 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       onLayoutChangeRef.current(trimmedLayout);
     }
     let moved = false;
-    const setPosition = (node: (typeof nodes)[number], position: Position) => {
-      node.position = position;
-      node.wrapper.setAttribute(
-        "transform",
-        `translate(${position.x - node.base.x},${position.y - node.base.y})`,
-      );
-      moved = true;
-      routeEdges();
-    };
     const finishDrag = (id: string) => {
       if (!moved) return;
       const next: Record<string, Position> = {};
@@ -1767,8 +1766,24 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       edge.control.addEventListener("keydown", onKeyDown);
     });
 
+    const syncSelectionAttrs = () => {
+      nodes.forEach((n) => {
+        if (selectedIdsRef.current.has(n.id)) n.wrapper.dataset.selected = "true";
+        else delete n.wrapper.dataset.selected;
+      });
+    };
+    syncSelectionAttrs();
+
     nodes.forEach((node) => {
-      let pointerStart: { id: number; x: number; y: number; position: Position } | undefined;
+      let pointerStart:
+        | {
+            id: number;
+            x: number;
+            y: number;
+            position: Position;
+            group: Array<{ node: (typeof nodes)[number]; position: Position }>;
+          }
+        | undefined;
       const onPointerDown = (event: PointerEvent) => {
         if (
           readOnlyRef.current ||
@@ -1778,11 +1793,23 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         ) return;
         event.preventDefault();
         event.stopPropagation();
+        if (event.shiftKey) {
+          if (selectedIdsRef.current.has(node.id)) selectedIdsRef.current.delete(node.id);
+          else selectedIdsRef.current.add(node.id);
+          syncSelectionAttrs();
+        } else if (!selectedIdsRef.current.has(node.id)) {
+          selectedIdsRef.current.clear();
+          syncSelectionAttrs();
+        }
+        const activeGroup = selectedIdsRef.current.has(node.id) && selectedIdsRef.current.size > 1
+          ? nodes.filter((n) => selectedIdsRef.current.has(n.id))
+          : [node];
         pointerStart = {
           id: event.pointerId,
           x: event.clientX,
           y: event.clientY,
           position: { ...node.position },
+          group: activeGroup.map((n) => ({ node: n, position: { ...n.position } })),
         };
         node.wrapper.setPointerCapture(event.pointerId);
       };
@@ -1804,11 +1831,21 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
             if (Math.abs(other.position.y - y) < 6) y = other.position.y;
           }
         }
+        const dx = x - pointerStart.position.x;
+        const dy = y - pointerStart.position.y;
         if (
           Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 4 &&
-          (Math.abs(x - pointerStart.position.x) + Math.abs(y - pointerStart.position.y) > 0.5)
+          Math.abs(dx) + Math.abs(dy) > 0.5
         ) {
-          setPosition(node, { x, y });
+          pointerStart.group.forEach(({ node: item, position: startPos }) => {
+            item.position = { x: startPos.x + dx, y: startPos.y + dy };
+            item.wrapper.setAttribute(
+              "transform",
+              `translate(${item.position.x - item.base.x},${item.position.y - item.base.y})`,
+            );
+          });
+          moved = true;
+          routeEdges();
           drawGuides(node, x, y);
         }
       };
@@ -1842,7 +1879,20 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           next.x = Math.round(next.x / size) * size;
           next.y = Math.round(next.y / size) * size;
         }
-        setPosition(node, next);
+        const dx = next.x - node.position.x;
+        const dy = next.y - node.position.y;
+        const targets = selectedIdsRef.current.has(node.id) && selectedIdsRef.current.size > 1
+          ? nodes.filter((n) => selectedIdsRef.current.has(n.id))
+          : [node];
+        targets.forEach((item) => {
+          item.position = { x: item.position.x + dx, y: item.position.y + dy };
+          item.wrapper.setAttribute(
+            "transform",
+            `translate(${item.position.x - item.base.x},${item.position.y - item.base.y})`,
+          );
+        });
+        moved = true;
+        routeEdges();
         finishDrag(node.id);
       };
       node.wrapper.addEventListener("pointerdown", onPointerDown);
@@ -1884,11 +1934,72 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const gridSize = Math.max(4, settings.snapSize) * viewTransform.k;
   const resolvedPalette = resolveDiagramPalette(settings);
 
+  const handleViewportPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (event.button !== 0 || target?.closest("[data-sgs-node], [data-sgs-edge]")) return;
+    if (!event.shiftKey) {
+      if (selectedIdsRef.current.size > 0) {
+        selectedIdsRef.current.clear();
+        graphicRef.current?.querySelectorAll<SVGGElement>("[data-sgs-node]").forEach((el) => {
+          delete el.dataset.selected;
+        });
+      }
+      return;
+    }
+    if (readOnlyRef.current || toolModeRef.current === "hand" || spaceDown.current) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    event.preventDefault();
+    const rect = viewport.getBoundingClientRect();
+    const startX = event.clientX - rect.left;
+    const startY = event.clientY - rect.top;
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    setMarquee({ left: startX, top: startY, width: 0, height: 0 });
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const curX = moveEvent.clientX - rect.left;
+      const curY = moveEvent.clientY - rect.top;
+      setMarquee({
+        left: Math.min(startX, curX),
+        top: Math.min(startY, curY),
+        width: Math.abs(curX - startX),
+        height: Math.abs(curY - startY),
+      });
+    };
+    const onUp = (upEvent: PointerEvent) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      setMarquee(null);
+      const boxLeft = Math.min(startClientX, upEvent.clientX);
+      const boxRight = Math.max(startClientX, upEvent.clientX);
+      const boxTop = Math.min(startClientY, upEvent.clientY);
+      const boxBottom = Math.max(startClientY, upEvent.clientY);
+      if (boxRight - boxLeft < 4 && boxBottom - boxTop < 4) return;
+      selectedIdsRef.current.clear();
+      graphicRef.current?.querySelectorAll<SVGGElement>("[data-sgs-node]").forEach((el) => {
+        const b = el.getBoundingClientRect();
+        const intersects = b.right >= boxLeft && b.left <= boxRight && b.bottom >= boxTop && b.top <= boxBottom;
+        if (intersects && el.dataset.sgsNode) {
+          selectedIdsRef.current.add(el.dataset.sgsNode);
+          el.dataset.selected = "true";
+        } else {
+          delete el.dataset.selected;
+        }
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
+
   return (
     <div
       className="diagram-viewport"
       ref={viewportRef}
       data-tool={toolMode}
+      onPointerDown={handleViewportPointerDown}
       style={{
         backgroundColor: resolvedPalette.canvasColor,
         backgroundSize: `${gridSize}px ${gridSize}px`,
@@ -1906,6 +2017,17 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       {rendering && <div className="render-indicator" aria-live="polite">Rendering…</div>}
       {!rendered.svg && !rendering && (
         <div className="render-empty" role="status">Enter valid Mermaid syntax to preview.</div>
+      )}
+      {marquee && (
+        <div
+          className="sgs-marquee"
+          style={{
+            left: `${marquee.left}px`,
+            top: `${marquee.top}px`,
+            width: `${marquee.width}px`,
+            height: `${marquee.height}px`,
+          }}
+        />
       )}
     </div>
   );
