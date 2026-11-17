@@ -154,7 +154,7 @@ function updateEdgeLabelInCode(code: string, edgeId: string, nextLabel: string):
       }
     } else if (type === "class") {
       const classEdgeRe = new RegExp(
-        `^(\\s*${src}\\b\\s*(?:<\\|--|\\*--|o--|-->|\\.\\.>|\\.\\.|--|<\\.\\.)\\s*${tgt}\\b)(?:\\s*:\\s*.*)?$`,
+        `^(\\s*${src}\\b\\s*(?:<\\|--|\\*--|o--|-->|\\.\\.>|\\.\\.|--|<\\.\\.|<\\|\\.\\.|--\\|>|--\\*|--o|<--|<-->)\\s*${tgt}\\b)(?:\\s*:\\s*.*)?$`,
       );
       if (classEdgeRe.test(line)) {
         if (seen === targetIndex) {
@@ -164,7 +164,7 @@ function updateEdgeLabelInCode(code: string, edgeId: string, nextLabel: string):
         seen += 1;
       }
     } else if (type === "er") {
-      const erEdgeRe = new RegExp(`^(\\s*${src}\\b\\s*[|}o|][|o{}-]+[|o{]\\s*${tgt}\\b)(?:\\s*:\\s*.*)?$`);
+      const erEdgeRe = new RegExp(`^(\\s*${src}\\b\\s*[|}o|][|o{}.-]+[|o{]\\s*${tgt}\\b)(?:\\s*:\\s*.*)?$`);
       if (erEdgeRe.test(line)) {
         if (seen === targetIndex) {
           lines[i] = line.replace(erEdgeRe, `$1 : ${safe}`);
@@ -287,7 +287,7 @@ export function getDiagramBounds(svg: SVGSVGElement): {
       .filter((box) => box.width > 0 && box.height > 0);
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine",
       ),
     ).filter((path) => path.getTotalLength() > 0);
     edgePaths.forEach((path) => {
@@ -1449,7 +1449,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     });
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine",
       ),
     ).filter((path) => path.getTotalLength() > 0);
     const selfLoops: { wrapper: SVGGElement; node: (typeof nodes)[number] }[] = [];
