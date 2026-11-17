@@ -47,21 +47,25 @@ function isDiamondPolygon(polygon: SVGPolygonElement): boolean {
 }
 
 function getExportNodeShapes(node: SVGGElement): SVGElement[] {
-  const container = node.querySelector<SVGElement>(":scope > .basic.label-container");
+  const container = node.querySelector<SVGElement>(":scope > .basic.label-container, :scope > .label-container");
   if (container) {
     if (container.matches("rect, polygon, circle, ellipse, path")) return [container];
     const nested = container.querySelectorAll<SVGElement>(":scope > path:first-child, :scope > rect, :scope > polygon");
     if (nested.length > 0) return Array.from(nested);
   }
+  const outer = node.querySelectorAll<SVGElement>(":scope > .outer-path > path, :scope > .outer-path > rect");
+  if (outer.length > 0) return Array.from(outer);
   return Array.from(
-    node.querySelectorAll<SVGElement>(":scope > rect, :scope > circle, :scope > ellipse, :scope > polygon, :scope > path"),
+    node.querySelectorAll<SVGElement>(":scope > .node-bkg, :scope > rect, :scope > circle, :scope > ellipse, :scope > polygon, :scope > path"),
   );
 }
 
 function colorizeExportedNodes(svg: SVGSVGElement, settings?: StudioSettings) {
   const isDark = settings ? relativeLuminance(resolveDiagramPalette(settings).canvasColor) < 0.25 : false;
   const palette = isDark ? DARK_EXPORT_SWATCHES : LIGHT_EXPORT_SWATCHES;
-  const nodes = svg.querySelectorAll<SVGGElement>("g.node, g.statediagram-state, g.entityBox, g.classGroup");
+  const nodes = svg.querySelectorAll<SVGGElement>(
+    "g.node, g.statediagram-state, g.entityBox, g.classGroup, g.mindmap-node, g.reqBox, g:has(> rect.actor), g:has(> rect.note), g:has(> rect.task)",
+  );
   let cycleIndex = 0;
 
   nodes.forEach((node) => {
@@ -70,8 +74,8 @@ function colorizeExportedNodes(svg: SVGSVGElement, settings?: StudioSettings) {
     // Preserve explicit Mermaid `style` / `classDef` node fills authored by the user.
     if (shapes.some((shape) => Boolean(shape.style.fill))) return;
 
-    const isClassOrEntity = node.matches("g.classGroup, g.entityBox, g.statediagram-state") ||
-      Boolean(node.querySelector(".divider, .classTitleText"));
+    const isClassOrEntity = node.matches("g.classGroup, g.entityBox, g.statediagram-state, g.reqBox") ||
+      Boolean(node.querySelector(".divider, .classTitleText, .outer-path, rect.actor, rect.note, rect.task"));
     let swatch: NodeSwatch;
 
     if (!isClassOrEntity && node.querySelector(":scope > circle, :scope > ellipse")) {
@@ -96,13 +100,18 @@ function colorizeExportedNodes(svg: SVGSVGElement, settings?: StudioSettings) {
       shape.style.setProperty("stroke", swatch.stroke, "important");
     });
     node
+      .querySelectorAll<SVGElement>(".row-rect-odd path, .row-rect-even path")
+      .forEach((row) => {
+        row.style.setProperty("fill", swatch.fill, "important");
+      });
+    node
       .querySelectorAll<SVGElement>(".basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line")
       .forEach((divider) => {
         divider.style.setProperty("fill", "none", "important");
         divider.style.setProperty("stroke", swatch.stroke, "important");
       });
     node
-      .querySelectorAll<SVGElement>(".nodeLabel, .label text, .label tspan, .label span, .label div, g.classGroup text, .classTitleText, .node text, .entityLabel")
+      .querySelectorAll<SVGElement>(".nodeLabel, .label text, .label tspan, .label span, .label div, g.classGroup text, .classTitleText, .node text, .entityLabel, text, tspan")
       .forEach((label) => {
         label.style.setProperty("fill", swatch.text, "important");
         label.style.setProperty("color", swatch.text, "important");
