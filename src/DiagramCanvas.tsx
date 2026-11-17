@@ -34,7 +34,7 @@ interface DiagramCanvasProps {
 }
 
 type CanvasContextMenu =
-  | { kind: "node"; x: number; y: number; id: string; label: string }
+  | { kind: "node"; x: number; y: number; id: string; label: string; member?: string }
   | { kind: "edge"; x: number; y: number; id: string; label: string }
   | { kind: "canvas"; x: number; y: number };
 
@@ -101,11 +101,41 @@ function hideNodeInCode(code: string, nodeId: string): string | null {
   return `${code.trimEnd()}\n%% sgs-hide: ${nodeId}`;
 }
 
+function normalizeMemberText(text: string): string {
+  return text.replace(/\s*:\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function hideClassMemberInCode(code: string, nodeId: string, memberText: string): string | null {
+  if (detectDiagramType(code) !== "class") return null;
+  const targetNorm = normalizeMemberText(memberText);
+  if (!targetNorm) return null;
+  const lines = code.split(/\r?\n/);
+  const escapedId = escapeRegex(nodeId);
+  const startRe = new RegExp(`^\\s*class\\s+${escapedId}(?:\\s*\\[[^\\]]*\\])?\\s*\\{`);
+  let inBlock = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (!inBlock) {
+      if (startRe.test(line) && !line.includes("}")) inBlock = true;
+      continue;
+    }
+    if (line.includes("}")) break;
+    if (/^\s*%%/.test(line)) continue;
+    if (normalizeMemberText(line) === targetNorm) {
+      const indent = line.match(/^\s*/)?.[0] ?? "  ";
+      lines[i] = `${indent}%% sgs-hidden-member: ${line.trim()}`;
+      return lines.join("\n");
+    }
+  }
+  return null;
+}
+
 function showHiddenNodesInCode(code: string): string | null {
-  const filtered = code
+  const next = code
     .split(/\r?\n/)
-    .filter((line) => !/^\s*%%\s*sgs-hide:\s*.+$/.test(line));
-  const next = filtered.join("\n");
+    .filter((line) => !/^\s*%%\s*sgs-hide:\s*.+$/.test(line))
+    .map((line) => line.replace(/^(\s*)%%\s*sgs-hidden-member:\s*(.+)$/, "$1$2"))
+    .join("\n");
   return next !== code ? next : null;
 }
 
@@ -2317,8 +2347,13 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     if (nodeEl?.dataset.sgsNode) {
       const id = nodeEl.dataset.sgsNode;
       const label = readNodeTitle(nodeEl, id);
+      const memberEl = target?.closest(
+        ".members-group .label, .methods-group .label, .members-group .nodeLabel, .methods-group .nodeLabel",
+      );
+      const rawMember = memberEl?.textContent?.trim();
+      const member = rawMember && rawMember !== label ? rawMember : undefined;
       setLabelDraft(label);
-      setContextMenu({ kind: "node", x, y, id, label });
+      setContextMenu({ kind: "node", x, y, id, label, member });
     } else if (edgeId) {
       const label = edgeEl?.dataset.sgsEdgeLabel || "";
       setLabelDraft(label);
@@ -2457,6 +2492,19 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       </button>
                     ) : null;
                   })()}
+                  {onCodeChange && !readOnly && contextMenu.member && hideClassMemberInCode(document.code, contextMenu.id, contextMenu.member) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        const updated = hideClassMemberInCode(document.code, contextMenu.id, contextMenu.member!);
+                        if (updated) onCodeChange(updated);
+                        setContextMenu(null);
+                      }}
+                    >
+                      Hide "{contextMenu.member}" (suppress)
+                    </button>
+                  )}
                   {onCodeChange && !readOnly && hideNodeInCode(document.code, contextMenu.id) && (
                     <button
                       type="button"
