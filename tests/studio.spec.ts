@@ -1239,3 +1239,25 @@ test("diagram actions menu duplicates and renames, and direction menu updates fl
   await page.getByRole("menuitem", { name: "Left to right" }).click();
   await expect(page.locator(".cm-content")).toContainText("flowchart LR");
 });
+
+test("node context menu toggles visibility of multiple class members like Canva", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByLabel("Start from a template").selectOption("Class");
+  const animalNode = page.locator('[data-sgs-node="Animal"]');
+  await expect(animalNode).toBeVisible();
+
+  await animalNode.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Visibility / members…" }).click();
+
+  await page.getByRole("menuitemcheckbox", { name: /\+String name/ }).click();
+  await page.getByRole("menuitemcheckbox", { name: /\+int age/ }).click();
+
+  await expect(page.locator(".cm-content")).toContainText("%% sgs-hidden-member: +String name");
+  await expect(page.locator(".cm-content")).toContainText("%% sgs-hidden-member: +int age");
+
+  await page.getByRole("button", { name: "Hide all" }).click();
+  await expect(page.locator(".cm-content")).toContainText("%% sgs-hidden-member: +speak() void");
+
+  await page.getByRole("button", { name: "Show all" }).click();
+  await expect(page.locator(".cm-content")).not.toContainText("sgs-hidden-member");
+});

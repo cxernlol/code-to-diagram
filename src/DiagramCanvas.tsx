@@ -105,6 +105,91 @@ function normalizeMemberText(text: string): string {
   return text.replace(/\s*:\s*/g, " ").replace(/\s+/g, " ").trim();
 }
 
+interface NodeMemberEntry {
+  lineIndex: number;
+  text: string;
+  hidden: boolean;
+}
+
+function findNodeBlockRange(lines: string[], code: string, nodeId: string): { start: number; end: number } | null {
+  const kind = detectDiagramType(code);
+  if (kind !== "class" && kind !== "er") return null;
+  const escapedId = escapeRegex(nodeId);
+  const startRe =
+    kind === "class"
+      ? new RegExp(`^\\s*class\\s+${escapedId}(?:\\s*\\[[^\\]]*\\])?\\s*\\{`)
+      : new RegExp(`^\\s*${escapedId}(?:\\s*\\[[^\\]]*\\])?\\s*\\{`);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (!startRe.test(line) || line.includes("}")) continue;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      if (lines[j]!.includes("}")) return { start: i, end: j };
+    }
+    return null;
+  }
+  return null;
+}
+
+function listNodeMembersInCode(code: string, nodeId: string): NodeMemberEntry[] {
+  const lines = code.split(/\r?\n/);
+  const range = findNodeBlockRange(lines, code, nodeId);
+  if (!range) return [];
+  const members: NodeMemberEntry[] = [];
+  for (let i = range.start + 1; i < range.end; i += 1) {
+    const line = lines[i]!;
+    const hiddenMatch = line.match(/^\s*%%\s*sgs-hidden-member:\s*(.+)$/);
+    if (hiddenMatch) {
+      members.push({ lineIndex: i, text: hiddenMatch[1]!.trim(), hidden: true });
+      continue;
+    }
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("%%")) continue;
+    members.push({ lineIndex: i, text: trimmed, hidden: false });
+  }
+  return members;
+}
+
+function toggleNodeMemberInCode(code: string, nodeId: string, lineIndex: number): string | null {
+  const lines = code.split(/\r?\n/);
+  const range = findNodeBlockRange(lines, code, nodeId);
+  if (!range || lineIndex <= range.start || lineIndex >= range.end) return null;
+  const line = lines[lineIndex];
+  if (line === undefined) return null;
+  const hiddenMatch = line.match(/^(\s*)%%\s*sgs-hidden-member:\s*(.+)$/);
+  if (hiddenMatch) {
+    lines[lineIndex] = `${hiddenMatch[1]}${hiddenMatch[2]}`;
+    return lines.join("\n");
+  }
+  const indent = line.match(/^\s*/)?.[0] ?? "  ";
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("%%")) return null;
+  lines[lineIndex] = `${indent}%% sgs-hidden-member: ${trimmed}`;
+  return lines.join("\n");
+}
+
+function setAllNodeMembersHiddenInCode(code: string, nodeId: string, hide: boolean): string | null {
+  const lines = code.split(/\r?\n/);
+  const range = findNodeBlockRange(lines, code, nodeId);
+  if (!range) return null;
+  let changed = false;
+  for (let i = range.start + 1; i < range.end; i += 1) {
+    const line = lines[i]!;
+    const hiddenMatch = line.match(/^(\s*)%%\s*sgs-hidden-member:\s*(.+)$/);
+    if (hide && !hiddenMatch) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith("%%")) {
+        const indent = line.match(/^\s*/)?.[0] ?? "  ";
+        lines[i] = `${indent}%% sgs-hidden-member: ${trimmed}`;
+        changed = true;
+      }
+    } else if (!hide && hiddenMatch) {
+      lines[i] = `${hiddenMatch[1]}${hiddenMatch[2]}`;
+      changed = true;
+    }
+  }
+  return changed ? lines.join("\n") : null;
+}
+
 function hideClassMemberInCode(code: string, nodeId: string, memberText: string): string | null {
   if (detectDiagramType(code) !== "class") return null;
   const targetNorm = normalizeMemberText(memberText);
@@ -1045,6 +1130,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
   const [editingLabel, setEditingLabel] = useState(false);
   const [pickingShape, setPickingShape] = useState(false);
+  const [pickingMembers, setPickingMembers] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
 
   settingsRef.current = settings;
@@ -2347,6 +2433,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const edgeEl = target?.closest<SVGGElement>("[data-sgs-edge], [data-sgs-edge-id]");
     setEditingLabel(false);
     setPickingShape(false);
+    setPickingMembers(false);
     const edgeId = edgeEl?.dataset.sgsEdge || edgeEl?.dataset.sgsEdgeId;
     if (nodeEl?.dataset.sgsNode) {
       const id = nodeEl.dataset.sgsNode;
@@ -2447,6 +2534,50 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   />
                   <button className="button primary compact" type="submit">Apply</button>
                 </form>
+              ) : pickingMembers && onCodeChange ? (
+                <>
+                  {(() => {
+                    const members = listNodeMembersInCode(document.code, contextMenu.id);
+                    const allHidden = members.length > 0 && members.every((m) => m.hidden);
+                    return (
+                      <>
+                        <div className="context-members-head">
+                          <button type="button" className="context-back-btn" onClick={() => setPickingMembers(false)}>
+                            ← Back
+                          </button>
+                          <button
+                            type="button"
+                            className="context-toggle-all-btn"
+                            onClick={() => {
+                              const updated = setAllNodeMembersHiddenInCode(document.code, contextMenu.id, !allHidden);
+                              if (updated) onCodeChange(updated);
+                            }}
+                          >
+                            {allHidden ? "Show all" : "Hide all"}
+                          </button>
+                        </div>
+                        {members.map((member) => (
+                          <button
+                            key={member.lineIndex}
+                            type="button"
+                            role="menuitemcheckbox"
+                            aria-checked={!member.hidden}
+                            className={`context-member-row${member.hidden ? " is-hidden" : ""}`}
+                            onClick={() => {
+                              const updated = toggleNodeMemberInCode(document.code, contextMenu.id, member.lineIndex);
+                              if (updated) onCodeChange(updated);
+                            }}
+                          >
+                            <span className="context-member-check" aria-hidden="true">
+                              {member.hidden ? "☐" : "☑"}
+                            </span>
+                            <span className="context-member-text">{member.text}</span>
+                          </button>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </>
               ) : pickingShape && onCodeChange ? (
                 <>
                   {FLOWCHART_SHAPES.map((shape) => (
@@ -2497,6 +2628,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       </button>
                     ) : null;
                   })()}
+                  {onCodeChange && !readOnly && listNodeMembersInCode(document.code, contextMenu.id).length > 0 && (
+                    <button type="button" role="menuitem" onClick={() => setPickingMembers(true)}>
+                      Visibility / members…
+                    </button>
+                  )}
                   {onCodeChange && !readOnly && contextMenu.member && hideClassMemberInCode(document.code, contextMenu.id, contextMenu.member) && (
                     <button
                       type="button"
