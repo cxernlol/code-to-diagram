@@ -49,9 +49,10 @@ import { DiagramCanvas, type DiagramCanvasHandle } from "./DiagramCanvas";
 import { DocsPage } from "./DocsPage";
 import { HomePage } from "./HomePage";
 import { LegalPage, type LegalTab } from "./LegalPage";
-import { PROVIDERS, TEMPLATES, THEME_PRESETS, createDocument } from "./constants";
+import { AI_USAGE_TOKENS, PROVIDERS, TEMPLATES, THEME_PRESETS, createDocument } from "./constants";
 import {
   cleanMermaidCode,
+  fetchProviderModels,
   parseStructuredDiagrams,
   requestAiText,
   validateMermaid,
@@ -97,9 +98,11 @@ import {
 } from "./storage";
 
 import type {
+  AiUsageLevel,
   DiagramDocument,
   Position,
   ProviderId,
+  ProviderSettings,
   StudioData,
   StudioSettings,
   VersionEntry,
@@ -231,6 +234,7 @@ function App() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState("");
   const [testStatus, setTestStatus] = useState("");
+  const [detectedModels, setDetectedModels] = useState<string[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [roomMode, setRoomMode] = useState<"none" | "host" | "guest">("none");
@@ -851,6 +855,30 @@ function App() {
   };
 
   const stopAi = () => aiController.current?.abort();
+
+  const detectModels = async (providerOverride?: ProviderSettings, silent = false) => {
+    const current = dataRef.current;
+    if (!current) return;
+    const target = providerOverride ?? current.settings.provider;
+    if (!target.baseUrl.trim()) {
+      if (!silent) setTestStatus("Enter an endpoint base URL first.");
+      return;
+    }
+    if (!silent) setTestStatus("Detecting models...");
+    try {
+      const models = await fetchProviderModels(target, current.credentials.apiKey);
+      setDetectedModels(models);
+      if (models.length > 0 && !target.model.trim()) {
+        changeSettings({ provider: { ...target, model: models[0]! } });
+      }
+      if (!silent) {
+        setTestStatus(models.length > 0 ? `Detected ${models.length} model(s).` : "No models returned by endpoint.");
+      }
+    } catch (error) {
+      setDetectedModels([]);
+      if (!silent) setTestStatus(errorText(error));
+    }
+  };
 
   const testConnection = async () => {
     if (!data) return;
@@ -1815,20 +1843,61 @@ function App() {
                     const model = data.settings.provider.model === oldPreset.model
                       ? preset.model
                       : data.settings.provider.model;
-                    changeSettings({ provider: { ...data.settings.provider, provider, baseUrl: preset.baseUrl, model } });
+                    const nextProvider: ProviderSettings = {
+                      ...data.settings.provider,
+                      provider,
+                      baseUrl: preset.baseUrl,
+                      model,
+                    };
+                    setDetectedModels([]);
+                    setTestStatus("");
+                    changeSettings({ provider: nextProvider });
+                    if (preset.baseUrl && (data.credentials.apiKey.trim() || provider === "ollama" || provider === "lmstudio")) {
+                      void detectModels(nextProvider, true);
+                    }
                   }}
                 >
                   {Object.entries(PROVIDERS).map(([id, provider]) => <option key={id} value={id}>{provider.label}</option>)}
                 </select>
               </label>
-              <label>Model<input value={data.settings.provider.model} placeholder="Model ID" onChange={(event) => changeSettings({ provider: { ...data.settings.provider, model: event.target.value } })} /></label>
-              <label className="wide-field">Compatible API base URL<input type="url" value={data.settings.provider.baseUrl} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, baseUrl: event.target.value } })} /></label>
+              <label>Model
+                <span className="password-input-row">
+                  <input
+                    list="ai-model-options"
+                    value={data.settings.provider.model}
+                    placeholder="Select or type model ID"
+                    onChange={(event) => changeSettings({ provider: { ...data.settings.provider, model: event.target.value } })}
+                  />
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    onClick={() => void detectModels()}
+                  >
+                    Detect
+                  </button>
+                </span>
+                <datalist id="ai-model-options">
+                  {Array.from(
+                    new Set([...detectedModels, ...(PROVIDERS[data.settings.provider.provider]?.models ?? [])]),
+                  ).map((id) => (
+                    <option key={id} value={id} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="wide-field">
+                {PROVIDERS[data.settings.provider.provider]?.protocol === "anthropic"
+                  ? "Anthropic API base URL"
+                  : "Compatible API base URL"}
+                <input type="url" value={data.settings.provider.baseUrl} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, baseUrl: event.target.value } })} />
+              </label>
               <label className="wide-field">API key
                 <span className="password-input-row">
                   <input
                     type={showApiKey ? "text" : "password"}
                     autoComplete="off"
-                    placeholder="sk-..."
+                    placeholder={
+                      PROVIDERS[data.settings.provider.provider]?.protocol === "anthropic" ? "sk-ant-..." : "sk-..."
+                    }
                     value={data.credentials.apiKey}
                     onChange={(event) => {
                       const current = dataRef.current;
@@ -1845,7 +1914,18 @@ function App() {
                   </button>
                 </span>
               </label>
-              <label>Temperature<input type="number" min="0" max="2" step="0.1" placeholder="Default" value={data.settings.provider.temperature ?? ""} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, temperature: event.target.value === "" ? null : Number(event.target.value) } })} /></label>
+              <label>Usage
+                <select
+                  value={data.settings.provider.usage ?? "medium"}
+                  onChange={(event) =>
+                    changeSettings({ provider: { ...data.settings.provider, usage: event.target.value as AiUsageLevel } })
+                  }
+                >
+                  {(Object.entries(AI_USAGE_TOKENS) as Array<[AiUsageLevel, { label: string }]>).map(([level, info]) => (
+                    <option key={level} value={level}>{info.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
             <p id="provider-privacy" className="form-note">AI requests include the diagram, prompt, and API key, and go directly to the selected provider. Some endpoints block browser requests with CORS. Provider charges are separate from CTD Studio.</p>
             <div className="settings-actions">
