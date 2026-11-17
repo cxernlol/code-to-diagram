@@ -1595,10 +1595,38 @@ function App() {
             aria-label="AI result"
           >
             <div className="result-heading">
-              <div><Wand2 aria-hidden="true" size={16} /><h2>{aiPanel?.kind === "explain" ? "Explanation" : aiPanel?.kind === "structured" ? "Structured diagrams" : "AI preview"}</h2></div>
+              <div>
+                <Wand2 aria-hidden="true" size={16} />
+                <h2>{aiPanel?.kind === "explain" ? "Explanation" : aiPanel?.kind === "structured" ? "Structured diagrams" : "AI preview"}</h2>
+                <span className="ai-provider-pill">{PROVIDERS[data.settings.provider.provider].label} · {data.settings.provider.model}</span>
+              </div>
               <button className="icon-button compact" aria-label="Close AI result" onClick={() => { setAiPanel(null); setAiError(""); setAiStream(""); }}><X aria-hidden="true" size={15} /></button>
             </div>
-            {aiError && <p className="ai-error" role="alert">{aiError}</p>}
+            {aiError && (
+              <div className="ai-error" role="alert">
+                <p>{aiError}</p>
+                <div className="ai-error-actions">
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => {
+                      setSettingsTab("ai");
+                      setSettingsOpen(true);
+                    }}
+                  >
+                    <Settings2 aria-hidden="true" size={14} />
+                    Open AI settings
+                  </button>
+                  <button
+                    className="button text-button"
+                    type="button"
+                    onClick={() => setAiError("")}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
             {aiBusy && <p className="stream-status" aria-live="polite">Receiving response…</p>}
             {aiPanel?.kind === "explain" && <div className="explanation-copy">{aiPanel.text}</div>}
             {aiPanel?.kind === "refine" && (

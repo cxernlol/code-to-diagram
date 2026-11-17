@@ -62,8 +62,17 @@ export async function requestAiText({
     signal,
   });
   if (!response.ok) {
-    const message = (await response.text()).slice(0, 400);
-    throw new Error(`AI provider returned ${response.status}: ${message || response.statusText}`);
+    const raw = (await response.text()).trim();
+    let detail = response.statusText;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { error?: { message?: string }; message?: string };
+        detail = parsed?.error?.message || parsed?.message || raw.slice(0, 240);
+      } catch {
+        detail = raw.slice(0, 240);
+      }
+    }
+    throw new Error(`AI provider returned ${response.status}: ${detail}`);
   }
   if (!response.body) throw new Error("The AI provider returned no response stream.");
 
