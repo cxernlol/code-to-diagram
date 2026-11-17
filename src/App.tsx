@@ -1,29 +1,31 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowDownToLine,
   BookOpen,
   Check,
   ChevronDown,
-  Clipboard,
   Code2,
+  Copy,
   Download,
   Eye,
   EyeOff,
-  FileImage,
+  FileCode2,
   FolderOpen,
   GitBranch,
   Hand,
+  History,
+  ImageDown,
   LayoutGrid,
-  Maximize2,
+  Link2,
   MousePointer,
   Palette,
   PanelRight,
   Plus,
   Redo2,
+  RefreshCcw,
   RotateCcw,
+  Scan,
   Settings,
   Settings2,
-  Share2,
   StopCircle,
   Undo2,
   Users,
@@ -1198,10 +1200,10 @@ function App() {
           </button>
           <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,text/plain,text/markdown,application/xml" onChange={(event) => void importFile(event)} />
           <button className="icon-button" title="Copy source" aria-label="Copy Mermaid source" onClick={() => void copyCode()}>
-            <Clipboard aria-hidden="true" size={17} />
+            <Copy aria-hidden="true" size={17} />
           </button>
           <button className="icon-button" title="Copy share link" aria-label="Copy share link" onClick={() => void share()}>
-            <Share2 aria-hidden="true" size={17} />
+            <Link2 aria-hidden="true" size={17} />
           </button>
           <button
             className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
@@ -1224,15 +1226,15 @@ function App() {
             <Palette aria-hidden="true" size={17} />
           </button>
           <button className="icon-button" title="Export SVG" aria-label="Export SVG" onClick={saveSvg}>
-            <FileImage aria-hidden="true" size={17} />
+            <FileCode2 aria-hidden="true" size={17} />
           </button>
           <button className="icon-button" title="Export PNG" aria-label="Export PNG" disabled={saveBusy} onClick={() => void savePng()}>
-            <ArrowDownToLine aria-hidden="true" size={17} />
+            <ImageDown aria-hidden="true" size={17} />
           </button>
           <button className="icon-button" title="Syntax & template docs" aria-label="Open docs" onClick={openDocs}>
             <BookOpen aria-hidden="true" size={17} />
           </button>
-          <button className="icon-button settings-trigger" aria-label="Open settings" onClick={() => setSettingsOpen(true)}>
+          <button className="icon-button settings-trigger" title="Settings" aria-label="Open settings" onClick={() => setSettingsOpen(true)}>
             <Settings aria-hidden="true" size={17} />
           </button>
         </div>
@@ -1447,7 +1449,7 @@ function App() {
               <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={isReadOnlySnapshot} onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={isReadOnlySnapshot} onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
               <details className="history-menu">
-                <summary aria-label="Version history"><RotateCcw aria-hidden="true" size={15} /></summary>
+                <summary aria-label="Version history"><History aria-hidden="true" size={15} /></summary>
                 <div className="history-popover">
                   <strong>Version history</strong>
                   {activeDocument.history.length ? activeDocument.history.map((version) => (
@@ -1575,7 +1577,7 @@ function App() {
               </button>
               <button className="icon-button compact" aria-label="Zoom out" title="Zoom out (-)" onClick={() => canvasRef.current?.zoomBy(1 / 1.15)}><ZoomOut aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Zoom in" title="Zoom in (+)" onClick={() => canvasRef.current?.zoomBy(1.15)}><ZoomIn aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Fit diagram" title="Fit diagram (Shift+1)" onClick={() => canvasRef.current?.fit()}><Maximize2 aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" aria-label="Fit diagram" title="Fit diagram (Shift+1)" onClick={() => canvasRef.current?.fit()}><Scan aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Reset pan and zoom" title="Reset pan and zoom" onClick={() => canvasRef.current?.reset()}><RotateCcw aria-hidden="true" size={15} /></button>
               <button
                 className="icon-button compact"
@@ -1596,7 +1598,7 @@ function App() {
                   requestAnimationFrame(() => canvasRef.current?.fit());
                 }}
               >
-                <RotateCcw aria-hidden="true" size={15} />
+                <RefreshCcw aria-hidden="true" size={15} />
               </button>
               <details className="sensitivity-menu">
                 <summary aria-label="Pan and zoom settings"><Settings2 aria-hidden="true" size={15} /></summary>
