@@ -10,17 +10,17 @@ interface DocsPageProps {
 }
 
 const ARROW_SYNTAX = [
-  { syntax: "A --> B", meaning: "Solid arrow (standard flow)" },
-  { syntax: "A -.-> B", meaning: "Dotted arrow (optional, async, or weak dependency)" },
-  { syntax: "A ==> B", meaning: "Thick arrow (primary or emphasized path)" },
-  { syntax: "A --- B", meaning: "Solid line without arrowhead" },
-  { syntax: "A -->|Yes| B", meaning: "Labeled arrow (also works as A -.->|opt| B)" },
-  { syntax: "A <|-- B", meaning: "Class inheritance (B extends A)" },
-  { syntax: "A *-- B", meaning: "Class composition (A owns B)" },
-  { syntax: "A o-- B", meaning: "Class aggregation (A groups B)" },
-  { syntax: "A ..> B", meaning: "Class dependency (dotted arrow)" },
-  { syntax: "A ->> B / A -->> B", meaning: "Sequence solid request / dashed reply" },
-  { syntax: "A ||--o{ B", meaning: "ER one-to-many relationship" },
+  { diagram: "Flowchart", syntax: "A --> B", meaning: "Solid arrow (standard flow)" },
+  { diagram: "Flowchart", syntax: "A -.-> B", meaning: "Dotted arrow (optional, async, or weak dependency)" },
+  { diagram: "Flowchart", syntax: "A ==> B", meaning: "Thick arrow (primary or emphasized path)" },
+  { diagram: "Flowchart", syntax: "A --- B", meaning: "Solid line without arrowhead" },
+  { diagram: "Flowchart", syntax: "A -->|Yes| B", meaning: "Labeled arrow (also works as A -.->|opt| B)" },
+  { diagram: "Class", syntax: "A <|-- B", meaning: "Inheritance (B extends A)" },
+  { diagram: "Class", syntax: "A *-- B", meaning: "Composition (A owns B)" },
+  { diagram: "Class", syntax: "A o-- B", meaning: "Aggregation (A groups B)" },
+  { diagram: "Class", syntax: "A ..> B", meaning: "Dependency (dotted arrow)" },
+  { diagram: "Sequence", syntax: "A ->> B / A -->> B", meaning: "Solid request / dashed reply" },
+  { diagram: "ER", syntax: "A ||--o{ B", meaning: "One-to-many relationship" },
 ];
 
 const SHAPE_SYNTAX = [
@@ -33,13 +33,41 @@ const SHAPE_SYNTAX = [
 ];
 
 const FORMAT_SUPPORT = [
-  { format: "Mermaid (v11.4.1)", scope: "Full local runtime: flowchart, class, state, ER, sequence, gantt, mindmap, pie, journey, gitGraph, C4, requirement." },
-  { format: "Graphviz DOT", scope: "digraph / graph, rankdir, node label & shape (diamond, circle, doublecircle, ellipse, oval, cylinder), and -> / -- edges." },
-  { format: "PlantUML", scope: "@startuml blocks for sequence (actor/participant), state ([*] transitions), and class (<|--, *--, o--, ..>, -->)." },
-  { format: "D2", scope: "direction, nested { ... } containers, .shape, and -> / <- / <-> / -- edges with labels." },
-  { format: "SQL DDL", scope: "CREATE TABLE columns, PRIMARY KEY, and FOREIGN KEY / REFERENCES into Mermaid ER." },
-  { format: "TypeScript", scope: "interface, class, and object type declarations with extends / implements into Mermaid class diagrams." },
-  { format: "XML", scope: "Explicit <diagram>, Draw.io mxGraphModel, BPMN sequenceFlow, and generic XML element trees." },
+  {
+    format: "Mermaid (v11.4.1)",
+    scope: "Full Mermaid v11.4.1 runtime for rendering. IR translation (Convert to...) supports flowchart/graph, classDiagram, erDiagram, and sequenceDiagram.",
+    omissions: "gantt, mindmap, pie, journey, gitGraph, C4, and requirement render natively but are not translated by Convert to....",
+  },
+  {
+    format: "Graphviz DOT",
+    scope: "(strict) (di)graph, rankdir, node label & shape (diamond, circle, doublecircle, ellipse, oval, cylinder), chained -> / -- edges with label & style=dashed|dotted.",
+    omissions: "subgraph blocks, default node/edge/graph attribute statements, HTML-like labels, and record port layouts.",
+  },
+  {
+    format: "PlantUML",
+    scope: "@startuml blocks: sequence (actor/participant, ->>/-->>), state ([*] transitions), and class (<|--, *--, o--, ..>, --> with optional multiplicity quotes).",
+    omissions: "Activity, component, deployment, and use-case diagrams; note, alt/loop fragments, package nesting, and skinparam.",
+  },
+  {
+    format: "D2",
+    scope: "direction (right/left/down/up), nested { ... } containers, id: label, id.shape, edges (->, <-, <->, --) with labels, and # comments.",
+    omissions: "sql_table/class shape blocks, style rules, icon, link, near, grid-*, and vars/layers/scenarios.",
+  },
+  {
+    format: "SQL DDL",
+    scope: "CREATE TABLE [IF NOT EXISTS] into Mermaid ER: columns, PRIMARY KEY (PK), inline REFERENCES, and table-level FOREIGN KEY ... REFERENCES.",
+    omissions: "ALTER TABLE, views, indexes, ENUMs, triggers/functions, and CHECK/UNIQUE details.",
+  },
+  {
+    format: "TypeScript",
+    scope: "[export] interface, class, and object type declarations; extends/implements (<|--), PascalCase property references (-->), properties, and methods.",
+    omissions: "Generic type parameters (<T>), non-object union/intersection type aliases, enums, functions, and imports.",
+  },
+  {
+    format: "XML",
+    scope: "Draw.io mxGraphModel (mxCell), BPMN 2.0 (sequenceFlow, events, gateways, tasks), explicit <diagram>/<graph>/<schema>, and generic XML trees.",
+    omissions: "Draw.io styling/coordinates beyond shapes & dashed edges; BPMN pools/lanes/message flows; XML namespaces/XSD validation.",
+  },
 ];
 
 interface FormatSyntaxGuide {
@@ -55,19 +83,21 @@ const FORMAT_GUIDES: FormatSyntaxGuide[] = [
   {
     id: "mermaid",
     label: "Mermaid",
-    template: "Flowchart",
-    summary: "Native Mermaid v11.4.1 renderer with draggable boxes and connectors for flowchart, class, state, and ER.",
+    template: "API Auth Flow",
+    summary: "Blocks, subgraphs, sequence fragments, and per-node styling in Mermaid v11.4.1.",
     items: [
-      { syntax: "A --> B / A -.-> B", meaning: "Solid arrow / dotted arrow (async or optional)" },
-      { syntax: "A ==> B / A --- B", meaning: "Thick arrow / line without arrowhead" },
-      { syntax: "id[Box] / id{Check}", meaning: "Rectangle / diamond decision" },
-      { syntax: "id([Pill]) / id[(DB)]", meaning: "Stadium start-end / database cylinder" },
+      { syntax: "subgraph Edge ... end", meaning: "Group nodes inside a labeled container" },
+      { syntax: "alt Ok ... else Err ... end", meaning: "Conditional branches in sequenceDiagram" },
+      { syntax: "loop Retry ... end", meaning: "Repeated block in sequenceDiagram" },
+      { syntax: "style ID fill:#eaf1f8,stroke:#2c5d8a", meaning: "Custom node fill/stroke (preserved on export)" },
     ],
     example: `flowchart LR
-  Client([Web App]) --> API[Gateway]
-  API --> Auth{Valid?}
-  Auth -->|Yes| DB[(Postgres)]
-  Auth -.->|Log| Audit[Audit Queue]`,
+  subgraph API[Edge Layer]
+    GW[Gateway] --> Auth{Valid?}
+  end
+  Auth -->|Yes| App[Handler]
+  Auth -.->|401| Err([Unauthorized])
+  style Auth fill:#fef3e6,stroke:#ad612e`,
   },
   {
     id: "dot",
@@ -195,8 +225,8 @@ const FEATURED_TEMPLATES = [
   "CI/CD Pipeline",
   "Microservices Flow",
   "Checkout Sequence",
+  "State",
   "Class",
-  "Sequence",
   "ER",
   "DOT Graph",
   "PlantUML Class",
@@ -204,6 +234,7 @@ const FEATURED_TEMPLATES = [
   "SQL Schema",
   "TypeScript Types",
   "XML Diagram",
+  "BPMN Flow",
 ] as const;
 
 export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
@@ -252,6 +283,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
             <table className="docs-table">
               <thead>
                 <tr>
+                  <th>Diagram</th>
                   <th>Syntax</th>
                   <th>Meaning</th>
                 </tr>
@@ -259,6 +291,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
               <tbody>
                 {ARROW_SYNTAX.map((item) => (
                   <tr key={item.syntax}>
+                    <td><strong>{item.diagram}</strong></td>
                     <td><code>{item.syntax}</code></td>
                     <td>{item.meaning}</td>
                   </tr>
@@ -361,7 +394,8 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
             <thead>
               <tr>
                 <th>Format</th>
-                <th>Supported syntax</th>
+                <th>What is parsed &amp; rendered</th>
+                <th>Notable omissions</th>
               </tr>
             </thead>
             <tbody>
@@ -369,11 +403,39 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
                 <tr key={item.format}>
                   <td><strong>{item.format}</strong></td>
                   <td>{item.scope}</td>
+                  <td>{item.omissions}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </article>
+
+        <section className="docs-grid" aria-label="Workbench and MCP guide">
+          <article className="legal-card">
+            <h2>Using the Workbench</h2>
+            <ul className="docs-list">
+              <li><strong>Drag boxes &amp; lines:</strong> Switch to Move (<code>V</code>) to drag nodes or connector segments in flowchart, class, state, and ER diagrams, or Pan (<code>H</code>) to move the canvas.</li>
+              <li><strong>Grid snap &amp; arrange:</strong> Toggle grid snapping, nudge selected boxes with arrow keys, or click <strong>Arrange nodes in grid</strong>.</li>
+              <li><strong>Share &amp; collaborate:</strong> <strong>Copy share link</strong> encodes source and manual positions in the URL (never API keys). <strong>Share live</strong> starts a 5-device PeerJS room.</li>
+              <li><strong>Export:</strong> Export full-bounds <strong>SVG</strong> or <strong>PNG</strong>, with an opt-in palette button to colorize boxes and classes on export.</li>
+            </ul>
+          </article>
+
+          <article className="legal-card">
+            <h2>MCP Server (<code>ctd-mcp</code>)</h2>
+            <p>
+              Run the same 7-format parser and translator inside Claude Desktop, Cursor, Windsurf,
+              or VS Code over stdio:
+            </p>
+            <pre className="docs-template-code docs-guide-code">{`npx -y ctd-mcp`}</pre>
+            <p>
+              <strong>Tools:</strong> <code>detect_format</code>, <code>to_mermaid</code>,{" "}
+              <code>translate_format</code>, <code>parse_diagram_ir</code>,{" "}
+              <code>emit_from_ir</code>, <code>list_templates</code>,{" "}
+              <code>get_studio_info</code>.
+            </p>
+          </article>
+        </section>
 
         <section className="docs-templates" aria-label="Starter templates">
           <div className="docs-section-head">

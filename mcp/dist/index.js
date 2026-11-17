@@ -185,12 +185,12 @@ var TEMPLATES = {
 	"DOT Graph": `digraph ServiceFlow {
   rankdir=LR;
   Client [label="Web Client"];
-  API [label="API Gateway", shape=diamond];
-  Auth [label="Auth Service"];
+  API [label="API Gateway"];
+  Valid [label="Token Valid?", shape=diamond];
   DB [label="Database", shape=cylinder];
   Client -> API [label="HTTPS"];
-  API -> Auth [label="Verify"];
-  API -> DB [label="Query"];
+  API -> Valid [label="Check"];
+  Valid -> DB [label="Query"];
 }`,
 	"PlantUML Class": `@startuml
 class Account {
@@ -205,7 +205,7 @@ Account "1" --> "*" Workspace : owns
 @enduml`,
 	"D2 Flow": `direction: right
 Browser -> Compiler: source code
-Compiler -> Canvas: Mermaid AST
+Compiler -> Canvas: Mermaid code
 Canvas -> Export: SVG or PNG`,
 	"SQL Schema": `CREATE TABLE users (
   id INT PRIMARY KEY,
@@ -216,14 +216,16 @@ CREATE TABLE projects (
   user_id INT REFERENCES users(id),
   name VARCHAR(120)
 );`,
-	"TypeScript Types": `interface User {
+	"TypeScript Types": `interface Entity {
   id: string;
+}
+interface User extends Entity {
   email: string;
 }
-interface Diagram {
+class Diagram implements Entity {
   id: string;
   owner: User;
-  nodes: number;
+  exportSvg(): string;
 }`,
 	"XML Diagram": `<diagram kind="flowchart" direction="LR">
   <nodes>
@@ -243,7 +245,7 @@ interface Diagram {
   Auth -->|No| Err([401 Unauthorized])
   Handler --> Cache[(Redis Cache)]
   Handler -.->|Async Log| Audit[Audit Queue]
-  Cache ==> Resp([200 OK])`,
+  Handler ==> Resp([200 OK])`,
 	"CI/CD Pipeline": `flowchart LR
   Push([Push to main]) --> Check[Typecheck & Build]
   Check --> Tests[Unit & E2E Tests]
@@ -263,13 +265,26 @@ interface Diagram {
   actor Customer
   participant App as Web App
   participant Pay as Payment API
-  participant DB as Orders DB
   Customer->>App: Submit checkout
-  App->>Pay: Create charge
-  Pay-->>App: Payment confirmed
-  App->>DB: Save order
-  DB-->>App: Order ID
-  App-->>Customer: Receipt`
+  App->>Pay: Authorize card
+  alt Approved
+    Pay-->>App: 200 Paid
+    App-->>Customer: Order confirmed
+  else Declined
+    Pay-->>App: 402 Declined
+    App-->>Customer: Retry payment
+  end`,
+	"BPMN Flow": `<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="OrderProcess">
+    <startEvent id="Start" name="Order Placed" />
+    <task id="Check" name="Verify Stock" />
+    <exclusiveGateway id="InStock" name="In Stock?" />
+    <endEvent id="Ship" name="Ship Order" />
+    <sequenceFlow sourceRef="Start" targetRef="Check" />
+    <sequenceFlow sourceRef="Check" targetRef="InStock" />
+    <sequenceFlow sourceRef="InStock" targetRef="Ship" name="Yes" />
+  </process>
+</definitions>`
 };
 // src/lib/translate.ts
 function safeId(raw) {
@@ -831,10 +846,12 @@ function convertPlantUmlToMermaid(source) {
 			if (line.includes("}")) inBlock = false;
 			continue;
 		}
-		const rel = line.match(/^([A-Za-z_]\w*)\s*(<\|--|\*--|o--|-->|<--|\.\.>|\.\.\|>|--)\s*([A-Za-z_]\w*)(?:\s*:\s*(.+))?$/);
+		const rel = line.match(/^([A-Za-z_]\w*)(?:\s+"([^"]+)")?\s*(<\|--|\*--|o--|-->|<--|\.\.>|\.\.\|>|--)\s*(?:"([^"]+)"\s+)?([A-Za-z_]\w*)(?:\s*:\s*(.+))?$/);
 		if (rel) {
-			const arrow = rel[2] === "->" ? "-->" : rel[2];
-			out.push(`  ${sanitizeId(rel[1])} ${arrow} ${sanitizeId(rel[3])}${rel[4] ? ` : ${rel[4]}` : ""}`);
+			const fromCard = rel[2] ? ` "${rel[2]}"` : "";
+			const arrow = rel[3] === "->" ? "-->" : rel[3];
+			const toCard = rel[4] ? ` "${rel[4]}"` : "";
+			out.push(`  ${sanitizeId(rel[1])}${fromCard} ${arrow}${toCard} ${sanitizeId(rel[5])}${rel[6] ? ` : ${rel[6]}` : ""}`);
 		}
 	}
 	return out.join("\n");

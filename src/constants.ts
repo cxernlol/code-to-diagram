@@ -223,12 +223,12 @@ export const TEMPLATES: Record<string, string> = {
   "DOT Graph": `digraph ServiceFlow {
   rankdir=LR;
   Client [label="Web Client"];
-  API [label="API Gateway", shape=diamond];
-  Auth [label="Auth Service"];
+  API [label="API Gateway"];
+  Valid [label="Token Valid?", shape=diamond];
   DB [label="Database", shape=cylinder];
   Client -> API [label="HTTPS"];
-  API -> Auth [label="Verify"];
-  API -> DB [label="Query"];
+  API -> Valid [label="Check"];
+  Valid -> DB [label="Query"];
 }`,
 
   "PlantUML Class": `@startuml
@@ -245,7 +245,7 @@ Account "1" --> "*" Workspace : owns
 
   "D2 Flow": `direction: right
 Browser -> Compiler: source code
-Compiler -> Canvas: Mermaid AST
+Compiler -> Canvas: Mermaid code
 Canvas -> Export: SVG or PNG`,
 
   "SQL Schema": `CREATE TABLE users (
@@ -258,14 +258,16 @@ CREATE TABLE projects (
   name VARCHAR(120)
 );`,
 
-  "TypeScript Types": `interface User {
+  "TypeScript Types": `interface Entity {
   id: string;
+}
+interface User extends Entity {
   email: string;
 }
-interface Diagram {
+class Diagram implements Entity {
   id: string;
   owner: User;
-  nodes: number;
+  exportSvg(): string;
 }`,
 
   "XML Diagram": `<diagram kind="flowchart" direction="LR">
@@ -287,7 +289,7 @@ interface Diagram {
   Auth -->|No| Err([401 Unauthorized])
   Handler --> Cache[(Redis Cache)]
   Handler -.->|Async Log| Audit[Audit Queue]
-  Cache ==> Resp([200 OK])`,
+  Handler ==> Resp([200 OK])`,
 
   "CI/CD Pipeline": `flowchart LR
   Push([Push to main]) --> Check[Typecheck & Build]
@@ -310,13 +312,27 @@ interface Diagram {
   actor Customer
   participant App as Web App
   participant Pay as Payment API
-  participant DB as Orders DB
   Customer->>App: Submit checkout
-  App->>Pay: Create charge
-  Pay-->>App: Payment confirmed
-  App->>DB: Save order
-  DB-->>App: Order ID
-  App-->>Customer: Receipt`,
+  App->>Pay: Authorize card
+  alt Approved
+    Pay-->>App: 200 Paid
+    App-->>Customer: Order confirmed
+  else Declined
+    Pay-->>App: 402 Declined
+    App-->>Customer: Retry payment
+  end`,
+
+  "BPMN Flow": `<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="OrderProcess">
+    <startEvent id="Start" name="Order Placed" />
+    <task id="Check" name="Verify Stock" />
+    <exclusiveGateway id="InStock" name="In Stock?" />
+    <endEvent id="Ship" name="Ship Order" />
+    <sequenceFlow sourceRef="Start" targetRef="Check" />
+    <sequenceFlow sourceRef="Check" targetRef="InStock" />
+    <sequenceFlow sourceRef="InStock" targetRef="Ship" name="Yes" />
+  </process>
+</definitions>`,
 };
 
 export function createDocument(

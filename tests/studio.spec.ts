@@ -55,7 +55,7 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   await expect(page.getByRole("heading", { name: /Syntax & Template Docs/i })).toBeVisible();
   await expect(page.getByText("A -.-> B", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Graphviz DOT" }).click();
-  await expect(page.locator(".docs-guide-code")).toContainText("digraph Architecture");
+  await expect(page.locator(".docs-guide-split .docs-guide-code")).toContainText("digraph Architecture");
   await page.getByRole("button", { name: "Home" }).click();
   await page.getByRole("button", { name: "Got it" }).click();
   await expect(page.getByRole("complementary", { name: "Storage notice" })).toBeHidden();

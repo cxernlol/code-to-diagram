@@ -260,12 +260,14 @@ function convertPlantUmlToMermaid(source: string): string {
       continue;
     }
     const rel = line.match(
-      /^([A-Za-z_]\w*)\s*(<\|--|\*--|o--|-->|<--|\.\.>|\.\.\|>|--)\s*([A-Za-z_]\w*)(?:\s*:\s*(.+))?$/,
+      /^([A-Za-z_]\w*)(?:\s+"([^"]+)")?\s*(<\|--|\*--|o--|-->|<--|\.\.>|\.\.\|>|--)\s*(?:"([^"]+)"\s+)?([A-Za-z_]\w*)(?:\s*:\s*(.+))?$/,
     );
     if (rel) {
-      const arrow = rel[2] === "->" ? "-->" : rel[2];
+      const fromCard = rel[2] ? ` "${rel[2]}"` : "";
+      const arrow = rel[3] === "->" ? "-->" : rel[3];
+      const toCard = rel[4] ? ` "${rel[4]}"` : "";
       out.push(
-        `  ${sanitizeId(rel[1]!)} ${arrow} ${sanitizeId(rel[3]!)}${rel[4] ? ` : ${rel[4]}` : ""}`,
+        `  ${sanitizeId(rel[1]!)}${fromCard} ${arrow}${toCard} ${sanitizeId(rel[5]!)}${rel[6] ? ` : ${rel[6]}` : ""}`,
       );
     }
   }
