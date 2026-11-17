@@ -1,4 +1,4 @@
-# SGS Studio
+# SGS-Diagram
 
 A local-first Mermaid diagram editor that runs in your browser. Write Mermaid code on the left, drag nodes and connector lines into place on the right, and export without creating an account.
 
