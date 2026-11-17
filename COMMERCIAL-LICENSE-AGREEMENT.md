@@ -56,7 +56,7 @@ Unless expressly permitted in writing under the agreed Plan, the Licensee must n
 
 6.1 Either party may terminate for the other's material breach that remains uncured 30 days after written notice. The Licensor may terminate immediately if the Licensee breaches Section 3 or fails to pay when due.
 6.2 On termination or expiry (subject to Section 5.3), the Licensee must stop commercial use of the Software and delete or stop using all commercial deployments.
-6.3 Sections 7, 8, 9, 10 and 11 survive termination.
+6.3 Sections 7, 9, 10 and 11 survive termination.
 
 ## 7. Ownership
 
@@ -76,8 +76,8 @@ TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR WILL NOT BE LIABLE FOR INDI
 
 ## 11. General
 
-11.1 **Governing law and disputes:** This Agreement is governed by the laws of Singapore. Any dispute will be resolved by binding arbitration under the rules of the Singapore International Arbitration Centre (SIAC), conducted remotely in English, with one arbitrator. Either party may seek urgent injunctive relief from a court to protect intellectual property.
-11.2 **Entire agreement:** This Agreement, together with the Public License for noncommercial use, is the entire agreement on its subject and supersedes prior discussions. If they conflict regarding commercial use, this Agreement controls.
+11.1 **Governing law and disputes:** This Agreement is governed by the laws of Singapore. Any dispute will be resolved by binding arbitration under the rules of the Singapore International Arbitration Centre (SIAC), with Singapore as the juridical seat of arbitration, conducted remotely in English, with one arbitrator. Either party may seek urgent injunctive relief from a court to protect intellectual property.
+11.2 **Entire agreement:** This Agreement, together with the Public License, is the entire agreement on its subject and supersedes prior discussions. If they conflict regarding commercial use, this Agreement controls.
 11.3 **Assignment:** The Licensee may not assign this Agreement without the Licensor's written consent. The Licensor may assign it in connection with a transfer of the Software.
 11.4 **Changes:** Amendments must be in writing and confirmed by email by both parties.
 11.5 **Severability:** If a provision is unenforceable, the rest remains in effect.
