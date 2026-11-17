@@ -42,6 +42,10 @@ const FORMAT_SUPPORT = [
 
 const FEATURED_TEMPLATES = [
   "Flowchart",
+  "API Auth Flow",
+  "CI/CD Pipeline",
+  "Microservices Flow",
+  "Checkout Sequence",
   "Class",
   "Sequence",
   "ER",

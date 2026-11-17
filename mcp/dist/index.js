@@ -235,7 +235,41 @@ interface Diagram {
     <edge from="Client" to="Gateway" label="HTTPS" />
     <edge from="Gateway" to="Store" label="SQL" />
   </edges>
-</diagram>`
+</diagram>`,
+	"API Auth Flow": `flowchart TD
+  Req([Client Request]) --> GW[API Gateway]
+  GW --> Auth{JWT Valid?}
+  Auth -->|Yes| Handler[Route Handler]
+  Auth -->|No| Err([401 Unauthorized])
+  Handler --> Cache[(Redis Cache)]
+  Handler -.->|Async Log| Audit[Audit Queue]
+  Cache ==> Resp([200 OK])`,
+	"CI/CD Pipeline": `flowchart LR
+  Push([Push to main]) --> Check[Typecheck & Build]
+  Check --> Tests[Unit & E2E Tests]
+  Tests --> Pass{All Passed?}
+  Pass -->|Yes| Deploy[Deploy Production]
+  Pass -.->|Failed| Alert([Notify Author])
+  Deploy --> Live([Live])`,
+	"Microservices Flow": `flowchart LR
+  Web([Web App]) --> Gateway[API Gateway]
+  Gateway --> Auth[Auth Service]
+  Gateway --> Orders[Order Service]
+  Orders --> DB[(Postgres)]
+  Orders -.->|order.created| Bus[Event Bus]
+  Bus -.-> Mail[Notification Worker]`,
+	"Checkout Sequence": `sequenceDiagram
+  autonumber
+  actor Customer
+  participant App as Web App
+  participant Pay as Payment API
+  participant DB as Orders DB
+  Customer->>App: Submit checkout
+  App->>Pay: Create charge
+  Pay-->>App: Payment confirmed
+  App->>DB: Save order
+  DB-->>App: Order ID
+  App-->>Customer: Receipt`
 };
 // src/lib/translate.ts
 function safeId(raw) {
