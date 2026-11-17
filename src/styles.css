@@ -1737,12 +1737,6 @@ summary:focus-visible,
   background: rgb(255 255 255 / 10%);
 }
 
-.home-nav-start {
-  min-block-size: 34px;
-  padding-inline: 14px;
-  font-size: 12px;
-}
-
 .home-main {
   display: grid;
   align-content: center;
