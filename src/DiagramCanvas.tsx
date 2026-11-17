@@ -807,10 +807,12 @@ function routeEdge(
     midX + 18,
     midX - 36,
     midX + 36,
+    midX - 54,
+    midX + 54,
     startStub.x,
     endStub.x,
-    ...obstacles.flatMap((box) => [box.x - 24, box.x + box.width + 24]),
-    ...endpointBoxes.flatMap((box) => [box.x - 24, box.x + box.width + 24]),
+    ...obstacles.flatMap((box) => [box.x - 24, box.x - 40, box.x + box.width + 24, box.x + box.width + 40]),
+    ...endpointBoxes.flatMap((box) => [box.x - 24, box.x - 40, box.x + box.width + 24, box.x + box.width + 40]),
   ]);
 
   const yCandidates = new Set([
@@ -819,10 +821,12 @@ function routeEdge(
     midY + 18,
     midY - 36,
     midY + 36,
+    midY - 54,
+    midY + 54,
     startStub.y,
     endStub.y,
-    ...obstacles.flatMap((box) => [box.y - 24, box.y + box.height + 24]),
-    ...endpointBoxes.flatMap((box) => [box.y - 24, box.y + box.height + 24]),
+    ...obstacles.flatMap((box) => [box.y - 24, box.y - 40, box.y + box.height + 24, box.y + box.height + 40]),
+    ...endpointBoxes.flatMap((box) => [box.y - 24, box.y - 40, box.y + box.height + 24, box.y + box.height + 40]),
   ]);
 
   const candidates = [
@@ -1287,8 +1291,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     for (let rIdx = 1; rIdx < rows.length; rIdx += 1) {
       sortRow(rows[rIdx]!, rIdx, true);
     }
-    const gapX = 88;
-    const gapY = 80;
+    const gapX = 120;
+    const gapY = 108;
     const maxW = Math.max(...items.map((item) => item.width), 140);
     const stepX = snapVal(maxW + gapX);
     const totalCols = Math.max(...rows.map((r) => r.length), 1);
