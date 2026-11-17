@@ -1008,7 +1008,9 @@ function convertTypeScriptToMermaid(source) {
 	out.push(...Array.from(new Set(relations)));
 	return out.join("\n");
 }
+var MAX_SOURCE_CHARS = 524288;
 function toMermaidSource(source) {
+	if (source.length > MAX_SOURCE_CHARS) throw new Error("Diagram source exceeds the 512 KB limit.");
 	const format = detectCodeFormat(source);
 	switch (format) {
 		case "xml": return {
@@ -1042,6 +1044,7 @@ function toMermaidSource(source) {
 	}
 }
 function translateCodeFormat(source, target) {
+	if (source.length > MAX_SOURCE_CHARS) throw new Error("Diagram source exceeds the 512 KB limit.");
 	const format = detectCodeFormat(source);
 	if (format === target) return source;
 	return emitFromIR(format === "xml" ? parseXmlToIR(source) : parseMermaidToIR(toMermaidSource(source).mermaid), target);

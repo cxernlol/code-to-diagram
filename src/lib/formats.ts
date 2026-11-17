@@ -483,10 +483,15 @@ function convertTypeScriptToMermaid(source: string): string {
   return out.join("\n");
 }
 
+const MAX_SOURCE_CHARS = 512 * 1024;
+
 export function toMermaidSource(source: string): {
   format: CodeFormat;
   mermaid: string;
 } {
+  if (source.length > MAX_SOURCE_CHARS) {
+    throw new Error("Diagram source exceeds the 512 KB limit.");
+  }
   const format = detectCodeFormat(source);
   switch (format) {
     case "xml":
@@ -507,6 +512,9 @@ export function toMermaidSource(source: string): {
 }
 
 export function translateCodeFormat(source: string, target: CodeFormat): string {
+  if (source.length > MAX_SOURCE_CHARS) {
+    throw new Error("Diagram source exceeds the 512 KB limit.");
+  }
   const format = detectCodeFormat(source);
   if (format === target) return source;
   const ir =

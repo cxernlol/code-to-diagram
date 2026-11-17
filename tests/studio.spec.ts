@@ -375,12 +375,14 @@ test("restores both Mermaid source and manual node layout from a share link", as
   await expect(nodeA).not.toHaveAttribute("transform", "translate(0,0)");
 
   const hostile = btoa(
-    'flowchart TD\n  A["<script>alert(1)</script><img src=x onerror=alert(1)>Safe"] --> B[Done]\n  click A "javascript:alert(1)"',
+    'flowchart TD\n  A["<script>alert(1)</script><img src=x onerror=alert(1)><animate attributeName=href to=javascript:alert(1)><set attributeName=href to=javascript:alert(1)>Safe"] --> B[Done]\n  click A "javascript:alert(1)"',
   );
   await page.goto(`/#d=${encodeURIComponent(hostile)}`);
   await expect(page.locator('[data-sgs-node="B"]')).toBeVisible();
   const unsafe = await page.locator(".diagram-graphic svg").evaluate((svg) => {
-    const scripts = svg.querySelectorAll("script, iframe, object, embed").length;
+    const scripts = svg.querySelectorAll(
+      "script, iframe, object, embed, animate, animateTransform, animateMotion, set, img",
+    ).length;
     const inlineHandlers = Array.from(svg.querySelectorAll("*")).filter((el) =>
       Array.from(el.attributes).some((attr) => attr.name.toLowerCase().startsWith("on")),
     ).length;

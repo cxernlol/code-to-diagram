@@ -261,6 +261,14 @@ test("edge cases: invalid XML and empty input return errors without crashing ser
   assert.equal(deepRes.isError, true);
   assert.match(deepRes.content[0].text, /maximum supported depth/);
 
+  const hugeDot = `digraph G {\n${"  a -> b;\n".repeat(60000)}}`;
+  const hugeRes = await client.callTool({
+    name: "to_mermaid",
+    arguments: { source: hugeDot },
+  });
+  assert.equal(hugeRes.isError, true);
+  assert.match(hugeRes.content[0].text, /512 KB limit/);
+
   const unknownTemplate = await client.callTool({
     name: "list_templates",
     arguments: { name: "does-not-exist" },
