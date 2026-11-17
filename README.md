@@ -29,7 +29,7 @@ All 7 formats are auto-detected and can be converted to Mermaid or translated ac
 
 | Format | Extension | What is parsed & rendered | Notable omissions |
 | :--- | :--- | :--- | :--- |
-| **Mermaid** | `.mmd` | **Full Mermaid v11.4.1** for rendering. IR translation supports `flowchart`/`graph` (shapes, `TD`/`LR`, `-->`/`-.->`/`==>`/`---`/`<-->`), `classDiagram`, `erDiagram`, and `sequenceDiagram`. | Other Mermaid types (`gantt`, `pie`, `mindmap`, `gitGraph`, `C4*`, etc.) render natively but are not translated by the IR converter. |
+| **Mermaid** | `.mmd` | **Full Mermaid v12.3.0** for rendering. IR translation supports `flowchart`/`graph` (shapes, `TD`/`LR`, `-->`/`-.->`/`==>`/`---`/`<-->`), `classDiagram`, `erDiagram`, and `sequenceDiagram`. | Other Mermaid types (`gantt`, `pie`, `mindmap`, `gitGraph`, `C4*`, etc.) render natively but are not translated by the IR converter. |
 | **Graphviz DOT** | `.dot` | `(strict) (di)graph`, `rankdir` (`TB`/`TD`/`BT`/`RL`/`LR`), node `label` & `shape` (`diamond`, `circle`, `doublecircle`, `ellipse`, `oval`, `cylinder`), chained `->` / `--` edges with `label` & `style=dashed\|dotted`, `//` and `/* */` comments. | `subgraph` blocks, default `node`/`edge`/`graph` attribute statements, HTML-like labels, and `record` port layouts. |
 | **PlantUML** | `.puml` | `@startuml` blocks: **sequence** (`actor`/`participant`, `->`/`-->`/`->>`/`-->>` messages), **state** (`[*]` & `state` transitions), and **class** (`class`/`interface`/`enum`/`abstract class` blocks and `<\|--`, `*--`, `o--`, `-->`, `..>`, `..\|>`, `--` relations). | Activity, component, deployment, and use-case diagrams; `note`, `alt`/`loop` fragments, `package` nesting, and `skinparam` styling. |
 | **D2** | `.d2` | `direction` (`right`/`left`/`down`/`up`), nested `{ ... }` containers (`subgraph`), `id: label`, `id.shape: <shape>`, edges (`->`, `<-`, `<->`, `--`) with labels, and `#` comments. | `sql_table` / `class` shape blocks, `style` rules, `icon`, `link`, `near`, `grid-*`, and `vars`/`layers`/`scenarios`. |
@@ -128,7 +128,7 @@ npm run mcp:test
 
 ## Tech Stack & CI/CD
 
-- **Stack:** TypeScript, React 19, CodeMirror 6, D3 (`d3-selection`, `d3-zoom`), PeerJS (5-device live rooms), and **Mermaid v11.4.1** (bundled locally in `public/mermaid.min.js` for offline reliability and consistent SVG DOM selectors when dragging nodes and edges).
+- **Stack:** TypeScript, React 19, CodeMirror 6, D3 (`d3-selection`, `d3-zoom`), PeerJS (5-device live rooms), and **Mermaid v12.3.0** (bundled locally in `public/mermaid.min.js` for offline reliability and consistent SVG DOM selectors when dragging nodes and edges).
 - **CI/CD:** GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs type-checking, web and `ctd-mcp` builds, MCP stdio tests, and Playwright E2E tests on every push and pull request to `main` (see the CI badge above). Releases publish `ctd-mcp` to npm via [`.github/workflows/publish-mcp.yml`](.github/workflows/publish-mcp.yml).
 
 ## Data & Privacy

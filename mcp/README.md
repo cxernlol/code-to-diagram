@@ -1,6 +1,6 @@
 # ctd-mcp
 
-Model Context Protocol (MCP) server for **CTD Studio** (`code-to-diagram`) — detect, parse, convert, and translate diagrams across **Mermaid (v11.4.1)**, **Graphviz DOT**, **PlantUML**, **D2**, **SQL DDL**, **TypeScript**, and **XML** (including Draw.io `mxGraphModel`, BPMN, and generic XML trees).
+Model Context Protocol (MCP) server for **CTD Studio** (`code-to-diagram`) — detect, parse, convert, and translate diagrams across **Mermaid (v12.3.0)**, **Graphviz DOT**, **PlantUML**, **D2**, **SQL DDL**, **TypeScript**, and **XML** (including Draw.io `mxGraphModel`, BPMN, and generic XML trees).
 
 ## Quick Start (`npx`)
 
