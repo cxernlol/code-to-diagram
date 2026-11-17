@@ -485,13 +485,13 @@ function App() {
 
   useEffect(() => {
     if (view === "home") {
-      document.title = "SGS Studio: Code to Diagram Editor for Mermaid, DOT & SQL";
+      document.title = "CTD Studio: Code to Diagram Editor for Mermaid, DOT & SQL";
     } else if (view === "privacy") {
-      document.title = "Privacy & Cookies — SGS Studio";
+      document.title = "Privacy & Cookies — CTD Studio";
     } else if (view === "terms") {
-      document.title = "Terms of Use — SGS Studio";
+      document.title = "Terms of Use — CTD Studio";
     } else if (activeDocument) {
-      document.title = `${activeDocument.name} — SGS Studio`;
+      document.title = `${activeDocument.name} — CTD Studio`;
     }
   }, [view, activeDocument?.name]);
 
@@ -1046,7 +1046,7 @@ function App() {
       <main className="boot-screen">
         <div className="boot-card">
           <GitBranch aria-hidden="true" size={22} />
-          <h1>SGS Studio</h1>
+          <h1>CTD Studio</h1>
           <p>{legacyError ? "Your older saved workspace could not be migrated." : errorText(bootError)}</p>
           {legacyError && (
             <button
@@ -1101,10 +1101,10 @@ function App() {
             type="button"
             onClick={openHome}
             title="Back to home"
-            aria-label="SGS Studio home"
+            aria-label="CTD Studio home"
           >
             <span className="brand-mark"><GitBranch aria-hidden="true" size={17} /></span>
-            <span className="brand-name">SGS Studio</span>
+            <span className="brand-name">CTD Studio</span>
           </button>
           <span className="brand-divider" aria-hidden="true" />
           <span className="workbench-label">Diagram workbench</span>
@@ -1781,7 +1781,7 @@ function App() {
               </label>
               <label>Temperature<input type="number" min="0" max="2" step="0.1" placeholder="Default" value={data.settings.provider.temperature ?? ""} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, temperature: event.target.value === "" ? null : Number(event.target.value) } })} /></label>
             </div>
-            <p id="provider-privacy" className="form-note">AI requests include the diagram, prompt, and API key, and go directly to the selected provider. Some endpoints block browser requests with CORS. Provider charges are separate from SGS Studio.</p>
+            <p id="provider-privacy" className="form-note">AI requests include the diagram, prompt, and API key, and go directly to the selected provider. Some endpoints block browser requests with CORS. Provider charges are separate from CTD Studio.</p>
             <div className="settings-actions">
               <button className="button secondary" type="button" onClick={() => void testConnection()}>Test connection</button>
               <span role="status">{testStatus}</span>

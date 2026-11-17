@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://sgs-chify.vercel.app/sitemap.xml
+Sitemap: https://code-to-diagram.vercel.app/sitemap.xml

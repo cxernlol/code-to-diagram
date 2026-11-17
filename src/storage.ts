@@ -10,6 +10,7 @@ import type {
   VersionEntry,
 } from "./types";
 
+// Keep existing IndexedDB/BroadcastChannel names ("sgs-studio") so returning browser users retain saved workspaces.
 const DATABASE_NAME = "sgs-studio";
 const DATABASE_VERSION = 1;
 const SETTINGS_KEY = "main";
@@ -41,6 +42,7 @@ interface StudioDatabase extends DBSchema {
 
 export class LegacyDataError extends Error {
   constructor(readonly raw: string, cause: unknown) {
+    // Retain `mstudio2` error context solely for migrating legacy localStorage workspaces.
     super("The saved mstudio2 data could not be read.", { cause });
     this.name = "LegacyDataError";
   }
@@ -235,7 +237,7 @@ export async function initializeStudio(ignoreLegacy = false): Promise<StudioData
     try {
       raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     } catch (error) {
-      throw new Error("Browser storage is unavailable; SGS Studio could not load saved work.", {
+      throw new Error("Browser storage is unavailable; CTD Studio could not load saved work.", {
         cause: error,
       });
     }

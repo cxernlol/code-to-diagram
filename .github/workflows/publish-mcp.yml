@@ -30,7 +30,7 @@ jobs:
           npm run mcp:build
           npm run mcp:test
 
-      - name: Publish sgs-diagram to npm
+      - name: Publish ctd-mcp to npm
         working-directory: mcp
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

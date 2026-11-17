@@ -32,7 +32,7 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Write code\. Drag boxes and lines into place\./i })).toBeVisible();
   const githubLinks = page.getByRole("link", { name: /GitHub/i });
-  await expect(githubLinks.first()).toHaveAttribute("href", "https://github.com/cxernlol/sgs-chify");
+  await expect(githubLinks.first()).toHaveAttribute("href", "https://github.com/cxernlol/code-to-diagram");
 
   await page.getByRole("tab", { name: "SQL" }).click();
   await expect(page.locator(".home-preview-file")).toHaveText("schema.sql");
@@ -40,7 +40,7 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   await expect(page).toHaveURL(/#app$/);
   await expect(page.locator(".language-chip")).toHaveText("SQL DDL");
 
-  await page.getByRole("button", { name: "SGS Studio home" }).click();
+  await page.getByRole("button", { name: "CTD Studio home" }).click();
   await expect(page.getByRole("heading", { name: /Write code\. Drag boxes and lines into place\./i })).toBeVisible();
 
   await page.getByRole("button", { name: "Privacy & Cookies" }).click();

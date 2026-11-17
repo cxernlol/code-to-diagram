@@ -3,8 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Check, Copy, GitBranch, Grid3x3, HardDrive, ImageDown, Star, Terminal } from "lucide-react";
 
-const GITHUB_URL = "https://github.com/cxernlol/sgs-chify";
-const GITHUB_API_URL = "https://api.github.com/repos/cxernlol/sgs-chify";
+const GITHUB_URL = "https://github.com/cxernlol/code-to-diagram";
+const GITHUB_API_URL = "https://api.github.com/repos/cxernlol/code-to-diagram";
 const STORAGE_NOTICE_KEY = "sgs-storage-notice";
 
 const MCP_SNIPPETS = [
@@ -13,9 +13,9 @@ const MCP_SNIPPETS = [
     label: "Claude / Cursor / Windsurf",
     code: `{
   "mcpServers": {
-    "sgs-diagram": {
+    "ctd-mcp": {
       "command": "npx",
-      "args": ["-y", "github:cxernlol/sgs-chify"]
+      "args": ["-y", "github:cxernlol/code-to-diagram"]
     }
   }
 }`,
@@ -25,10 +25,10 @@ const MCP_SNIPPETS = [
     label: "VS Code (.vscode/mcp.json)",
     code: `{
   "servers": {
-    "sgs-diagram": {
+    "ctd-mcp": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "github:cxernlol/sgs-chify"]
+      "args": ["-y", "github:cxernlol/code-to-diagram"]
     }
   }
 }`,
@@ -36,7 +36,7 @@ const MCP_SNIPPETS = [
   {
     id: "cli",
     label: "Terminal / npx",
-    code: `npx -y github:cxernlol/sgs-chify`,
+    code: `npx -y github:cxernlol/code-to-diagram`,
   },
 ] as const;
 
@@ -351,7 +351,7 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
         <div className="home-nav-inner">
           <div className="home-brand">
             <span className="brand-mark"><GitBranch aria-hidden="true" size={17} /></span>
-            <span className="home-brand-name">SGS Studio</span>
+            <span className="home-brand-name">CTD Studio</span>
           </div>
           <nav className="home-nav-actions" aria-label="Primary">
             <a
@@ -513,9 +513,9 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
         <section className="home-mcp" aria-label="MCP integration">
           <div className="home-mcp-copy">
             <span className="home-eyebrow">
-              <Terminal aria-hidden="true" size={13} /> SGS-Diagram MCP
+              <Terminal aria-hidden="true" size={13} /> CTD Studio MCP (ctd-mcp)
             </span>
-            <h2>Use SGS-Diagram as an MCP server</h2>
+            <h2>Use CTD Studio as an MCP server</h2>
             <p>
               Run the same 7-format detector, Mermaid v11.4.1 converter, and DiagramIR translator inside{" "}
               <strong>Claude Desktop</strong>, <strong>Cursor</strong>, <strong>Windsurf</strong>,{" "}
@@ -588,7 +588,7 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
       </main>
 
       <footer className="home-footer">
-        <span>SGS Studio</span>
+        <span>CTD Studio</span>
         <div className="home-footer-links">
           <button type="button" className="home-footer-btn" onClick={() => onLegal("privacy")}>
             Privacy &amp; Cookies
@@ -597,7 +597,7 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
             Terms
           </button>
           <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-            github.com/cxernlol/sgs-chify
+            github.com/cxernlol/code-to-diagram
           </a>
         </div>
       </footer>

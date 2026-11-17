@@ -1,12 +1,12 @@
 {
-  "name": "sgs-diagram",
+  "name": "ctd-mcp",
   "version": "1.0.0",
-  "description": "SGS-Diagram MCP server — convert and translate Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
+  "description": "CTD Studio MCP server — convert and translate Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
   "type": "module",
   "license": "MIT",
   "main": "./dist/index.js",
   "bin": {
-    "sgs-diagram": "./dist/index.js"
+    "ctd-mcp": "./dist/index.js"
   },
   "files": [
     "dist",
@@ -18,7 +18,8 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "sgs-studio",
+    "ctd-studio",
+    "ctd-mcp",
     "mermaid",
     "diagram",
     "graphviz",
@@ -30,12 +31,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cxernlol/sgs-chify.git",
+    "url": "git+https://github.com/cxernlol/code-to-diagram.git",
     "directory": "mcp"
   },
-  "homepage": "https://sgs-chify.vercel.app/",
+  "homepage": "https://code-to-diagram.vercel.app/",
   "bugs": {
-    "url": "https://github.com/cxernlol/sgs-chify/issues"
+    "url": "https://github.com/cxernlol/code-to-diagram/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

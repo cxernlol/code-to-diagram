@@ -12,11 +12,11 @@ async function main() {
     process.stdout.write(
       [
         `${pkg.name} v${pkg.version}`,
-        "SGS Studio Model Context Protocol (MCP) server over stdio.",
+        "CTD Studio Model Context Protocol (MCP) server over stdio.",
         "",
         "Usage:",
-        "  npx sgs-diagram",
-        "  sgs-diagram [--help | --version]",
+        "  npx ctd-mcp",
+        "  ctd-mcp [--help | --version]",
         "",
         "Connect from Claude Desktop, Cursor, Windsurf, or VS Code via stdio.",
       ].join("\n") + "\n",
@@ -27,10 +27,10 @@ async function main() {
   const server = createSgsStudioMcpServer(pkg.version);
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`SGS-Diagram MCP server v${pkg.version} running on stdio`);
+  console.error(`CTD Studio MCP server (ctd-mcp) v${pkg.version} running on stdio`);
 }
 
 main().catch((error) => {
-  console.error("Fatal error in SGS Studio MCP server:", error);
+  console.error("Fatal error in CTD Studio MCP server:", error);
   process.exit(1);
 });

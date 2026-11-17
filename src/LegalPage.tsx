@@ -16,7 +16,7 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
         <div className="home-nav-inner">
           <button className="brand-home-button" type="button" onClick={onBack}>
             <span className="brand-mark"><GitBranch aria-hidden="true" size={17} /></span>
-            <span className="home-brand-name">SGS Studio</span>
+            <span className="home-brand-name">CTD Studio</span>
           </button>
           <nav className="home-nav-actions" aria-label="Legal navigation">
             <button
@@ -53,14 +53,14 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
 
             <h2>1. Local-first by design</h2>
             <p>
-              SGS Studio runs in your browser. Your diagrams, source code, manual box and line
+              CTD Studio runs in your browser. Your diagrams, source code, manual box and line
               positions, version history, and theme preferences are stored locally on your device
               using IndexedDB. We do not collect, upload, or store your diagrams on any server.
             </p>
 
             <h2>2. Minimal cookies and browser storage</h2>
             <p>
-              SGS Studio sets zero advertising, analytics, or cross-site tracking cookies. We only
+              CTD Studio sets zero advertising, analytics, or cross-site tracking cookies. We only
               use essential browser storage (<code>IndexedDB</code> and <code>localStorage</code>)
               to save your workspace, migrate legacy <code>mstudio2</code> data, and remember if
               you dismissed the storage notice.
@@ -77,7 +77,7 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
             <h2>4. Public GitHub star count</h2>
             <p>
               The home page makes a single read-only request to GitHub&apos;s public repository API
-              to display the current star count for <code>cxernlol/sgs-chify</code>.
+              to display the current star count for <code>cxernlol/code-to-diagram</code>.
             </p>
 
             <h2>5. Deleting your data</h2>
@@ -94,12 +94,12 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
             <h2>1. Your content</h2>
             <p>
               You retain full ownership and responsibility for all diagram source code, layouts, and
-              exported SVG, PNG, or source files you create with SGS Studio.
+              exported SVG, PNG, or source files you create with CTD Studio.
             </p>
 
             <h2>2. Open-source software</h2>
             <p>
-              SGS Studio is free browser software provided &ldquo;as is&rdquo; without warranties of
+              CTD Studio is free browser software provided &ldquo;as is&rdquo; without warranties of
               any kind, express or implied, including fitness for a particular purpose or
               uninterrupted availability.
             </p>

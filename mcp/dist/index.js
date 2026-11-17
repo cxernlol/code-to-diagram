@@ -167,7 +167,7 @@ var TEMPLATES = {
 	"C4 Architecture": `C4Context
   title System Context
   Person(user, "User", "Creates diagrams.")
-  System(app, "SGS Studio", "Browser diagramming app.")
+  System(app, "CTD Studio", "Browser diagramming app.")
   System_Ext(ai, "AI API", "Diagram generation.")
   Rel(user, app, "Uses")
   Rel(app, ai, "Requests completions")`,

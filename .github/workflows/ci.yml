@@ -31,7 +31,7 @@ jobs:
         run: npm run mcp:test
 
       - name: Verify npx bin entrypoint
-        run: npx --no-install sgs-diagram --version
+        run: npx --no-install ctd-mcp --version
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

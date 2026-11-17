@@ -78,12 +78,12 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
 
   const server = new McpServer(
     {
-      name: "sgs-diagram",
+      name: "ctd-mcp",
       version,
     },
     {
       instructions:
-        "SGS-Diagram MCP server for detecting, parsing, converting, and translating diagrams across Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML).",
+        "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, and translating diagrams across Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML).",
     },
   );
 
@@ -167,7 +167,7 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
     {
       title: "Translate Between Diagram Formats",
       description:
-        "Translate diagram or code source between any two supported SGS Studio formats: mermaid, dot, plantuml, d2, sql, typescript, xml.",
+        "Translate diagram or code source between any two supported CTD Studio formats: mermaid, dot, plantuml, d2, sql, typescript, xml.",
       inputSchema: {
         source: z.string().trim().min(1, "Source must not be empty."),
         targetFormat: FormatSchema,
@@ -205,7 +205,7 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
     {
       title: "Parse Diagram to Intermediate Representation",
       description:
-        "Parse any supported diagram or code format into SGS Studio's structured DiagramIR (kind, direction, nodes, edges).",
+        "Parse any supported diagram or code format into CTD Studio's structured DiagramIR (kind, direction, nodes, edges).",
       inputSchema: {
         source: z.string().trim().min(1, "Source must not be empty."),
       },
@@ -269,9 +269,9 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
   server.registerTool(
     "list_templates",
     {
-      title: "List SGS Studio Diagram Templates",
+      title: "List CTD Studio Diagram Templates",
       description:
-        "List built-in SGS Studio diagram templates or retrieve a specific template by name.",
+        "List built-in CTD Studio diagram templates or retrieve a specific template by name.",
       inputSchema: {
         name: z.string().optional(),
       },
@@ -316,9 +316,9 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
   server.registerTool(
     "get_studio_info",
     {
-      title: "Get SGS Studio Capabilities",
+      title: "Get CTD Studio Capabilities",
       description:
-        "Return SGS Studio supported formats, file extensions, theme presets, and web app URL.",
+        "Return CTD Studio supported formats, file extensions, theme presets, and web app URL.",
       inputSchema: {},
       annotations: {
         readOnlyHint: true,
@@ -326,10 +326,11 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
     },
     async () => {
       const info = {
-        name: "SGS-Diagram",
+        name: "CTD Studio",
+        mcpName: "ctd-mcp",
         mermaidVersion: "11.4.1",
-        url: "https://sgs-chify.vercel.app/",
-        repository: "https://github.com/cxernlol/sgs-chify",
+        url: "https://code-to-diagram.vercel.app/",
+        repository: "https://github.com/cxernlol/code-to-diagram",
         formats: CODE_FORMATS.map((id) => ({
           id,
           label: FORMAT_LABELS[id],
@@ -352,9 +353,9 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
 
   server.registerResource(
     "formats",
-    "sgs://formats",
+    "ctd://formats",
     {
-      title: "SGS Studio Supported Formats",
+      title: "CTD Studio Supported Formats",
       description: "Supported diagram and code formats with labels and file extensions.",
       mimeType: "application/json",
     },
@@ -379,10 +380,10 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
 
   server.registerResource(
     "themes",
-    "sgs://themes",
+    "ctd://themes",
     {
-      title: "SGS Studio Theme Presets",
-      description: "Built-in color palette presets for SGS Studio diagrams.",
+      title: "CTD Studio Theme Presets",
+      description: "Built-in color palette presets for CTD Studio diagrams.",
       mimeType: "application/json",
     },
     async (uri) => ({
@@ -398,17 +399,17 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
 
   server.registerResource(
     "template",
-    new ResourceTemplate("sgs://templates/{name}", {
+    new ResourceTemplate("ctd://templates/{name}", {
       list: async () => ({
         resources: Object.keys(TEMPLATES).map((name) => ({
-          uri: `sgs://templates/${encodeURIComponent(name)}`,
+          uri: `ctd://templates/${encodeURIComponent(name)}`,
           name,
           mimeType: "text/plain",
         })),
       }),
     }),
     {
-      title: "SGS Studio Diagram Template",
+      title: "CTD Studio Diagram Template",
       description: "Built-in Mermaid diagram template.",
       mimeType: "text/plain",
     },
@@ -437,7 +438,7 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
     {
       title: "Code to Diagram",
       description:
-        "Convert source code, SQL schema, XML, or architecture notes into a clean diagram using SGS Studio.",
+        "Convert source code, SQL schema, XML, or architecture notes into a clean diagram using CTD Studio.",
       argsSchema: {
         source: z.string().describe("Source code, schema, or diagram text to convert"),
         targetFormat: FormatSchema.optional().describe(
@@ -452,7 +453,7 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
           content: {
             type: "text",
             text: [
-              `Use SGS Studio MCP tools (\`detect_format\`, \`to_mermaid\`, \`translate_format\`, \`parse_diagram_ir\`) to convert the following input into a clean ${targetFormat ?? "mermaid"} diagram:`,
+              `Use CTD Studio MCP tools (\`detect_format\`, \`to_mermaid\`, \`translate_format\`, \`parse_diagram_ir\`) to convert the following input into a clean ${targetFormat ?? "mermaid"} diagram:`,
               "",
               "```",
               source,

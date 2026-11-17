@@ -17,7 +17,7 @@ before(async () => {
     stderr: "pipe",
   });
   client = new Client(
-    { name: "sgs-studio-mcp-test-client", version: "1.0.0" },
+    { name: "ctd-mcp-test-client", version: "1.0.0" },
     { capabilities: {} },
   );
   await client.connect(transport);
@@ -36,7 +36,7 @@ test("CLI --version and --help work cleanly", () => {
   const helpOut = execFileSync(process.execPath, [SERVER_BIN, "--help"], {
     encoding: "utf8",
   });
-  assert.match(helpOut, /sgs-diagram/);
+  assert.match(helpOut, /ctd-mcp/);
   assert.match(helpOut, /stdio/);
 });
 
@@ -55,12 +55,12 @@ test("lists expected tools, resources, resource templates, and prompts", async (
 
   const resources = await client.listResources();
   const uris = resources.resources.map((r) => r.uri);
-  assert.ok(uris.includes("sgs://formats"));
-  assert.ok(uris.includes("sgs://themes"));
-  assert.ok(uris.includes("sgs://templates/Flowchart"));
+  assert.ok(uris.includes("ctd://formats"));
+  assert.ok(uris.includes("ctd://themes"));
+  assert.ok(uris.includes("ctd://templates/Flowchart"));
 
   const templates = await client.listResourceTemplates();
-  assert.equal(templates.resourceTemplates[0]?.uriTemplate, "sgs://templates/{name}");
+  assert.equal(templates.resourceTemplates[0]?.uriTemplate, "ctd://templates/{name}");
 
   const prompts = await client.listPrompts();
   assert.deepEqual(
@@ -212,13 +212,16 @@ test("list_templates, get_studio_info, resources, and prompts work", async () =>
   });
   assert.equal(info.isError, undefined);
   const parsedInfo = JSON.parse(info.content[0].text);
+  assert.equal(parsedInfo.name, "CTD Studio");
+  assert.equal(parsedInfo.mcpName, "ctd-mcp");
+  assert.equal(parsedInfo.mermaidVersion, "11.4.1");
   assert.equal(parsedInfo.formats.length, 7);
 
-  const formatsRes = await client.readResource({ uri: "sgs://formats" });
+  const formatsRes = await client.readResource({ uri: "ctd://formats" });
   const formatsJson = JSON.parse(formatsRes.contents[0].text);
   assert.equal(formatsJson.length, 7);
 
-  const templateRes = await client.readResource({ uri: "sgs://templates/Flowchart" });
+  const templateRes = await client.readResource({ uri: "ctd://templates/Flowchart" });
   assert.match(templateRes.contents[0].text, /flowchart TD/);
 
   const promptRes = await client.getPrompt({
