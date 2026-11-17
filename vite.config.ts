@@ -14,6 +14,12 @@ export default defineConfig({
           if (id.includes("lucide-react")) {
             return "icons";
           }
+          if (id.includes("peerjs")) {
+            return "peerjs";
+          }
+          if (id.includes("d3-")) {
+            return "canvas-vendor";
+          }
           if (id.includes("node_modules")) {
             return "vendor";
           }

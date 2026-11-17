@@ -45,8 +45,8 @@ const FORMAT_SUPPORT = [
   },
   {
     format: "PlantUML",
-    scope: "@startuml blocks: sequence (actor/participant, ->>/-->>), state ([*] transitions), and class (<|--, *--, o--, ..>, --> with optional multiplicity quotes).",
-    omissions: "Activity, component, deployment, and use-case diagrams; note, alt/loop fragments, package nesting, and skinparam.",
+    scope: "@startuml blocks: sequence (actor/participant, ->>/-->>), state ([*] transitions), class (<|--, *--, o--, ..>, --> with hide fields/methods/members), and activity (start/stop, :action;, if/else/endif, while/endwhile, repeat/repeat while, fork/fork again/end fork).",
+    omissions: "Component, deployment, and use-case diagrams; note, alt/loop fragments, package nesting, and skinparam.",
   },
   {
     format: "D2",
@@ -123,12 +123,12 @@ const FORMAT_GUIDES: FormatSyntaxGuide[] = [
     id: "plantuml",
     label: "PlantUML",
     template: "PlantUML Class",
-    summary: "Parses @startuml sequence, state, and class diagrams with relationships and visibility.",
+    summary: "Parses @startuml sequence, state, class (including hide rules), and activity diagrams.",
     items: [
       { syntax: "A <|-- B / A *-- B", meaning: "Class inheritance / composition (also o--, ..>)" },
-      { syntax: "A ->> B / A -->> B", meaning: "Sequence solid call / dashed reply" },
-      { syntax: "[*] --> Idle", meaning: "State diagram initial/final transitions" },
-      { syntax: "class User { +id: string }", meaning: "Class, interface, enum, or abstract class block" },
+      { syntax: "hide fields / hide methods", meaning: "Suppress class fields, methods, or all members" },
+      { syntax: ":Step; / if (...) then / while / repeat / fork", meaning: "Activity diagram actions, branches, loops, and parallel forks" },
+      { syntax: "A ->> B / [*] --> Idle", meaning: "Sequence calls and state diagram transitions" },
     ],
     example: `@startuml
 class Service {
@@ -438,10 +438,12 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
           <article className="legal-card">
             <h2>Using the Workbench</h2>
             <ul className="docs-list">
-              <li><strong>Drag boxes &amp; lines:</strong> Switch to Move (<code>V</code>) to drag nodes or connector segments in flowchart, class, state, and ER diagrams, or Pan (<code>H</code>) to move the canvas.</li>
+              <li><strong>Drag boxes &amp; lines:</strong> Switch to Move (<code>V</code>) to drag nodes or connector segments in flowchart, class, state, and ER diagrams, <strong>Shift+click</strong> or <strong>Shift+drag</strong> to box-select and move multiple nodes together, or Pan (<code>H</code>) to move the canvas.</li>
+              <li><strong>Right-click canvas menu:</strong> Right-click a node or edge to edit its label, add a connected item, jump to code, or reset its position; right-click empty canvas to add nodes/classes/states/entities or auto-arrange.</li>
               <li><strong>Grid snap &amp; arrange:</strong> Toggle grid snapping, nudge selected boxes with arrow keys, or click <strong>Arrange nodes in grid</strong>.</li>
+              <li><strong>BYOK AI assistant:</strong> Configure OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, Groq, or custom OpenAI/Anthropic-compatible endpoints in Settings (stored in IndexedDB), with model auto-detect and <strong>Low / Medium / High / Max</strong> usage levels.</li>
               <li><strong>Share &amp; collaborate:</strong> <strong>Copy share link</strong> encodes source and manual positions in the URL (never API keys). <strong>Share live</strong> starts a 5-device PeerJS room.</li>
-              <li><strong>Export:</strong> Export full-bounds <strong>SVG</strong> or <strong>PNG</strong>, with an opt-in palette button to colorize boxes and classes on export.</li>
+              <li><strong>Export:</strong> Export full-bounds <strong>SVG</strong> or <strong>PNG</strong>, with an opt-in palette toggle to preview and export colorized boxes and classes.</li>
             </ul>
           </article>
 

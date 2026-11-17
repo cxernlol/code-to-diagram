@@ -15,6 +15,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc -b --pretty false && tsc --noEmit -p mcp/tsconfig.json",
     "test": "playwright test",
+    "test:parsers": "node --test tests/parsers.test.mjs",
     "mcp:build": "vite build --config mcp/vite.config.ts && node -e \"import('node:fs').then(fs => fs.chmodSync('mcp/dist/index.js', 0o755))\"",
     "mcp:test": "node --test mcp/tests/server.test.mjs",
     "prepare": "node -e \"import('node:fs').then(fs => { if (fs.existsSync('node_modules/vite')) { import('node:child_process').then(cp => cp.execSync('npm run mcp:build', { stdio: 'inherit' })); } })\""
@@ -47,6 +48,7 @@
     "codemirror": "^6.0.2",
     "d3-selection": "^3.0.1",
     "d3-zoom": "^3.0.1",
+    "dompurify": "^3.4.18",
     "framer-motion": "^14.14.0",
     "idb": "^8.0.4",
     "lucide-react": "^1.73.0",
