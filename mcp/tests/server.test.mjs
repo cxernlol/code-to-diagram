@@ -147,6 +147,17 @@ test("to_mermaid converts DOT, PlantUML, D2, SQL, TypeScript, and XML (explicit,
       source: "<app><service name=\"Auth\"><store>Redis</store></service></app>",
       expectMatch: /flowchart TD[\s\S]*Auth[\s\S]*store: Redis/,
     },
+    {
+      name: "PlantUML Class suppression",
+      source: "@startuml\nhide methods\nclass User {\n  +id: UUID\n  +login()\n}\n@enduml",
+      expectMatch: /classDiagram[\s\S]*\+id: UUID/,
+      rejectMatch: /login\(\)/,
+    },
+    {
+      name: "PlantUML Activity",
+      source: "@startuml\nstart\n:Validate;\nif (OK?) then (yes)\n:Save;\nelse (no)\n:Reject;\nendif\nstop\n@enduml",
+      expectMatch: /flowchart TD[\s\S]*Start1\(\[Start\]\)[\s\S]*-->\|yes\| Step[\s\S]*-->\|no\| Step[\s\S]*\(\[Stop\]\)/,
+    },
   ];
 
   for (const c of cases) {
@@ -156,6 +167,9 @@ test("to_mermaid converts DOT, PlantUML, D2, SQL, TypeScript, and XML (explicit,
     });
     assert.equal(res.isError, undefined, `${c.name} should not error`);
     assert.match(res.content[0].text, c.expectMatch, `${c.name} output mismatch`);
+    if (c.rejectMatch) {
+      assert.doesNotMatch(res.content[0].text, c.rejectMatch, `${c.name} suppressed member should be omitted`);
+    }
   }
 });
 

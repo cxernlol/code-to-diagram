@@ -284,7 +284,63 @@ class Diagram implements Entity {
     <sequenceFlow sourceRef="Check" targetRef="InStock" />
     <sequenceFlow sourceRef="InStock" targetRef="Ship" name="Yes" />
   </process>
-</definitions>`
+</definitions>`,
+	"UML Class (Suppression)": `@startuml
+hide methods
+hide empty members
+interface Repository {
+  +findById(id: string)
+}
+class User {
+  +id: UUID
+  -passwordHash: string
+  #role: Role
+  +authenticate()
+}
+class Order {
+  +id: UUID
+  -totalCents: number
+  +markPaid()
+}
+Repository <|.. User
+User "1" --> "*" Order : places
+@enduml`,
+	"UML Activity": `@startuml
+start
+:Receive Webhook;
+if (Signature valid?) then (yes)
+  :Enqueue Job;
+  if (Idempotent?) then (yes)
+    :Update Record;
+  else (no)
+    :Skip Duplicate;
+  endif
+else (no)
+  :Return 401;
+endif
+stop
+@enduml`,
+	"System Architecture": `flowchart LR
+  Client([Browser / Mobile]) --> CDN[CDN / Edge]
+  CDN --> GW[API Gateway]
+  GW --> Auth[Auth Service]
+  GW --> Core[Core API]
+  Core --> Cache[(Redis Cache)]
+  Core --> DB[(Primary Postgres)]
+  Core --> Queue[[Event Bus]]`,
+	"Event-Driven Queue": `flowchart LR
+  Producer[Order Service] -->|publish| Topic[(orders.created)]
+  Topic --> WorkerA[Billing Worker]
+  Topic --> WorkerB[Email Worker]
+  WorkerA -->|retry > 3| DLQ[(Dead Letter Queue)]
+  WorkerA --> Ledger[(Ledger DB)]`,
+	"Deployment Topology": `flowchart TD
+  Ingress[Load Balancer / TLS] --> App1[App Pod 1]
+  Ingress --> App2[App Pod 2]
+  App1 --> Primary[(Postgres Primary)]
+  App2 --> Primary
+  Primary -->|async replication| Replica[(Read Replica)]
+  App1 --> Bucket[(Object Storage)]`
 };
 // src/lib/translate.ts
 function safeId(raw) {
@@ -839,9 +895,77 @@ function convertPlantUmlToMermaid(source) {
 		}
 		return out.join("\n");
 	}
+	if (rawLines.some((l) => /^(?:start|stop|endif)\b/i.test(l) || /^:[^;]+;$/.test(l) || /^if\s*\(.+\)\s*then\b/i.test(l))) {
+		const out = ["flowchart TD"];
+		let step = 0;
+		const nextId = (prefix) => `${prefix}${++step}`;
+		let prevNodes = [];
+		let pendingLabel = "";
+		const branchStack = [];
+		const linkFromPrev = (toId, label) => {
+			const edgeLabel = label ? `|${label}|` : "";
+			for (const fromId of prevNodes) out.push(`  ${fromId} -->${edgeLabel} ${toId}`);
+			prevNodes = [toId];
+			pendingLabel = "";
+		};
+		for (const line of rawLines) {
+			if (/^start$/i.test(line)) {
+				const id = nextId("Start");
+				out.push(`  ${id}([Start])`);
+				prevNodes = [id];
+				continue;
+			}
+			if (/^stop$|^end$/i.test(line)) {
+				const id = nextId("Stop");
+				out.push(`  ${id}([Stop])`);
+				linkFromPrev(id, pendingLabel);
+				prevNodes = [];
+				continue;
+			}
+			const act = line.match(/^:([^;]+);$/);
+			if (act) {
+				const id = nextId("Step");
+				out.push(`  ${id}["${act[1].trim().replace(/"/g, "'")}"]`);
+				linkFromPrev(id, pendingLabel);
+				continue;
+			}
+			const ifMatch = line.match(/^if\s*\((.+?)\)\s*then(?:\s*\(([^)]*)\))?/i);
+			if (ifMatch) {
+				const condId = nextId("Cond");
+				out.push(`  ${condId}{"${ifMatch[1].trim().replace(/"/g, "'")}"}`);
+				linkFromPrev(condId, pendingLabel);
+				branchStack.push({
+					condId,
+					afterThen: [],
+					inElse: false,
+					elseLabel: ""
+				});
+				pendingLabel = ifMatch[2]?.trim() || "yes";
+				continue;
+			}
+			const elseMatch = line.match(/^else(?:\s*\(([^)]*)\))?/i);
+			if (elseMatch && branchStack.length > 0) {
+				const top = branchStack[branchStack.length - 1];
+				top.afterThen = prevNodes;
+				top.inElse = true;
+				prevNodes = [top.condId];
+				pendingLabel = elseMatch[1]?.trim() || "no";
+				continue;
+			}
+			if (/^endif$/i.test(line) && branchStack.length > 0) {
+				const top = branchStack.pop();
+				prevNodes = top.inElse ? [...top.afterThen, ...prevNodes] : [...prevNodes, top.condId];
+				pendingLabel = "";
+			}
+		}
+		return out.join("\n");
+	}
+	const hideFields = rawLines.some((l) => /^hide\s+(?:attributes|fields|members)\b/i.test(l));
+	const hideMethods = rawLines.some((l) => /^hide\s+(?:methods|members)\b/i.test(l));
 	const out = ["classDiagram"];
 	let inBlock = false;
 	for (const line of rawLines) {
+		if (/^(?:hide|show|title|note|package|namespace|\})\b/i.test(line) && !inBlock) continue;
 		if (!inBlock && /^(?:class|interface|enum|abstract\s+class)\s+/i.test(line)) {
 			const normalized = line.replace(/^abstract\s+/i, "").replace(/^(?:interface|enum)\s+/i, "class ");
 			out.push(`  ${normalized}`);
@@ -849,8 +973,14 @@ function convertPlantUmlToMermaid(source) {
 			continue;
 		}
 		if (inBlock) {
+			if (line.includes("}")) {
+				out.push(`  ${line}`);
+				inBlock = false;
+				continue;
+			}
+			const isMethod = /\([^)]*\)/.test(line);
+			if (isMethod && hideMethods || !isMethod && hideFields) continue;
 			out.push(`  ${line}`);
-			if (line.includes("}")) inBlock = false;
 			continue;
 		}
 		const rel = line.match(/^([A-Za-z_]\w*)(?:\s+"([^"]+)")?\s*(<\|--|\*--|o--|-->|<--|\.\.>|\.\.\|>|--)\s*(?:"([^"]+)"\s+)?([A-Za-z_]\w*)(?:\s*:\s*(.+))?$/);

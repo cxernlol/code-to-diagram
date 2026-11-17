@@ -245,9 +245,82 @@ function convertPlantUmlToMermaid(source: string): string {
     return out.join("\n");
   }
 
+  const isActivity = rawLines.some(
+    (l) => /^(?:start|stop|endif)\b/i.test(l) || /^:[^;]+;$/.test(l) || /^if\s*\(.+\)\s*then\b/i.test(l),
+  );
+  if (isActivity) {
+    const out = ["flowchart TD"];
+    let step = 0;
+    const nextId = (prefix: string) => `${prefix}${++step}`;
+    let prevNodes: string[] = [];
+    let pendingLabel = "";
+    const branchStack: Array<{ condId: string; afterThen: string[]; inElse: boolean; elseLabel: string }> = [];
+    const linkFromPrev = (toId: string, label?: string) => {
+      const edgeLabel = label ? `|${label}|` : "";
+      for (const fromId of prevNodes) {
+        out.push(`  ${fromId} -->${edgeLabel} ${toId}`);
+      }
+      prevNodes = [toId];
+      pendingLabel = "";
+    };
+
+    for (const line of rawLines) {
+      if (/^start$/i.test(line)) {
+        const id = nextId("Start");
+        out.push(`  ${id}([Start])`);
+        prevNodes = [id];
+        continue;
+      }
+      if (/^stop$|^end$/i.test(line)) {
+        const id = nextId("Stop");
+        out.push(`  ${id}([Stop])`);
+        linkFromPrev(id, pendingLabel);
+        prevNodes = [];
+        continue;
+      }
+      const act = line.match(/^:([^;]+);$/);
+      if (act) {
+        const id = nextId("Step");
+        out.push(`  ${id}["${act[1]!.trim().replace(/"/g, "'")}"]`);
+        linkFromPrev(id, pendingLabel);
+        continue;
+      }
+      const ifMatch = line.match(/^if\s*\((.+?)\)\s*then(?:\s*\(([^)]*)\))?/i);
+      if (ifMatch) {
+        const condId = nextId("Cond");
+        out.push(`  ${condId}{"${ifMatch[1]!.trim().replace(/"/g, "'")}"}`);
+        linkFromPrev(condId, pendingLabel);
+        branchStack.push({ condId, afterThen: [], inElse: false, elseLabel: "" });
+        pendingLabel = ifMatch[2]?.trim() || "yes";
+        continue;
+      }
+      const elseMatch = line.match(/^else(?:\s*\(([^)]*)\))?/i);
+      if (elseMatch && branchStack.length > 0) {
+        const top = branchStack[branchStack.length - 1]!;
+        top.afterThen = prevNodes;
+        top.inElse = true;
+        prevNodes = [top.condId];
+        pendingLabel = elseMatch[1]?.trim() || "no";
+        continue;
+      }
+      if (/^endif$/i.test(line) && branchStack.length > 0) {
+        const top = branchStack.pop()!;
+        prevNodes = top.inElse ? [...top.afterThen, ...prevNodes] : [...prevNodes, top.condId];
+        pendingLabel = "";
+      }
+    }
+    return out.join("\n");
+  }
+
+  const hideFields = rawLines.some((l) => /^hide\s+(?:attributes|fields|members)\b/i.test(l));
+  const hideMethods = rawLines.some((l) => /^hide\s+(?:methods|members)\b/i.test(l));
+
   const out = ["classDiagram"];
   let inBlock = false;
   for (const line of rawLines) {
+    if (/^(?:hide|show|title|note|package|namespace|\})\b/i.test(line) && !inBlock) {
+      continue;
+    }
     if (!inBlock && /^(?:class|interface|enum|abstract\s+class)\s+/i.test(line)) {
       const normalized = line.replace(/^abstract\s+/i, "").replace(/^(?:interface|enum)\s+/i, "class ");
       out.push(`  ${normalized}`);
@@ -255,8 +328,14 @@ function convertPlantUmlToMermaid(source: string): string {
       continue;
     }
     if (inBlock) {
+      if (line.includes("}")) {
+        out.push(`  ${line}`);
+        inBlock = false;
+        continue;
+      }
+      const isMethod = /\([^)]*\)/.test(line);
+      if ((isMethod && hideMethods) || (!isMethod && hideFields)) continue;
       out.push(`  ${line}`);
-      if (line.includes("}")) inBlock = false;
       continue;
     }
     const rel = line.match(

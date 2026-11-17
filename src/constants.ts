@@ -408,6 +408,67 @@ class Diagram implements Entity {
     <sequenceFlow sourceRef="InStock" targetRef="Ship" name="Yes" />
   </process>
 </definitions>`,
+
+  "UML Class (Suppression)": `@startuml
+hide methods
+hide empty members
+interface Repository {
+  +findById(id: string)
+}
+class User {
+  +id: UUID
+  -passwordHash: string
+  #role: Role
+  +authenticate()
+}
+class Order {
+  +id: UUID
+  -totalCents: number
+  +markPaid()
+}
+Repository <|.. User
+User "1" --> "*" Order : places
+@enduml`,
+
+  "UML Activity": `@startuml
+start
+:Receive Webhook;
+if (Signature valid?) then (yes)
+  :Enqueue Job;
+  if (Idempotent?) then (yes)
+    :Update Record;
+  else (no)
+    :Skip Duplicate;
+  endif
+else (no)
+  :Return 401;
+endif
+stop
+@enduml`,
+
+  "System Architecture": `flowchart LR
+  Client([Browser / Mobile]) --> CDN[CDN / Edge]
+  CDN --> GW[API Gateway]
+  GW --> Auth[Auth Service]
+  GW --> Core[Core API]
+  Core --> Cache[(Redis Cache)]
+  Core --> DB[(Primary Postgres)]
+  Core --> Queue[[Event Bus]]`,
+
+  "Event-Driven Queue": `flowchart LR
+  Producer[Order Service] -->|publish| Topic[(orders.created)]
+  Topic --> WorkerA[Billing Worker]
+  Topic --> WorkerB[Email Worker]
+  WorkerA -->|retry > 3| DLQ[(Dead Letter Queue)]
+  WorkerA --> Ledger[(Ledger DB)]`,
+
+  "Deployment Topology": `flowchart TD
+  Ingress[Load Balancer / TLS] --> App1[App Pod 1]
+  Ingress --> App2[App Pod 2]
+  App1 --> Primary[(Postgres Primary)]
+  App2 --> Primary
+  Primary -->|async replication| Replica[(Read Replica)]
+  App1 --> Bucket[(Object Storage)]`,
 };
 
 export function createDocument(
