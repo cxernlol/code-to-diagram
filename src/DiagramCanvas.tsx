@@ -1814,7 +1814,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     edgeControlsGroup.setAttribute("class", "sgs-edge-controls");
     const firstNodeParent = nodes[0]?.wrapper.parentNode;
     if (firstNodeParent) {
-      firstNodeParent.insertBefore(edgeControlsGroup, nodes[0]!.wrapper);
+      firstNodeParent.appendChild(edgeControlsGroup);
     } else {
       svg.appendChild(edgeControlsGroup);
     }
