@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml/badge.svg)](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ctd-mcp?label=ctd-mcp)](https://www.npmjs.com/package/ctd-mcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm_Noncommercial_1.0.0-blue.svg)](LICENSE)
 
 Write diagram code, drag it into shape, export. No account, no server.
 
@@ -140,3 +140,8 @@ npm run mcp:test
 ## Contributing
 
 All changes go through Pull Requests. See [CONTRIBUTING.md](CONTRIBUTING.md) for strict scope boundaries, local-first rules, and required checks before opening a PR.
+
+## License
+
+- **Noncommercial use:** [PolyForm Noncommercial License 1.0.0](LICENSE)
+- **Commercial use:** Requires a paid license under [COMMERCIAL-LICENSE-AGREEMENT.md](COMMERCIAL-LICENSE-AGREEMENT.md) (contact `mrshimn@proton.me`).
