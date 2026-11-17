@@ -4,7 +4,7 @@
   "description": "A customizable Mermaid diagram editor and AI copilot",
   "private": true,
   "bin": {
-    "sgs-studio-mcp": "./mcp/dist/index.js"
+    "sgs-diagram": "./mcp/dist/index.js"
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",

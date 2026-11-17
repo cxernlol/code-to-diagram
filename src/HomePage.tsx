@@ -13,7 +13,7 @@ const MCP_SNIPPETS = [
     label: "Claude / Cursor / Windsurf",
     code: `{
   "mcpServers": {
-    "sgs-studio": {
+    "sgs-diagram": {
       "command": "npx",
       "args": ["-y", "github:cxernlol/sgs-chify"]
     }
@@ -25,7 +25,7 @@ const MCP_SNIPPETS = [
     label: "VS Code (.vscode/mcp.json)",
     code: `{
   "servers": {
-    "sgs-studio": {
+    "sgs-diagram": {
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "github:cxernlol/sgs-chify"]
@@ -404,6 +404,7 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
               </a>
             </div>
             <ul className="home-trust-strip" aria-label="Highlights">
+              <li>Mermaid v11.4.1</li>
               <li>7 code formats</li>
               <li>SVG &amp; PNG export</li>
               <li>5-device live rooms</li>
@@ -512,11 +513,11 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
         <section className="home-mcp" aria-label="MCP integration">
           <div className="home-mcp-copy">
             <span className="home-eyebrow">
-              <Terminal aria-hidden="true" size={13} /> Model Context Protocol
+              <Terminal aria-hidden="true" size={13} /> SGS-Diagram MCP
             </span>
-            <h2>Use SGS Studio as an MCP server</h2>
+            <h2>Use SGS-Diagram as an MCP server</h2>
             <p>
-              Run the same 7-format detector, Mermaid converter, and DiagramIR translator inside{" "}
+              Run the same 7-format detector, Mermaid v11.4.1 converter, and DiagramIR translator inside{" "}
               <strong>Claude Desktop</strong>, <strong>Cursor</strong>, <strong>Windsurf</strong>,{" "}
               <strong>VS Code</strong>, or <strong>Claude Code</strong> via <code>npx</code>.
             </p>

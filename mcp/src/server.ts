@@ -78,12 +78,12 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
 
   const server = new McpServer(
     {
-      name: "sgs-studio",
+      name: "sgs-diagram",
       version,
     },
     {
       instructions:
-        "SGS Studio MCP server for detecting, parsing, converting, and translating diagrams across Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML).",
+        "SGS-Diagram MCP server for detecting, parsing, converting, and translating diagrams across Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML).",
     },
   );
 
@@ -326,7 +326,8 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
     },
     async () => {
       const info = {
-        name: "SGS Studio",
+        name: "SGS-Diagram",
+        mermaidVersion: "11.4.1",
         url: "https://sgs-chify.vercel.app/",
         repository: "https://github.com/cxernlol/sgs-chify",
         formats: CODE_FORMATS.map((id) => ({

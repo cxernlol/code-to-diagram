@@ -1,6 +1,6 @@
-# sgs-studio-mcp
+# sgs-diagram
 
-Model Context Protocol (MCP) server for **SGS Studio** — detect, parse, convert, and translate diagrams across **Mermaid**, **Graphviz DOT**, **PlantUML**, **D2**, **SQL DDL**, **TypeScript**, and **XML** (including Draw.io `mxGraphModel`, BPMN, and generic XML trees).
+Model Context Protocol (MCP) server (**SGS-Diagram**) — detect, parse, convert, and translate diagrams across **Mermaid (v11.4.1)**, **Graphviz DOT**, **PlantUML**, **D2**, **SQL DDL**, **TypeScript**, and **XML** (including Draw.io `mxGraphModel`, BPMN, and generic XML trees).
 
 ## Quick Start (`npx`)
 
@@ -14,7 +14,7 @@ npx .
 npx -y github:cxernlol/sgs-chify
 
 # Or from npm (once published)
-npx -y sgs-studio-mcp
+npx -y sgs-diagram
 ```
 
 ## Client Configuration
@@ -26,7 +26,7 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, or `mc
 ```json
 {
   "mcpServers": {
-    "sgs-studio": {
+    "sgs-diagram": {
       "command": "npx",
       "args": ["-y", "github:cxernlol/sgs-chify"]
     }
@@ -39,7 +39,7 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, or `mc
 ```json
 {
   "servers": {
-    "sgs-studio": {
+    "sgs-diagram": {
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "github:cxernlol/sgs-chify"]

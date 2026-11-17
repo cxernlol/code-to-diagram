@@ -15,8 +15,8 @@ async function main() {
         "SGS Studio Model Context Protocol (MCP) server over stdio.",
         "",
         "Usage:",
-        "  npx sgs-studio-mcp",
-        "  sgs-studio-mcp [--help | --version]",
+        "  npx sgs-diagram",
+        "  sgs-diagram [--help | --version]",
         "",
         "Connect from Claude Desktop, Cursor, Windsurf, or VS Code via stdio.",
       ].join("\n") + "\n",
@@ -27,7 +27,7 @@ async function main() {
   const server = createSgsStudioMcpServer(pkg.version);
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`SGS Studio MCP server v${pkg.version} running on stdio`);
+  console.error(`SGS-Diagram MCP server v${pkg.version} running on stdio`);
 }
 
 main().catch((error) => {

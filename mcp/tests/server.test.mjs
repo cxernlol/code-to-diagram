@@ -36,7 +36,7 @@ test("CLI --version and --help work cleanly", () => {
   const helpOut = execFileSync(process.execPath, [SERVER_BIN, "--help"], {
     encoding: "utf8",
   });
-  assert.match(helpOut, /sgs-studio-mcp/);
+  assert.match(helpOut, /sgs-diagram/);
   assert.match(helpOut, /stdio/);
 });
 

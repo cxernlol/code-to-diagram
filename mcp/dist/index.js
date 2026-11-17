@@ -4,12 +4,13 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { z } from "zod";
 import { DOMParser as DOMParser$1 } from "@xmldom/xmldom";
 var package_default = {
-	name: "sgs-studio-mcp",
+	name: "sgs-diagram",
 	version: "1.0.0",
-	description: "MCP server for SGS Studio — convert and translate Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
+	description: "SGS-Diagram MCP server — convert and translate Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
 	type: "module",
+	license: "MIT",
 	main: "./dist/index.js",
-	bin: { "sgs-studio-mcp": "./dist/index.js" },
+	bin: { "sgs-diagram": "./dist/index.js" },
 	files: ["dist", "README.md"],
 	engines: { "node": ">=18" },
 	keywords: [
@@ -1151,9 +1152,9 @@ function formatErrorResult(error) {
 function createSgsStudioMcpServer(version = "1.0.0") {
 	ensureNodeDomPolyfills();
 	const server = new McpServer({
-		name: "sgs-studio",
+		name: "sgs-diagram",
 		version
-	}, { instructions: "SGS Studio MCP server for detecting, parsing, converting, and translating diagrams across Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML)." });
+	}, { instructions: "SGS-Diagram MCP server for detecting, parsing, converting, and translating diagrams across Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML)." });
 	server.registerTool("detect_format", {
 		title: "Detect Diagram / Code Format",
 		description: "Auto-detect the format of a diagram or code snippet (mermaid, dot, plantuml, d2, sql, typescript, xml) and its Mermaid diagram type.",
@@ -1318,7 +1319,8 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 		annotations: { readOnlyHint: true }
 	}, async () => {
 		const info = {
-			name: "SGS Studio",
+			name: "SGS-Diagram",
+			mermaidVersion: "11.4.1",
 			url: "https://sgs-chify.vercel.app/",
 			repository: "https://github.com/cxernlol/sgs-chify",
 			formats: CODE_FORMATS.map((id) => ({
@@ -1412,8 +1414,8 @@ async function main() {
 			"SGS Studio Model Context Protocol (MCP) server over stdio.",
 			"",
 			"Usage:",
-			"  npx sgs-studio-mcp",
-			"  sgs-studio-mcp [--help | --version]",
+			"  npx sgs-diagram",
+			"  sgs-diagram [--help | --version]",
 			"",
 			"Connect from Claude Desktop, Cursor, Windsurf, or VS Code via stdio."
 		].join("\n") + "\n");
@@ -1422,7 +1424,7 @@ async function main() {
 	const server = createSgsStudioMcpServer(package_default.version);
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
-	console.error(`SGS Studio MCP server v${package_default.version} running on stdio`);
+	console.error(`SGS-Diagram MCP server v${package_default.version} running on stdio`);
 }
 main().catch((error) => {
 	console.error("Fatal error in SGS Studio MCP server:", error);

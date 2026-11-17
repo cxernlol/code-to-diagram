@@ -2,7 +2,7 @@
 
 A local-first Mermaid diagram editor that runs in your browser. Write Mermaid code on the left, drag nodes and connector lines into place on the right, and export without creating an account.
 
-Live app: [sgs-chify.vercel.app](https://sgs-chify.vercel.app/)
+Live app: [sgs-chify.vercel.app](https://sgs-chify.vercel.app/) · Bundled renderer: **Mermaid v11.4.1** (`public/mermaid.min.js`)
 
 ## Features
 
@@ -35,9 +35,9 @@ Run the Playwright end-to-end test suite:
 npm test
 ```
 
-## MCP Server (`npx`)
+## SGS-Diagram MCP Server (`npx`)
 
-SGS Studio includes a Model Context Protocol (MCP) server ([`mcp/`](mcp/README.md)) that reuses the same multi-format parsers and translators. Use it anywhere that supports stdio MCP servers: **Claude Desktop**, **Cursor**, **Windsurf**, **VS Code**, **Claude Code**, or directly from your terminal.
+SGS-Diagram is the Model Context Protocol (MCP) server ([`mcp/`](mcp/README.md)) bundled with this repo, reusing the same multi-format parsers and translators (targeting Mermaid v11.4.1). Use it anywhere that supports stdio MCP servers: **Claude Desktop**, **Cursor**, **Windsurf**, **VS Code**, **Claude Code**, or directly from your terminal.
 
 Run directly with `npx`:
 
@@ -52,7 +52,7 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
 ```json
 {
   "mcpServers": {
-    "sgs-studio": {
+    "sgs-diagram": {
       "command": "npx",
       "args": ["-y", "github:cxernlol/sgs-chify"]
     }
@@ -65,7 +65,7 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
 ```json
 {
   "servers": {
-    "sgs-studio": {
+    "sgs-diagram": {
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "github:cxernlol/sgs-chify"]
