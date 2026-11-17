@@ -771,4 +771,16 @@ test("preserves prefix-like user node IDs without collisions and respects data-i
   await page.goto(`/#d=${encodeURIComponent(compositeState)}`);
   await expect(page.locator('[data-sgs-node="Active"]')).toHaveCount(1);
   await expect(page.locator('[data-sgs-node="Running"]')).toHaveCount(1);
+
+  const classDiagram = btoa("classDiagram\n  class classId-Foo\n  class Foo\n  classId-Foo --> Foo");
+  await page.goto("about:blank");
+  await page.goto(`/#d=${encodeURIComponent(classDiagram)}`);
+  await expect(page.locator('[data-sgs-node="classId-Foo"]')).toHaveCount(1);
+  await expect(page.locator('[data-sgs-node="Foo"]')).toHaveCount(1);
+
+  const erDiagram = btoa("erDiagram\n  entity-Item ||--o{ Item : contains");
+  await page.goto("about:blank");
+  await page.goto(`/#d=${encodeURIComponent(erDiagram)}`);
+  await expect(page.locator('[data-sgs-node="entity-Item"]')).toHaveCount(1);
+  await expect(page.locator('[data-sgs-node="Item"]')).toHaveCount(1);
 });
