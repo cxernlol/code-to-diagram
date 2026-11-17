@@ -219,7 +219,7 @@ test("list_templates, get_studio_info, resources, and prompts work", async () =>
   const parsedInfo = JSON.parse(info.content[0].text);
   assert.equal(parsedInfo.name, "CTD Studio");
   assert.equal(parsedInfo.mcpName, "ctd-mcp");
-  assert.equal(parsedInfo.mermaidVersion, "11.4.1");
+  assert.equal(parsedInfo.mermaidVersion, "12.3.0");
   assert.equal(parsedInfo.formats.length, 7);
 
   const formatsRes = await client.readResource({ uri: "ctd://formats" });

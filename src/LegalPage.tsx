@@ -65,7 +65,7 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
             <p>
               The hosted site runs on Vercel, which may retain standard HTTP server logs (such as IP
               addresses and request metadata) under Vercel&apos;s privacy policy, and uses
-              cookieless Vercel Web Analytics for aggregate pageview counts. Mermaid (v11.4.1) and
+              cookieless Vercel Web Analytics for aggregate pageview counts. Mermaid (v12.3.0) and
               application scripts are bundled locally with no external CDN script or font loads.
             </p>
 

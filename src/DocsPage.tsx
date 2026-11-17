@@ -34,8 +34,8 @@ const SHAPE_SYNTAX = [
 
 const FORMAT_SUPPORT = [
   {
-    format: "Mermaid (v11.4.1)",
-    scope: "Full Mermaid v11.4.1 runtime for rendering. IR translation (Convert to...) supports flowchart/graph, classDiagram, erDiagram, and sequenceDiagram.",
+    format: "Mermaid (v12.3.0)",
+    scope: "Full Mermaid v12.3.0 runtime for rendering. IR translation (Convert to...) supports flowchart/graph, classDiagram, erDiagram, and sequenceDiagram.",
     omissions: "gantt, mindmap, pie, journey, gitGraph, C4, and requirement render natively but are not translated by Convert to....",
   },
   {
@@ -84,7 +84,7 @@ const FORMAT_GUIDES: FormatSyntaxGuide[] = [
     id: "mermaid",
     label: "Mermaid",
     template: "API Auth Flow",
-    summary: "Blocks, subgraphs, sequence fragments, and per-node styling in Mermaid v11.4.1.",
+    summary: "Blocks, subgraphs, sequence fragments, and per-node styling in Mermaid v12.3.0.",
     items: [
       { syntax: "subgraph Edge ... end", meaning: "Group nodes inside a labeled container" },
       { syntax: "alt Ok ... else Err ... end", meaning: "Conditional branches in sequenceDiagram" },

@@ -6,7 +6,7 @@ import { DOMParser as DOMParser$1 } from "@xmldom/xmldom";
 var package_default = {
 	name: "ctd-mcp",
 	version: "1.0.4",
-	description: "CTD Studio MCP server — convert and translate Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
+	description: "CTD Studio MCP server — convert and translate Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
 	type: "module",
 	license: "MIT",
 	main: "./dist/index.js",
@@ -1217,7 +1217,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 	const server = new McpServer({
 		name: "ctd-mcp",
 		version
-	}, { instructions: "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, and translating diagrams across Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML)." });
+	}, { instructions: "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, and translating diagrams across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML)." });
 	server.registerTool("detect_format", {
 		title: "Detect Diagram / Code Format",
 		description: "Auto-detect the format of a diagram or code snippet (mermaid, dot, plantuml, d2, sql, typescript, xml) and its Mermaid diagram type.",
@@ -1384,7 +1384,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 		const info = {
 			name: "CTD Studio",
 			mcpName: "ctd-mcp",
-			mermaidVersion: "11.4.1",
+			mermaidVersion: "12.3.0",
 			url: "https://code-to-diagram.vercel.app/",
 			repository: "https://github.com/cxernlol/code-to-diagram",
 			formats: CODE_FORMATS.map((id) => ({
