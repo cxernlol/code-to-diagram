@@ -1,8 +1,11 @@
-# SGS-Diagram
+# CTD Studio
 
-A local-first Mermaid diagram editor that runs in your browser. Write Mermaid code on the left, drag nodes and connector lines into place on the right, and export without creating an account.
+[![CI](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml/badge.svg)](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Live app: [sgs-chify.vercel.app](https://sgs-chify.vercel.app/) · Bundled renderer: **Mermaid v11.4.1** (`public/mermaid.min.js`)
+A local-first code-to-diagram editor that runs in your browser. Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML on the left, drag nodes and connector lines into place on the right, and export without creating an account.
+
+Live app: [code-to-diagram.vercel.app](https://code-to-diagram.vercel.app/) · Bundled renderer: **Mermaid v11.4.1** (`public/mermaid.min.js`)
 
 ## Features
 
@@ -17,8 +20,8 @@ Live app: [sgs-chify.vercel.app](https://sgs-chify.vercel.app/) · Bundled rende
 ## Getting Started
 
 ```bash
-git clone https://github.com/cxernlol/sgs-chify.git
-cd sgs-chify
+git clone https://github.com/cxernlol/code-to-diagram.git
+cd code-to-diagram
 npm install
 npm run dev
 ```
@@ -29,20 +32,31 @@ Type-check and build for production:
 npm run build
 ```
 
-Run the Playwright end-to-end test suite:
+Run the Playwright end-to-end test suite (17 Chromium E2E tests):
 
 ```bash
 npm test
 ```
 
-## SGS-Diagram MCP Server (`npx`)
+## CI/CD & Test Coverage
 
-SGS-Diagram is the Model Context Protocol (MCP) server ([`mcp/`](mcp/README.md)) bundled with this repo, reusing the same multi-format parsers and translators (targeting Mermaid v11.4.1). Use it anywhere that supports stdio MCP servers: **Claude Desktop**, **Cursor**, **Windsurf**, **VS Code**, **Claude Code**, or directly from your terminal.
+- **CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):** Runs on every push and pull request to `main`: TypeScript type-checking (`tsc -b` + `mcp/tsconfig.json`), Vite production builds for web and `ctd-mcp`, **8** MCP stdio tests (`npm run mcp:test`), `npx --no-install ctd-mcp --version`, and **17** Playwright Chromium E2E tests (`npx playwright test --workers=1`).
+- **CD ([`.github/workflows/publish-mcp.yml`](.github/workflows/publish-mcp.yml)):** Publishes `ctd-mcp` from `mcp/` to npm with provenance on GitHub Releases or manual `workflow_dispatch`.
+
+## Tech Stack & Languages
+
+- **Languages:** TypeScript, TSX (React 19), CSS, HTML, JavaScript (ESM)
+- **Supported Input/Export Formats (7):** Mermaid (`v11.4.1`), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, XML (Draw.io `mxGraphModel`, BPMN, generic XML)
+- **Libraries & Runtimes:** Vite, CodeMirror 6, D3 (`d3-selection`, `d3-zoom`), Framer Motion, Anime.js, PeerJS, IndexedDB (`idb`), `@modelcontextprotocol/sdk`, `@xmldom/xmldom`, Playwright
+
+## CTD Studio MCP Server (`ctd-mcp` via `npx`)
+
+`ctd-mcp` is the Model Context Protocol (MCP) server ([`mcp/`](mcp/README.md)) bundled with this repo, reusing the same multi-format parsers and translators (targeting Mermaid v11.4.1). Use it anywhere that supports stdio MCP servers: **Claude Desktop**, **Cursor**, **Windsurf**, **VS Code**, **Claude Code**, or directly from your terminal.
 
 Run directly with `npx`:
 
 ```bash
-npx -y github:cxernlol/sgs-chify
+npx -y github:cxernlol/code-to-diagram
 ```
 
 ### Claude Desktop / Cursor / Windsurf
@@ -52,9 +66,9 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
 ```json
 {
   "mcpServers": {
-    "sgs-diagram": {
+    "ctd-mcp": {
       "command": "npx",
-      "args": ["-y", "github:cxernlol/sgs-chify"]
+      "args": ["-y", "github:cxernlol/code-to-diagram"]
     }
   }
 }
@@ -65,10 +79,10 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
 ```json
 {
   "servers": {
-    "sgs-diagram": {
+    "ctd-mcp": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "github:cxernlol/sgs-chify"]
+      "args": ["-y", "github:cxernlol/code-to-diagram"]
     }
   }
 }
@@ -77,7 +91,7 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
 ### Available MCP Tools & Resources
 
 - **Tools:** `detect_format`, `to_mermaid`, `translate_format`, `parse_diagram_ir`, `emit_from_ir`, `list_templates`, `get_studio_info`
-- **Resources & Prompt:** `sgs://formats`, `sgs://themes`, `sgs://templates/{name}`, `code_to_diagram`
+- **Resources & Prompt:** `ctd://formats`, `ctd://themes`, `ctd://templates/{name}`, `code_to_diagram`
 
 Build and test the MCP server locally:
 
@@ -90,4 +104,4 @@ npm run mcp:test
 
 - **Storage:** Diagrams and preferences stay in your browser's IndexedDB. Legacy `mstudio2` `localStorage` data is migrated on first load while keeping a recovery copy.
 - **AI Requests:** Prompts, diagram source, and API keys are sent directly from your browser to the endpoint you configure.
-- **Cost:** SGS Studio is free to run and has no accounts or paid tiers. If you connect a commercial AI API key, provider usage is billed by that provider.
+- **Cost:** CTD Studio is free to run and has no accounts or paid tiers. If you connect a commercial AI API key, provider usage is billed by that provider.
