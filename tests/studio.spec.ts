@@ -1161,3 +1161,25 @@ test("mobile layout has no horizontal overflow or toolbar overlap across all pag
   expect(dialogBox!.width).toBeLessThanOrEqual(375);
   await expect(page.locator(".settings-dialog .dialog-footer")).toBeVisible();
 });
+
+test("deleting a diagram tab opens a centered confirmation dialog with Delete and Cancel", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "New diagram" }).click();
+  await expect(page.locator(".document-tab")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Close Flowchart" }).first().click();
+  const dialog = page.locator(".confirm-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(/Delete .*Flowchart.*\?/);
+  await expect(dialog).toContainText("Once deleted, it cannot be restored.");
+
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(".document-tab")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Close Flowchart" }).first().click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Delete" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(".document-tab")).toHaveCount(1);
+});

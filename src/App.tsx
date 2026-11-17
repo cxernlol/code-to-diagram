@@ -227,6 +227,7 @@ function App() {
   const editorRef = useRef<CodeEditorHandle>(null);
   const canvasRef = useRef<DiagramCanvasHandle>(null);
   const settingsDialog = useRef<HTMLDialogElement>(null);
+  const deleteDialog = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const splitRef = useRef<HTMLDivElement>(null);
   const [bootError, setBootError] = useState<unknown>();
@@ -659,6 +660,16 @@ function App() {
       settingsDialog.current.close();
     }
   }, [settingsOpen]);
+
+  useEffect(() => {
+    const dialog = deleteDialog.current;
+    if (!dialog) return;
+    if (pendingDeleteId && !dialog.open) {
+      dialog.showModal();
+    } else if (!pendingDeleteId && dialog.open) {
+      dialog.close();
+    }
+  }, [pendingDeleteId]);
 
   const createTab = useCallback(
     (name = "Flowchart", code = TEMPLATES.Flowchart) => {
@@ -1264,21 +1275,14 @@ function App() {
                   <span>{document.name}</span>
                 </button>
               )}
-              {pendingDeleteId === document.id ? (
-                <span className="tab-delete-confirm">
-                  <button type="button" onClick={() => void removeTab(document.id)}>Delete</button>
-                  <button type="button" aria-label="Cancel delete" onClick={() => setPendingDeleteId("")}>Cancel</button>
-                </span>
-              ) : (
-                <button
-                  className="tab-close"
-                  type="button"
-                  aria-label={`Close ${document.name}`}
-                  onClick={() => setPendingDeleteId(document.id)}
-                >
-                  <X aria-hidden="true" size={13} />
-                </button>
-              )}
+              <button
+                className="tab-close"
+                type="button"
+                aria-label={`Close ${document.name}`}
+                onClick={() => setPendingDeleteId(document.id)}
+              >
+                <X aria-hidden="true" size={13} />
+              </button>
             </div>
           ))}
         </div>
@@ -1963,6 +1967,42 @@ function App() {
           <button className="button primary" type="button" onClick={() => settingsDialog.current?.close()}>Done</button>
         </div>
       </dialog>
+
+      {(() => {
+        const target = pendingDeleteId ? data.documents.find((doc) => doc.id === pendingDeleteId) ?? null : null;
+        return (
+          <dialog
+            ref={deleteDialog}
+            className="confirm-dialog"
+            role="alertdialog"
+            aria-labelledby="delete-dialog-title"
+            aria-describedby="delete-dialog-desc"
+            onClose={() => setPendingDeleteId("")}
+            onClick={(event) => {
+              if (event.target === deleteDialog.current) setPendingDeleteId("");
+            }}
+          >
+            <div className="confirm-dialog-body">
+              <h2 id="delete-dialog-title">Delete &lsquo;{target?.name ?? "diagram"}&rsquo;?</h2>
+              <p id="delete-dialog-desc">Once deleted, it cannot be restored.</p>
+            </div>
+            <div className="dialog-footer">
+              <button className="button secondary" type="button" onClick={() => setPendingDeleteId("")}>
+                Cancel
+              </button>
+              <button
+                className="button danger"
+                type="button"
+                onClick={() => {
+                  if (target) void removeTab(target.id);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </dialog>
+        );
+      })()}
 
       {notice && (
         <div className="toast" role="status">

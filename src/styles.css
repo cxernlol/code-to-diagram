@@ -621,6 +621,17 @@ summary:focus-visible,
   background: var(--accent-hover);
 }
 
+.button.danger {
+  border-color: #b43c2c;
+  color: white;
+  background: #b43c2c;
+}
+
+.button.danger:hover:not(:disabled) {
+  border-color: #962f22;
+  background: #962f22;
+}
+
 .button.secondary {
   border-color: var(--border-strong);
   color: var(--ink-soft);
@@ -1156,10 +1167,44 @@ summary:focus-visible,
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
-.settings-dialog::backdrop {
+.settings-dialog::backdrop,
+.confirm-dialog::backdrop {
   overflow: hidden;
   background: rgb(16 34 37 / 54%);
   overscroll-behavior: contain;
+}
+
+.confirm-dialog {
+  inline-size: min(400px, calc(100vw - 28px));
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.confirm-dialog-body {
+  display: grid;
+  gap: 6px;
+  padding: 20px 20px 16px;
+}
+
+.confirm-dialog-body h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.confirm-dialog-body p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .settings-dialog:modal {
