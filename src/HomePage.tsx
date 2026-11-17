@@ -397,6 +397,10 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
                 Start
                 <ArrowRight aria-hidden="true" size={16} />
               </button>
+              <button className="button secondary home-cta-github" type="button" onClick={onDocs}>
+                <BookOpen aria-hidden="true" size={15} />
+                <span>Syntax Docs</span>
+              </button>
               <a
                 className="button secondary home-cta-github"
                 href={GITHUB_URL}

@@ -19,6 +19,7 @@ Supports Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw
 - **5-device live rooms:** share a live PeerJS session link to collaborate in real time
 - **Export** full-bounds SVG/PNG, or share a URL that keeps your manual layout
 - **Optional BYOK AI:** OpenAI, DeepSeek, Ollama, OpenRouter, Groq, or any compatible endpoint
+- **Syntax & template docs:** quick reference for arrows (`-->`, `-.->`, `==>`), shapes, 7-format syntax, and starter templates at [`#docs`](https://code-to-diagram.vercel.app/#docs)
 
 ## Getting Started
 
