@@ -1636,6 +1636,7 @@ function App() {
               settings={data.settings}
               readOnly={isReadOnlySnapshot}
               onLayoutChange={changeLayout}
+              onCodeChange={changeCode}
               onNodeMoved={announceNodeMoved}
               onNodeSelect={(id) => {
                 setMobilePane("code");

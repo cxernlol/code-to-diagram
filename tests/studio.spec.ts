@@ -741,6 +741,96 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
 });
 
+test("canvas context menu edits node and edge labels across diagram types and adds items", async ({ page }) => {
+  await page.goto("/#app");
+  const checkNode = page.locator('[data-sgs-node="Check"]');
+  await expect(checkNode).toBeVisible();
+
+  // Flowchart node label edit
+  await checkNode.click({ button: "right" });
+  const menu = page.locator(".canvas-context-menu");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Edit label…" }).click();
+  await menu.getByLabel("Node label").fill("Ready?");
+  await menu.getByRole("button", { name: "Apply" }).click();
+  await expect(checkNode).toContainText("Ready?");
+
+  // Flowchart edge label edit
+  const edgeLabel = page.locator("g.edgeLabel[data-sgs-edge-id]").first();
+  await expect(edgeLabel).toBeVisible();
+  await edgeLabel.click({ button: "right", force: true });
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Edit label…" }).click();
+  await menu.getByLabel("Edge label").fill("approved");
+  await menu.getByRole("button", { name: "Apply" }).click();
+  await expect(page.locator("g.edgeLabel", { hasText: "approved" })).toBeVisible();
+
+  // Canvas right-click -> Add node
+  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Add node" }).click();
+  await expect(page.locator('[data-sgs-node="Node1"]')).toBeVisible();
+
+  // Class diagram node label edit & Add class
+  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  const animalNode = page.locator('[data-sgs-node="Animal"]');
+  await expect(animalNode).toBeVisible({ timeout: 10000 });
+  await animalNode.click({ button: "right" });
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Edit label…" }).click();
+  await menu.getByLabel("Node label").fill("Creature");
+  await menu.getByRole("button", { name: "Apply" }).click();
+  await expect(animalNode).toContainText("Creature");
+
+  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
+  await menu.getByRole("menuitem", { name: "Add class" }).click();
+  await expect(page.locator('[data-sgs-node="Class1"]')).toBeVisible();
+
+  // State diagram node/edge label edit & Add state
+  await page.getByLabel("Start from a template").selectOption({ label: "State" });
+  const idleNode = page.locator('[data-sgs-node="Idle"]');
+  await expect(idleNode).toBeVisible({ timeout: 10000 });
+  await idleNode.click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "Edit label…" }).click();
+  await menu.getByLabel("Node label").fill("Waiting");
+  await menu.getByRole("button", { name: "Apply" }).click();
+  await expect(idleNode).toContainText("Waiting");
+
+  const stateEdgeLabel = page.locator("g.edgeLabel[data-sgs-edge-id]", { hasText: "start()" });
+  await expect(stateEdgeLabel).toBeVisible();
+  await stateEdgeLabel.click({ button: "right", force: true });
+  await menu.getByRole("menuitem", { name: "Edit label…" }).click();
+  await menu.getByLabel("Edge label").fill("begin()");
+  await menu.getByRole("button", { name: "Apply" }).click();
+  await expect(page.locator("g.edgeLabel", { hasText: "begin()" })).toBeVisible();
+
+  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
+  await menu.getByRole("menuitem", { name: "Add state" }).click();
+  await expect(page.locator('[data-sgs-node="State1"]')).toBeVisible();
+
+  // ER diagram node/edge label edit & Add entity
+  await page.getByLabel("Start from a template").selectOption({ label: "ER" });
+  const userNode = page.locator('[data-sgs-node="USER"]');
+  await expect(userNode).toBeVisible({ timeout: 10000 });
+  await userNode.click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "Edit label…" }).click();
+  await menu.getByLabel("Node label").fill("Account");
+  await menu.getByRole("button", { name: "Apply" }).click();
+  await expect(userNode).toContainText("Account");
+
+  const erEdgeLabel = page.locator("g.edgeLabel[data-sgs-edge-id]", { hasText: "places" });
+  await expect(erEdgeLabel).toBeVisible();
+  await erEdgeLabel.click({ button: "right", force: true });
+  await menu.getByRole("menuitem", { name: "Edit label…" }).click();
+  await menu.getByLabel("Edge label").fill("submits");
+  await menu.getByRole("button", { name: "Apply" }).click();
+  await expect(page.locator("g.edgeLabel", { hasText: "submits" })).toBeVisible();
+
+  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
+  await menu.getByRole("menuitem", { name: "Add entity" }).click();
+  await expect(page.locator('[data-sgs-node="ENTITY1"]')).toBeVisible();
+});
+
 const XSS_MERMAID_PAYLOAD = [
   "flowchart TD",
   `  A["<foreignObject><img src=x onerror='window.__xss=1'><script>window.__xss=2</script></foreignObject>"] --> B["<a href='javascript:window.__xss=3'>js</a>"]`,
