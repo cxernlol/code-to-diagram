@@ -21,13 +21,31 @@ export interface DiagramDocument {
   sortOrder: number;
 }
 
-export type ProviderId = "openai" | "deepseek" | "ollama" | "openrouter" | "groq" | "custom";
+export type ProviderId =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "deepseek"
+  | "openrouter"
+  | "groq"
+  | "xai"
+  | "mistral"
+  | "together"
+  | "fireworks"
+  | "ollama"
+  | "lmstudio"
+  | "anthropic-compatible"
+  | "custom";
+
+export type AiProtocol = "openai" | "anthropic";
+
+export type AiUsageLevel = "low" | "medium" | "high" | "max";
 
 export interface ProviderSettings {
   provider: ProviderId;
   baseUrl: string;
   model: string;
-  temperature: number | null;
+  usage?: AiUsageLevel;
 }
 
 export interface StudioSettings {

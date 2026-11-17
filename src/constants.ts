@@ -1,4 +1,4 @@
-import type { DiagramDocument, ProviderId, StudioSettings } from "./types";
+import type { AiProtocol, AiUsageLevel, DiagramDocument, ProviderId, StudioSettings } from "./types";
 
 export const LEGACY_STORAGE_KEY = "mstudio2";
 export const DEFAULT_FONT = "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -53,43 +53,118 @@ export const DEFAULT_SETTINGS: StudioSettings = {
     provider: "deepseek",
     baseUrl: "https://api.deepseek.com",
     model: "deepseek-chat",
-    temperature: null,
+    usage: "medium",
   },
+};
+
+export const AI_USAGE_TOKENS: Record<AiUsageLevel, { label: string; maxTokens: number }> = {
+  low: { label: "Low (fast, concise)", maxTokens: 1024 },
+  medium: { label: "Medium (balanced)", maxTokens: 2048 },
+  high: { label: "High (detailed)", maxTokens: 4096 },
+  max: { label: "Max (longest output)", maxTokens: 8192 },
 };
 
 export const PROVIDERS: Record<
   ProviderId,
-  { label: string; baseUrl: string; model: string }
+  { label: string; protocol: AiProtocol; baseUrl: string; model: string; models: string[] }
 > = {
   openai: {
     label: "OpenAI",
+    protocol: "openai",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4o",
+    models: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o4-mini"],
+  },
+  anthropic: {
+    label: "Anthropic",
+    protocol: "anthropic",
+    baseUrl: "https://api.anthropic.com/v1",
+    model: "claude-sonnet-4-5",
+    models: ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5", "claude-3-7-sonnet-latest"],
+  },
+  gemini: {
+    label: "Google Gemini",
+    protocol: "openai",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    model: "gemini-2.5-flash",
+    models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
   },
   deepseek: {
     label: "DeepSeek",
+    protocol: "openai",
     baseUrl: "https://api.deepseek.com",
     model: "deepseek-chat",
-  },
-  ollama: {
-    label: "Ollama",
-    baseUrl: "http://localhost:11434/v1",
-    model: "",
+    models: ["deepseek-chat", "deepseek-reasoner"],
   },
   openrouter: {
     label: "OpenRouter",
+    protocol: "openai",
     baseUrl: "https://openrouter.ai/api/v1",
-    model: "",
+    model: "anthropic/claude-sonnet-4.5",
+    models: ["anthropic/claude-sonnet-4.5", "openai/gpt-4o", "google/gemini-2.5-flash", "deepseek/deepseek-chat"],
   },
   groq: {
     label: "Groq",
+    protocol: "openai",
     baseUrl: "https://api.groq.com/openai/v1",
-    model: "",
+    model: "llama-3.3-70b-versatile",
+    models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen/qwen3-32b"],
   },
-  custom: {
-    label: "Custom endpoint",
+  xai: {
+    label: "xAI (Grok)",
+    protocol: "openai",
+    baseUrl: "https://api.x.ai/v1",
+    model: "grok-3-mini",
+    models: ["grok-3", "grok-3-mini", "grok-2-latest"],
+  },
+  mistral: {
+    label: "Mistral",
+    protocol: "openai",
+    baseUrl: "https://api.mistral.ai/v1",
+    model: "mistral-small-latest",
+    models: ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest", "codestral-latest"],
+  },
+  together: {
+    label: "Together AI",
+    protocol: "openai",
+    baseUrl: "https://api.together.xyz/v1",
+    model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    models: ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "Qwen/Qwen2.5-72B-Instruct-Turbo", "deepseek-ai/DeepSeek-V3"],
+  },
+  fireworks: {
+    label: "Fireworks AI",
+    protocol: "openai",
+    baseUrl: "https://api.fireworks.ai/inference/v1",
+    model: "accounts/fireworks/models/llama-v3p3-70b-instruct",
+    models: ["accounts/fireworks/models/llama-v3p3-70b-instruct", "accounts/fireworks/models/deepseek-v3"],
+  },
+  ollama: {
+    label: "Ollama (local)",
+    protocol: "openai",
+    baseUrl: "http://localhost:11434/v1",
+    model: "",
+    models: ["llama3.2", "qwen2.5-coder", "deepseek-r1"],
+  },
+  lmstudio: {
+    label: "LM Studio (local)",
+    protocol: "openai",
+    baseUrl: "http://localhost:1234/v1",
+    model: "",
+    models: [],
+  },
+  "anthropic-compatible": {
+    label: "Anthropic-compatible",
+    protocol: "anthropic",
     baseUrl: "",
     model: "",
+    models: [],
+  },
+  custom: {
+    label: "OpenAI-compatible (Custom)",
+    protocol: "openai",
+    baseUrl: "",
+    model: "",
+    models: [],
   },
 };
 
