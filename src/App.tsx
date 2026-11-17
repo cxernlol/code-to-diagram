@@ -488,7 +488,7 @@ function App() {
 
   useEffect(() => {
     if (view === "home") {
-      document.title = "CTD Studio: Code to Diagram Editor for Mermaid, DOT & SQL";
+      document.title = "CTD Studio: Code to Diagram Editor for Mermaid, DOT, SQL & XML";
     } else if (view === "docs") {
       document.title = "Syntax & Template Docs — CTD Studio";
     } else if (view === "privacy") {
