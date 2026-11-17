@@ -331,6 +331,7 @@ test("creates structured tabs only after every Mermaid block validates", async (
     });
   });
   await page.goto("/#app");
+  await page.getByRole("button", { name: "AI actions" }).click();
   await page.getByRole("button", { name: "Structure" }).click();
   await expect(page.getByRole("heading", { name: "Structured diagrams" })).toBeVisible();
   await expect(page.getByText("Checkout", { exact: true })).toBeVisible();
@@ -1209,4 +1210,32 @@ test("studio buttons show styled hover tooltip and dismiss on Escape", async ({ 
   await expect(tooltip).toHaveText("Settings");
   await page.keyboard.press("Escape");
   await expect(tooltip).toBeHidden();
+});
+
+test("grid size input clamps values between 0 and 100", async ({ page }) => {
+  await page.goto("/#app");
+  await page.locator('summary[aria-label="Pan and zoom settings"]').click();
+  const gridInput = page.getByLabel("Grid size");
+  await gridInput.fill("9999999");
+  await expect(gridInput).toHaveValue("100");
+  await gridInput.fill("-5");
+  await expect(gridInput).toHaveValue("0");
+});
+
+test("diagram actions menu duplicates and renames, and direction menu updates flowchart flow", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "Diagram actions" }).click();
+  await page.getByRole("menuitem", { name: "Duplicate" }).click();
+  await expect(page.getByRole("tab", { name: "Flowchart copy" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Diagram actions" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const renameInput = page.getByLabel("Diagram name");
+  await renameInput.fill("Checkout Flow");
+  await renameInput.press("Enter");
+  await expect(page.getByRole("tab", { name: "Checkout Flow" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Diagram direction" }).click();
+  await page.getByRole("menuitem", { name: "Left to right" }).click();
+  await expect(page.locator(".cm-content")).toContainText("flowchart LR");
 });

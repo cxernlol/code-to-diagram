@@ -2269,7 +2269,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     };
   }, [rendered, document.id, document.code, document.layout, fit, settings.colorizeBoxes]);
 
-  const gridSize = Math.max(4, settings.snapSize) * viewTransform.k;
+  const gridSize = settings.snapSize > 0 ? Math.min(100, settings.snapSize) * viewTransform.k : 0;
   const resolvedPalette = resolveDiagramPalette(settings);
 
   const handleViewportPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -2389,8 +2389,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       onContextMenu={handleContextMenu}
       style={{
         backgroundColor: resolvedPalette.canvasColor,
-        backgroundSize: `${gridSize}px ${gridSize}px`,
-        backgroundPosition: `${viewTransform.x % gridSize}px ${viewTransform.y % gridSize}px`,
+        backgroundImage: gridSize > 0 ? undefined : "none",
+        backgroundSize: gridSize > 0 ? `${gridSize}px ${gridSize}px` : undefined,
+        backgroundPosition: gridSize > 0 ? `${viewTransform.x % gridSize}px ${viewTransform.y % gridSize}px` : undefined,
       }}
       role="group"
       aria-describedby="node-movement-help"

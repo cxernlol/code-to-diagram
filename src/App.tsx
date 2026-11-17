@@ -3,6 +3,10 @@ import { AppTooltip } from "./AppTooltip";
 import { applyPageSeo } from "./lib/seo";
 import { NotFoundPage } from "./NotFoundPage";
 import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
   BookOpen,
   Check,
   ChevronDown,
@@ -18,9 +22,12 @@ import {
   History,
   ImageDown,
   LayoutGrid,
+  Menu,
+  MoreVertical,
   MousePointer,
   Palette,
   PanelRight,
+  Pencil,
   Plus,
   Redo2,
   RefreshCcw,
@@ -29,6 +36,7 @@ import {
   Settings,
   Settings2,
   StopCircle,
+  Trash2,
   Undo2,
   Users,
   Wand2,
@@ -202,6 +210,25 @@ function isStudioHash(hash: string): boolean {
   return hash === "#app" || hash.startsWith("#d=") || hash.startsWith("#room=");
 }
 
+function applyDiagramDirection(source: string, dir: "TD" | "BT" | "LR" | "RL"): string {
+  const lines = source.split(/\r?\n/);
+  const first = lines[0]?.trim() ?? "";
+  if (/^(flowchart|graph)\b/i.test(first)) {
+    lines[0] = lines[0]!.replace(/^(flowchart|graph)(?:\s+(?:TD|TB|BT|LR|RL))?\b/i, `$1 ${dir}`);
+    return lines.join("\n");
+  }
+  if (/^(classDiagram|stateDiagram(?:-v2)?)\b/i.test(first)) {
+    const dirIdx = lines.findIndex((line, i) => i > 0 && /^\s*direction\s+(?:TD|TB|BT|LR|RL)\b/i.test(line));
+    if (dirIdx >= 0) {
+      lines[dirIdx] = `  direction ${dir}`;
+    } else {
+      lines.splice(1, 0, `  direction ${dir}`);
+    }
+    return lines.join("\n");
+  }
+  return source;
+}
+
 function viewFromLocation(pathname: string, hash: string): AppView {
   if (isStudioHash(hash)) return "studio";
   if (hash === "#docs") return "docs";
@@ -248,6 +275,10 @@ function App() {
   const [mobilePane, setMobilePane] = useState<"code" | "preview">("preview");
   const [expandedPane, setExpandedPane] = useState<"none" | "code" | "preview">("none");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  const [studioMenuOpen, setStudioMenuOpen] = useState(false);
+  const [directionMenuOpen, setDirectionMenuOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"appearance" | "ai">("appearance");
   const [renameId, setRenameId] = useState("");
   const [renameValue, setRenameValue] = useState("");
@@ -1213,13 +1244,7 @@ function App() {
           <span className={`save-status ${saveState}`} role="status">
             {saveState === "saving" ? "Saving" : saveState === "error" ? "Not saved" : `Saved ${timeLabel(lastSavedAt)}`}
           </span>
-          <button className="icon-button" title="Open Mermaid or Markdown file" aria-label="Open Mermaid or Markdown file" onClick={() => fileInput.current?.click()}>
-            <FolderOpen aria-hidden="true" size={17} />
-          </button>
           <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,text/plain,text/markdown,application/xml" onChange={(event) => void importFile(event)} />
-          <button className="icon-button" title="Copy source" aria-label="Copy Mermaid source" onClick={() => void copyCode()}>
-            <Copy aria-hidden="true" size={17} />
-          </button>
           <button
             className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
             type="button"
@@ -1230,28 +1255,46 @@ function App() {
             <Users aria-hidden="true" size={15} />
             <span>{roomMode === "none" ? "Share live" : `Live ${roomDevices}/${MAX_ROOM_DEVICES}`}</span>
           </button>
-          <button
-            className={`icon-button${data.settings.colorizeBoxes ? " active-tool" : ""}`}
-            type="button"
-            title={data.settings.colorizeBoxes ? "Colored export boxes: on" : "Colored export boxes: off"}
-            aria-label="Colorize boxes on export"
-            aria-pressed={Boolean(data.settings.colorizeBoxes)}
-            onClick={() => changeSettings({ colorizeBoxes: !data.settings.colorizeBoxes })}
-          >
-            <Palette aria-hidden="true" size={17} />
-          </button>
           <button className="icon-button" title="Export SVG" aria-label="Export SVG" onClick={saveSvg}>
             <FileCode2 aria-hidden="true" size={17} />
           </button>
           <button className="icon-button" title="Export PNG" aria-label="Export PNG" disabled={saveBusy} onClick={() => void savePng()}>
             <ImageDown aria-hidden="true" size={17} />
           </button>
-          <button className="icon-button" title="Syntax & template docs" aria-label="Open docs" onClick={openDocs}>
-            <BookOpen aria-hidden="true" size={17} />
-          </button>
           <button className="icon-button settings-trigger" title="Settings" aria-label="Open settings" onClick={() => setSettingsOpen(true)}>
             <Settings aria-hidden="true" size={17} />
           </button>
+          <div className="studio-menu-wrap">
+            <button
+              className="icon-button"
+              type="button"
+              title="Menu"
+              aria-label="Studio menu"
+              aria-expanded={studioMenuOpen}
+              onClick={() => setStudioMenuOpen((open) => !open)}
+            >
+              <Menu aria-hidden="true" size={17} />
+            </button>
+            {studioMenuOpen && (
+              <div className="studio-menu-popover" role="menu">
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); fileInput.current?.click(); }}>
+                  <FolderOpen aria-hidden="true" size={15} /> Open file…
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); void copyCode(); }}>
+                  <Copy aria-hidden="true" size={15} /> Copy source
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); changeSettings({ colorizeBoxes: !data.settings.colorizeBoxes }); }}>
+                  <Palette aria-hidden="true" size={15} /> {data.settings.colorizeBoxes ? "Colorized export: On" : "Colorized export: Off"}
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); openDocs(); }}>
+                  <BookOpen aria-hidden="true" size={15} /> Syntax &amp; Template Docs
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); openHome(); }}>
+                  <GitBranch aria-hidden="true" size={15} /> Back to home
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1303,6 +1346,31 @@ function App() {
         <button className="new-tab-button" type="button" onClick={() => createTab()} aria-label="New diagram">
           <Plus aria-hidden="true" size={17} />
         </button>
+        <div className="tab-actions-wrap">
+          <button
+            className="new-tab-button"
+            type="button"
+            title="Diagram actions (Rename, Duplicate, Delete)"
+            aria-label="Diagram actions"
+            aria-expanded={tabMenuOpen}
+            onClick={() => setTabMenuOpen((open) => !open)}
+          >
+            <MoreVertical aria-hidden="true" size={16} />
+          </button>
+          {tabMenuOpen && (
+            <div className="studio-menu-popover tab-menu-popover" role="menu">
+              <button type="button" role="menuitem" onClick={() => { setTabMenuOpen(false); startRename(activeDocument); }}>
+                <Pencil aria-hidden="true" size={14} /> Rename
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setTabMenuOpen(false); createTab(`${activeDocument.name} copy`, activeDocument.code); }}>
+                <Copy aria-hidden="true" size={14} /> Duplicate
+              </button>
+              <button type="button" role="menuitem" className="danger-item" onClick={() => { setTabMenuOpen(false); setPendingDeleteId(activeDocument.id); }}>
+                <Trash2 aria-hidden="true" size={14} /> Delete
+              </button>
+            </div>
+          )}
+        </div>
         <label className="template-picker">
           <span className="visually-hidden">Start from a template</span>
           <select
@@ -1486,45 +1554,6 @@ function App() {
             <span>{activeDocument.code.split(/\r?\n/).length} lines</span>
             <span>Move a node with drag or arrow keys; Shift moves farther.</span>
           </div>
-          <div className="ai-controls">
-            <label htmlFor="ai-request">Ask AI to refine or organize this diagram</label>
-            <textarea
-              id="ai-request"
-              rows={2}
-              value={aiPrompt}
-              onChange={(event) => setAiPrompt(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !aiBusy) {
-                  event.preventDefault();
-                  setAiMode("refine");
-                  void runAi("refine");
-                }
-              }}
-              placeholder="Describe the change you want. Leave blank for a structured cleanup."
-            />
-            <div className="ai-buttons">
-              <button className="button primary" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine"); }}>
-                <Wand2 aria-hidden="true" size={15} /> Refine
-              </button>
-              <button className="button secondary" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("structured"); void runAi("structured"); }}>
-                <GitBranch aria-hidden="true" size={15} /> Structure
-              </button>
-              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
-                Fix syntax
-              </button>
-              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
-                Style it
-              </button>
-              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
-                Tidy
-              </button>
-              <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("explain"); void runAi("explain"); }}>
-                Explain
-              </button>
-              {aiBusy && <button className="button stop-button" type="button" onClick={stopAi}><StopCircle aria-hidden="true" size={15} /> Stop</button>}
-            </div>
-            <p className="privacy-note">An AI request sends this prompt and diagram directly to your selected provider.</p>
-          </div>
         </section>
 
         <div
@@ -1596,6 +1625,47 @@ function App() {
               >
                 <LayoutGrid aria-hidden="true" size={15} />
               </button>
+              <div className="direction-menu-wrap">
+                <button
+                  className="icon-button compact"
+                  type="button"
+                  title="Diagram direction"
+                  aria-label="Diagram direction"
+                  aria-expanded={directionMenuOpen}
+                  disabled={!supportedMovement || isReadOnlySnapshot}
+                  onClick={() => setDirectionMenuOpen((open) => !open)}
+                >
+                  <ArrowDown aria-hidden="true" size={15} />
+                </button>
+                {directionMenuOpen && (
+                  <div className="studio-menu-popover direction-popover" role="menu">
+                    <span className="menu-section-title">Direction</span>
+                    {(
+                      [
+                        { dir: "TD", label: "Top to bottom", Icon: ArrowDown },
+                        { dir: "BT", label: "Bottom to top", Icon: ArrowUp },
+                        { dir: "LR", label: "Left to right", Icon: ArrowRight },
+                        { dir: "RL", label: "Right to left", Icon: ArrowLeft },
+                      ] as const
+                    ).map(({ dir, label, Icon }) => (
+                      <button
+                        key={dir}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setDirectionMenuOpen(false);
+                          changeCode(applyDiagramDirection(activeDocument.code, dir));
+                          changeLayout({});
+                          requestAnimationFrame(() => canvasRef.current?.fit());
+                        }}
+                      >
+                        <span>{label}</span>
+                        <Icon aria-hidden="true" size={14} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 className="icon-button compact"
                 aria-label="Reset node positions to automatic layout"
@@ -1624,7 +1694,7 @@ function App() {
                   <label className="check-row"><input type="checkbox" checked={data.settings.invertScroll} onChange={(event) => changeSettings({ invertScroll: event.target.checked })} /> Invert scroll</label>
                   <label className="check-row"><input type="checkbox" checked={data.settings.smoothZoom} onChange={(event) => changeSettings({ smoothZoom: event.target.checked })} /> Smooth zoom</label>
                   <label className="check-row"><input type="checkbox" checked={data.settings.snapEnabled} onChange={(event) => changeSettings({ snapEnabled: event.target.checked })} /> Snap nodes to grid</label>
-                  <label>Grid size <input type="number" min="4" max="100" step="4" value={data.settings.snapSize} onChange={(event) => changeSettings({ snapSize: Number(event.target.value) })} /></label>
+                  <label>Grid size <input type="number" min={0} max={100} step={1} value={data.settings.snapSize} onChange={(event) => { const raw = Number(event.target.value); changeSettings({ snapSize: Number.isFinite(raw) ? Math.min(100, Math.max(0, Math.round(raw))) : 0 }); }} /></label>
                   <p>V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Shift: precision. Alt: bypass grid.</p>
                 </div>
               </details>
@@ -2024,6 +2094,70 @@ function App() {
           <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}><X aria-hidden="true" size={14} /></button>
         </div>
       )}
+      <div className="ai-floating-wrap">
+        {aiMenuOpen && (
+          <div className="ai-actions-popover" role="menu">
+            <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("structured"); void runAi("structured"); }}>
+              <GitBranch aria-hidden="true" size={14} /> Structure
+            </button>
+            <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
+              Fix syntax
+            </button>
+            <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
+              Style it
+            </button>
+            <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
+              Tidy
+            </button>
+            <button type="button" role="menuitem" disabled={aiBusy} onClick={() => { setAiMenuOpen(false); setAiMode("explain"); void runAi("explain"); }}>
+              Explain
+            </button>
+          </div>
+        )}
+        <div className="ai-floating-pill">
+          <button
+            className="ai-pill-plus"
+            type="button"
+            title="AI actions"
+            aria-label="AI actions"
+            aria-expanded={aiMenuOpen}
+            onClick={() => setAiMenuOpen((open) => !open)}
+          >
+            <Plus aria-hidden="true" size={16} />
+          </button>
+          <input
+            id="ai-request"
+            type="text"
+            value={aiPrompt}
+            onChange={(event) => setAiPrompt(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.key === "Enter" || ((event.ctrlKey || event.metaKey) && event.key === "Enter")) && !aiBusy && !isReadOnlySnapshot) {
+                event.preventDefault();
+                setAiMode("refine");
+                void runAi("refine");
+              }
+            }}
+            placeholder="Describe your idea or change..."
+            aria-label="Describe your idea or change"
+          />
+          {aiBusy ? (
+            <button className="button stop-button ai-pill-send" type="button" onClick={stopAi}>
+              <StopCircle aria-hidden="true" size={15} /> Stop
+            </button>
+          ) : (
+            <button
+              className="button primary ai-pill-send"
+              type="button"
+              disabled={isReadOnlySnapshot}
+              title="Refine with AI"
+              onClick={() => { setAiMode("refine"); void runAi("refine"); }}
+            >
+              <Wand2 aria-hidden="true" size={15} /> Refine
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
       <AppTooltip />
     </main>
