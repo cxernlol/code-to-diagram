@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!assets/|mermaid\\.min\\.js|favicon\\.svg|og-image\\.svg|robots\\.txt|sitemap\\.xml).*)",
+      "source": "/((?!assets/|mermaid\\.min\\.js|favicon\\.ico|favicon\\.svg|og-image\\.png|og-image\\.svg|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
   ],
