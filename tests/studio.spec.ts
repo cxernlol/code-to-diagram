@@ -1107,3 +1107,57 @@ test("preserves prefix-like user node IDs without collisions and respects data-i
   await expect(page.locator('[data-sgs-node="entity-Item"]')).toHaveCount(1);
   await expect(page.locator('[data-sgs-node="Item"]')).toHaveCount(1);
 });
+
+test("mobile layout has no horizontal overflow or toolbar overlap across all pages and settings", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+
+  // 1. Home page
+  await page.goto("/");
+  await expect(page.locator(".home-hero")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://code-to-diagram.vercel.app/");
+
+  // 2. Docs page (direct path route + SEO metadata)
+  await page.goto("/docs");
+  await expect(page.getByRole("heading", { name: /Syntax & Template Docs/i })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://code-to-diagram.vercel.app/docs");
+
+  // 3. Legal pages
+  await page.goto("/privacy");
+  await expect(page.getByRole("heading", { name: /Privacy Policy \(No Cookies\)/i })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://code-to-diagram.vercel.app/privacy");
+
+  // 4. Studio topbar, pane toolbars, and settings dialog
+  await page.goto("/#app");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+
+  const brandBox = await page.locator(".brand-home-button").boundingBox();
+  const topActionsBox = await page.locator(".top-actions").boundingBox();
+  expect(brandBox).not.toBeNull();
+  expect(topActionsBox).not.toBeNull();
+  expect(brandBox!.x + brandBox!.width).toBeLessThanOrEqual(topActionsBox!.x + 1);
+
+  await page.locator(".mobile-pane-switch").getByRole("button", { name: "Preview", exact: true }).click();
+  const previewTitleBox = await page.locator(".preview-toolbar .pane-title").boundingBox();
+  const previewActionsBox = await page.locator(".preview-toolbar .preview-actions").boundingBox();
+  expect(previewTitleBox).not.toBeNull();
+  expect(previewActionsBox).not.toBeNull();
+  expect(previewTitleBox!.x + previewTitleBox!.width).toBeLessThanOrEqual(previewActionsBox!.x + 1);
+
+  await page.locator(".mobile-pane-switch").getByRole("button", { name: "Code", exact: true }).click();
+  const editorTitleBox = await page.locator(".editor-toolbar .pane-title").boundingBox();
+  const editorActionsBox = await page.locator(".editor-toolbar .pane-actions").boundingBox();
+  expect(editorTitleBox).not.toBeNull();
+  expect(editorActionsBox).not.toBeNull();
+  expect(editorTitleBox!.x + editorActionsBox!.width).toBeLessThanOrEqual(editorActionsBox!.x + 1);
+
+  await page.getByRole("button", { name: "Open settings" }).click();
+  const settingsDialog = page.locator(".settings-dialog");
+  await expect(settingsDialog).toBeVisible();
+  const dialogBox = await settingsDialog.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(dialogBox!.width).toBeLessThanOrEqual(375);
+  await expect(page.locator(".settings-dialog .dialog-footer")).toBeVisible();
+});

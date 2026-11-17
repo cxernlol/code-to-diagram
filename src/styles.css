@@ -1153,7 +1153,7 @@ summary:focus-visible,
 
 .settings-dialog[open] {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 .settings-dialog::backdrop {
@@ -1513,6 +1513,31 @@ summary:focus-visible,
     white-space: nowrap;
   }
 
+  .pane-title {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .pane-actions,
+  .preview-actions {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pane-actions::-webkit-scrollbar,
+  .preview-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pane-actions > *,
+  .preview-actions > * {
+    flex: 0 0 auto;
+  }
+
   .workspace {
     grid-template-columns: minmax(240px, var(--split)) 6px minmax(250px, 1fr);
   }
@@ -1536,6 +1561,50 @@ summary:focus-visible,
     padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
   }
 
+  .topbar {
+    gap: 10px;
+    min-block-size: 48px;
+    padding-block-end: 6px;
+  }
+
+  .brand-lockup {
+    flex: 0 0 auto;
+  }
+
+  .home-nav-inner,
+  .docs-nav-inner {
+    gap: 8px;
+    padding-block-end: 10px;
+  }
+
+  .home-brand {
+    flex: 0 0 auto;
+  }
+
+  .home-nav-actions {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    gap: 6px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .home-nav-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .home-nav-actions > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .home-link {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
   .diagram-viewport {
     overscroll-behavior: contain;
   }
@@ -1547,10 +1616,94 @@ summary:focus-visible,
   }
 
   .top-actions {
+    flex: 0 1 auto;
+    min-inline-size: 0;
     gap: 2px;
     overflow-x: auto;
+    flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+  }
+
+  .top-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .pane-toolbar {
+    gap: 8px;
+  }
+
+  .settings-dialog {
+    inline-size: calc(100vw - 20px);
+    max-block-size: 90dvh;
+    padding-block-end: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .dialog-heading,
+  .settings-content,
+  .dialog-footer {
+    padding-inline: 14px;
+  }
+
+  .settings-tabs {
+    padding-inline: 14px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .settings-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .settings-card {
+    min-inline-size: 0;
+    padding: 12px;
+  }
+
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-grid > * {
+    min-inline-size: 0;
+  }
+
+  .settings-grid .wide-field {
+    grid-column: auto;
+  }
+
+  .dialog-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .home-mcp {
+    padding: 14px;
+    gap: 18px;
+  }
+
+  .home-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px 14px;
+    gap: 10px;
+  }
+
+  .legal-main,
+  .docs-main {
+    padding: 20px 14px 44px;
+    gap: 18px;
+  }
+
+  .legal-card {
+    padding: 16px;
   }
 
   .top-actions::-webkit-scrollbar,
@@ -1762,7 +1915,10 @@ summary:focus-visible,
 .home-page {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  inline-size: 100%;
+  max-inline-size: 100%;
   min-block-size: 100dvh;
+  overflow-x: clip;
   color: var(--text);
   background: var(--canvas);
   background-image: radial-gradient(var(--grid-dot) 0.9px, transparent 0.9px);
@@ -2464,6 +2620,7 @@ summary:focus-visible,
   display: grid;
   align-content: start;
   gap: 12px;
+  min-inline-size: 0;
   padding: 28px;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -2534,9 +2691,34 @@ summary:focus-visible,
   gap: 16px;
 }
 
+.docs-guide-split > *,
+.docs-grid > *,
+.docs-template-grid > *,
+.home-hero > *,
+.home-mcp > *,
+.home-mcp-proof-split > *,
+.home-preview-split > *,
+.home-features > * {
+  min-inline-size: 0;
+}
+
 .docs-guide-code {
+  overflow-x: auto;
+  max-inline-size: 100%;
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+.docs-table-wrap {
+  overflow-x: auto;
+  max-inline-size: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.home-preview-diagram svg,
+.home-mcp-proof-diagram svg {
+  max-inline-size: 100%;
+  block-size: auto;
 }
 
 .docs-main {
@@ -2703,7 +2885,8 @@ summary:focus-visible,
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .home-preview-code {
+  .home-preview-code,
+  .home-mcp-proof-pre:first-child {
     border-inline-end: 0;
     border-block-end: 1px solid var(--border);
   }

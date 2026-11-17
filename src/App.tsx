@@ -1,4 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { applyPageSeo } from "./lib/seo";
 import {
   BookOpen,
   Check,
@@ -199,17 +200,24 @@ function isStudioHash(hash: string): boolean {
   return hash === "#app" || hash.startsWith("#d=") || hash.startsWith("#room=");
 }
 
-function viewFromHash(hash: string): AppView {
+function viewFromLocation(pathname: string, hash: string): AppView {
   if (isStudioHash(hash)) return "studio";
   if (hash === "#docs") return "docs";
   if (hash === "#privacy") return "privacy";
   if (hash === "#terms") return "terms";
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+  if (normalizedPath === "/app") return "studio";
+  if (normalizedPath === "/docs") return "docs";
+  if (normalizedPath === "/privacy") return "privacy";
+  if (normalizedPath === "/terms") return "terms";
   return "home";
 }
 
 function App() {
   const reduceMotion = useReducedMotion();
-  const [view, setView] = useState<AppView>(() => viewFromHash(window.location.hash));
+  const [view, setView] = useState<AppView>(() =>
+    viewFromLocation(window.location.pathname, window.location.hash),
+  );
   const [data, setData] = useState<StudioData | null>(null);
   const dataRef = useRef<StudioData | null>(null);
   const historyRef = useRef(new Map<string, EditStack>());
@@ -515,42 +523,40 @@ function App() {
   }, [boot]);
 
   useEffect(() => {
-    if (view === "home") {
-      document.title = "CTD Studio: Code to Diagram Editor for Mermaid, DOT & SQL";
-    } else if (view === "docs") {
-      document.title = "Syntax & Template Docs — CTD Studio";
-    } else if (view === "privacy") {
-      document.title = "Privacy & Cookies — CTD Studio";
-    } else if (view === "terms") {
-      document.title = "Terms of Use — CTD Studio";
-    } else if (activeDocument) {
-      document.title = `${activeDocument.name} — CTD Studio`;
-    }
+    const customTitle = view === "studio" && activeDocument ? `${activeDocument.name} — CTD Studio` : undefined;
+    applyPageSeo(view, customTitle);
   }, [view, activeDocument?.name]);
 
   useEffect(() => {
-    const onHashChange = () => {
-      setView(viewFromHash(window.location.hash));
+    const onRouteChange = () => {
+      setView(viewFromLocation(window.location.pathname, window.location.hash));
     };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("hashchange", onRouteChange);
+    window.addEventListener("popstate", onRouteChange);
+    return () => {
+      window.removeEventListener("hashchange", onRouteChange);
+      window.removeEventListener("popstate", onRouteChange);
+    };
   }, []);
 
   const openLegal = useCallback((tab: LegalTab) => {
     setView(tab);
     window.location.hash = `#${tab}`;
+    window.scrollTo(0, 0);
   }, []);
 
   const openDocs = useCallback(() => {
     setView("docs");
     window.location.hash = "#docs";
+    window.scrollTo(0, 0);
   }, []);
 
   const openHome = useCallback(() => {
     setView("home");
-    if (window.location.hash) {
-      history.pushState(null, "", window.location.pathname + window.location.search);
+    if (window.location.hash || window.location.pathname !== "/") {
+      history.pushState(null, "", `/${window.location.search}`);
     }
+    window.scrollTo(0, 0);
   }, []);
 
   useEffect(() => {

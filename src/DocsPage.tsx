@@ -283,46 +283,50 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
         <section className="docs-grid" aria-label="Arrows and shapes reference">
           <article className="legal-card">
             <h2>Arrows &amp; Connectors</h2>
-            <table className="docs-table">
-              <thead>
-                <tr>
-                  <th>Diagram</th>
-                  <th>Syntax</th>
-                  <th>Meaning</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ARROW_SYNTAX.map((item) => (
-                  <tr key={item.syntax}>
-                    <td><strong>{item.diagram}</strong></td>
-                    <td><code>{item.syntax}</code></td>
-                    <td>{item.meaning}</td>
+            <div className="docs-table-wrap">
+              <table className="docs-table">
+                <thead>
+                  <tr>
+                    <th>Diagram</th>
+                    <th>Syntax</th>
+                    <th>Meaning</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {ARROW_SYNTAX.map((item) => (
+                    <tr key={item.syntax}>
+                      <td><strong>{item.diagram}</strong></td>
+                      <td><code>{item.syntax}</code></td>
+                      <td>{item.meaning}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </article>
 
           <article className="legal-card">
             <h2>Flowchart Shapes</h2>
-            <table className="docs-table">
-              <thead>
-                <tr>
-                  <th>Syntax</th>
-                  <th>Shape</th>
-                  <th>Typical use</th>
-                </tr>
-              </thead>
-              <tbody>
-                {SHAPE_SYNTAX.map((item) => (
-                  <tr key={item.syntax}>
-                    <td><code>{item.syntax}</code></td>
-                    <td>{item.shape}</td>
-                    <td>{item.use}</td>
+            <div className="docs-table-wrap">
+              <table className="docs-table">
+                <thead>
+                  <tr>
+                    <th>Syntax</th>
+                    <th>Shape</th>
+                    <th>Typical use</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {SHAPE_SYNTAX.map((item) => (
+                    <tr key={item.syntax}>
+                      <td><code>{item.syntax}</code></td>
+                      <td>{item.shape}</td>
+                      <td>{item.use}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </article>
         </section>
 
