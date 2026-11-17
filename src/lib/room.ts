@@ -381,6 +381,10 @@ export function joinHostRoom(
     if (closed || !msg || typeof msg !== "object") return;
     if (msg.type === "welcome") {
       if (msg.targetDeviceId && msg.targetDeviceId !== deviceId) return;
+      if (joined) {
+        lastHostSeen = Date.now();
+        return;
+      }
       const code = validateRoomCode(msg.code);
       const layout = sanitizeRoomLayout(msg.layout);
       if (code === null || layout === null) return;
