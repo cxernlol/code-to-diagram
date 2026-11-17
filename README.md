@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml/badge.svg)](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ctd-mcp?label=ctd-mcp)](https://www.npmjs.com/package/ctd-mcp)
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm_Noncommercial_1.0.0-blue.svg)](LICENSE)
+[![License: Elastic 2.0](https://img.shields.io/badge/License-Elastic_2.0-blue.svg)](LICENSE)
 
 Write diagram code, drag it into shape, export. No account, no server.
 
@@ -143,5 +143,5 @@ All changes go through Pull Requests. See [CONTRIBUTING.md](CONTRIBUTING.md) for
 
 ## License
 
-- **Noncommercial use:** [PolyForm Noncommercial License 1.0.0](LICENSE)
-- **Commercial use:** Requires a paid license under [COMMERCIAL-LICENSE-AGREEMENT.md](COMMERCIAL-LICENSE-AGREEMENT.md) (contact `mrshimn@proton.me`).
+- **Individual & internal use (free forever):** [Elastic License 2.0 (ELv2)](LICENSE)
+- **Commercial SaaS, reselling, or white-labeling:** Requires a paid license under [COMMERCIAL-LICENSE-AGREEMENT.md](COMMERCIAL-LICENSE-AGREEMENT.md) (contact `mrshimn@proton.me`).

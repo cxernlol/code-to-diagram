@@ -123,11 +123,11 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
             <p>
               You retain full ownership and responsibility for all diagram source code, layouts, and
               exported SVG, PNG, or source files you create with CTD Studio. CTD Studio&apos;s
-              application source code is licensed for noncommercial use under the{" "}
+              application source code is free for individual and internal use under the{" "}
               <a href="https://github.com/cxernlol/code-to-diagram/blob/main/LICENSE" target="_blank" rel="noreferrer">
-                PolyForm Noncommercial License 1.0.0
+                Elastic License 2.0 (ELv2)
               </a>
-              ; commercial use requires a{" "}
+              ; selling, white-labeling, or offering it as a hosted or managed SaaS requires a{" "}
               <a href="https://github.com/cxernlol/code-to-diagram/blob/main/COMMERCIAL-LICENSE-AGREEMENT.md" target="_blank" rel="noreferrer">
                 Commercial License Agreement
               </a>
