@@ -740,6 +740,18 @@ summary:focus-visible,
   filter: drop-shadow(0 0 3px #ab642e);
 }
 
+.diagram-graphic [data-sgs-node][data-selected="true"] {
+  filter: drop-shadow(0 0 4px #a34f20);
+}
+
+.sgs-marquee {
+  position: absolute;
+  border: 1.5px dashed #a34f20;
+  background: rgba(163, 79, 32, 0.1);
+  pointer-events: none;
+  z-index: 6;
+}
+
 .sgs-edge-handle {
   fill: var(--surface);
   stroke: var(--accent);

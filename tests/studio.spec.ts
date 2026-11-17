@@ -741,6 +741,57 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
 });
 
+test("multi-selects nodes with Shift+click and box-select and drags them together", async ({ page }) => {
+  await page.goto("/#app");
+  const startNode = page.locator('[data-sgs-node="Start"]');
+  const checkNode = page.locator('[data-sgs-node="Check"]');
+  await expect(startNode).toBeVisible();
+  await expect(checkNode).toBeVisible();
+
+  const startBefore = await startNode.boundingBox();
+  const checkBefore = await checkNode.boundingBox();
+  expect(startBefore && checkBefore).toBeTruthy();
+
+  // Shift+click both nodes
+  await page.keyboard.down("Shift");
+  await startNode.click();
+  await checkNode.click();
+  await page.keyboard.up("Shift");
+
+  await expect(startNode).toHaveAttribute("data-selected", "true");
+  await expect(checkNode).toHaveAttribute("data-selected", "true");
+
+  // Drag Start node without Shift -> both Start and Check move together
+  await page.mouse.move(startBefore!.x + startBefore!.width / 2, startBefore!.y + startBefore!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(startBefore!.x + startBefore!.width / 2 + 80, startBefore!.y + startBefore!.height / 2 + 40, { steps: 6 });
+  await page.mouse.up();
+
+  await expect.poll(async () => (await startNode.boundingBox())!.x).toBeGreaterThan(startBefore!.x + 40);
+  await expect.poll(async () => (await checkNode.boundingBox())!.x).toBeGreaterThan(checkBefore!.x + 40);
+
+  // Escape clears selection, then Shift+drag box-selects Start and Check
+  await page.keyboard.press("Escape");
+  await expect(startNode).not.toHaveAttribute("data-selected", "true");
+
+  const startAfter = await startNode.boundingBox();
+  const checkAfter = await checkNode.boundingBox();
+  const minX = Math.min(startAfter!.x, checkAfter!.x) - 15;
+  const minY = Math.min(startAfter!.y, checkAfter!.y) - 15;
+  const maxX = Math.max(startAfter!.x + startAfter!.width, checkAfter!.x + checkAfter!.width) + 15;
+  const maxY = Math.max(startAfter!.y + startAfter!.height, checkAfter!.y + checkAfter!.height) + 15;
+
+  await page.keyboard.down("Shift");
+  await page.mouse.move(minX, minY);
+  await page.mouse.down();
+  await page.mouse.move(maxX, maxY, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+
+  await expect(startNode).toHaveAttribute("data-selected", "true");
+  await expect(checkNode).toHaveAttribute("data-selected", "true");
+});
+
 test("colorize boxes toggle applies live palette preview and restores on toggle off", async ({ page }) => {
   await page.goto("/#app");
   const nodeShape = page.locator('[data-sgs-node="Check"] .label-container, [data-sgs-node="Check"] polygon').first();
