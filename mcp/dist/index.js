@@ -642,15 +642,16 @@ function emitFromIR(ir, target) {
 			return out.join("\n");
 		}
 		case "dot": {
+			const escapeDot = (value) => value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
 			const out = ["digraph Diagram {", `  rankdir=${ir.direction === "LR" ? "LR" : "TB"};`];
 			for (const n of ir.nodes) {
-				const attrs = [`label="${n.label.replace(/"/g, "\\\"")}"`];
+				const attrs = [`label="${escapeDot(n.label)}"`];
 				if (n.shape) attrs.push(`shape=${n.shape}`);
 				out.push(`  ${n.id} [${attrs.join(", ")}];`);
 			}
 			for (const e of ir.edges) {
 				const attrs = [];
-				if (e.label) attrs.push(`label="${e.label.replace(/"/g, "\\\"")}"`);
+				if (e.label) attrs.push(`label="${escapeDot(e.label)}"`);
 				if (e.dashed) attrs.push("style=dashed");
 				out.push(`  ${e.from} -> ${e.to}${attrs.length ? ` [${attrs.join(", ")}]` : ""};`);
 			}
@@ -812,7 +813,7 @@ function detectCodeFormat(source) {
 }
 function parseDotAttrs(raw) {
 	const attrs = {};
-	for (const match of raw.matchAll(/([A-Za-z_]\w*)\s*=\s*("(?:\\.|[^"])*"|[^\s,\]]+)/g)) {
+	for (const match of raw.matchAll(/([A-Za-z_]\w*)\s*=\s*("(?:\\[\s\S]|[^\\"])*"|[^\s,\]]+)/g)) {
 		const key = match[1]?.toLowerCase();
 		const val = match[2];
 		if (key && val !== void 0) attrs[key] = val.replace(/^"|"$/g, "");
@@ -1107,7 +1108,7 @@ function convertD2ToMermaid(source) {
 			out.push(`  subgraph ${groupId}["${escapeMermaidLabel(groupName)}"]`);
 			continue;
 		}
-		const edgeMatch = line.match(/^([A-Za-z0-9_.-]+(?:\.[A-Za-z0-9_.-]+)*)\s*(->|<-|<->|--)\s*([A-Za-z0-9_.-]+(?:\.[A-Za-z0-9_.-]+)*)(?:\s*:\s*(.+))?$/);
+		const edgeMatch = line.match(/^([A-Za-z0-9_.-]+)\s*(->|<-|<->|--)\s*([A-Za-z0-9_.-]+)(?:\s*:\s*(.+))?$/);
 		if (edgeMatch) {
 			const [, rawA, op, rawB, rawLabel] = edgeMatch;
 			const a = ensureNode(rawA);

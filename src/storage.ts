@@ -143,12 +143,17 @@ function normalizeLegacy(raw: string): StudioData {
       ...DEFAULT_SETTINGS.provider,
       baseUrl: typeof state.base === "string" ? state.base : DEFAULT_SETTINGS.provider.baseUrl,
       model: typeof state.model === "string" ? state.model : DEFAULT_SETTINGS.provider.model,
-      provider:
-        state.base?.includes("deepseek")
-          ? "deepseek"
-          : state.base?.includes("openai.com")
-            ? "openai"
-            : "custom",
+      provider: (() => {
+        if (typeof state.base !== "string") return "custom";
+        try {
+          const { hostname } = new URL(state.base);
+          if (hostname === "deepseek.com" || hostname.endsWith(".deepseek.com")) return "deepseek";
+          if (hostname === "openai.com" || hostname.endsWith(".openai.com")) return "openai";
+        } catch {
+          // Ignore malformed legacy URLs and fall back to custom.
+        }
+        return "custom";
+      })(),
     },
   };
 

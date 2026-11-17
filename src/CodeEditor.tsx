@@ -21,13 +21,15 @@ import {
 import type { Diagnostic } from "@codemirror/lint";
 import { setDiagnostics } from "@codemirror/lint";
 
+const MERMAID_OPERATORS = ["-->", "---", "==>", "-.->", "--x", "--o", "<|--", "*--", "o--"] as const;
+
 const mermaidLanguage = StreamLanguage.define({
   startState: () => ({}),
   token(stream) {
     if (stream.match(/%%.*/)) return "comment";
     if (stream.match(/^\s+/)) return null;
-    if (stream.match(/"(?:\\.|[^"])*"/)) return "string";
-    if (stream.match(/(?:-->|---|==>|-.->|--x|--o|<\|--|\*--|o--)/)) return "operator";
+    if (stream.match(/"(?:\\[\s\S]|[^\\"])*"/)) return "string";
+    if (MERMAID_OPERATORS.some((op) => stream.match(op))) return "operator";
     if (
       stream.match(
         /^(?:flowchart|graph|classDiagram|stateDiagram-v2|stateDiagram|erDiagram|sequenceDiagram|gantt|mindmap|pie|journey)\b/i,

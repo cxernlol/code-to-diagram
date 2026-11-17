@@ -408,15 +408,16 @@ export function emitFromIR(ir: DiagramIR, target: CodeFormat): string {
     }
 
     case "dot": {
+      const escapeDot = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       const out = ["digraph Diagram {", `  rankdir=${ir.direction === "LR" ? "LR" : "TB"};`];
       for (const n of ir.nodes) {
-        const attrs = [`label="${n.label.replace(/"/g, '\\"')}"`];
+        const attrs = [`label="${escapeDot(n.label)}"`];
         if (n.shape) attrs.push(`shape=${n.shape}`);
         out.push(`  ${n.id} [${attrs.join(", ")}];`);
       }
       for (const e of ir.edges) {
         const attrs: string[] = [];
-        if (e.label) attrs.push(`label="${e.label.replace(/"/g, '\\"')}"`);
+        if (e.label) attrs.push(`label="${escapeDot(e.label)}"`);
         if (e.dashed) attrs.push("style=dashed");
         out.push(`  ${e.from} -> ${e.to}${attrs.length ? ` [${attrs.join(", ")}]` : ""};`);
       }
