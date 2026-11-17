@@ -350,7 +350,11 @@ export function joinHostRoom(
 
   if (channel) {
     channel.addEventListener("message", (event: MessageEvent<RoomMessage>) => {
-      if (event.data && typeof event.data === "object") {
+      if (
+        event.data?.type === "welcome" ||
+        event.data?.type === "sync" ||
+        event.data?.type === "heartbeat"
+      ) {
         viaBroadcastChannel = true;
       }
       handleHostMsg(event.data);
