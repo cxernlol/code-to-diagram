@@ -71,12 +71,13 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
 
             <h2>3. Optional AI requests &amp; API key storage (BYOK)</h2>
             <p>
-              API keys are stored locally in your browser&apos;s <code>IndexedDB</code> only and
-              are never included in share URLs. Because browser storage can be read by scripts on
-              this origin, use limited, revocable keys. When you trigger an AI action, your prompt,
-              diagram source, and API key go directly from your browser to the provider endpoint you
-              configure (OpenAI, DeepSeek, OpenRouter, Groq, Ollama, or a custom URL) under that
-              provider&apos;s privacy policy.
+              New API keys are stored in your browser&apos;s <code>IndexedDB</code> and are never
+              included in share URLs. API keys saved by older versions may remain in legacy{" "}
+              <code>localStorage</code> (<code>mstudio2</code>) after migration. Because browser
+              storage can be read by scripts on this origin, use limited, revocable keys. When you
+              trigger an AI action, your prompt, diagram source, and API key go directly from your
+              browser to the provider endpoint you configure (OpenAI, DeepSeek, OpenRouter, Groq,
+              Ollama, or a custom URL) under that provider&apos;s privacy policy.
             </p>
 
             <h2>4. Live rooms (PeerJS / WebRTC)</h2>
