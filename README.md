@@ -103,6 +103,22 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
 - **Tools:** `detect_format`, `to_mermaid`, `translate_format`, `parse_diagram_ir`, `emit_from_ir`, `list_templates`, `get_studio_info`
 - **Resources & Prompt:** `ctd://formats`, `ctd://themes`, `ctd://templates/{name}`, `code_to_diagram`
 
+Example output from `npx -y ctd-mcp` (`to_mermaid` on SQL DDL):
+
+```mermaid
+erDiagram
+  users {
+    int id PK
+    text email
+  }
+  diagrams {
+    int id PK
+    int user_id FK
+    text title
+  }
+  users ||--o{ diagrams : references
+```
+
 Build and test the MCP server locally:
 
 ```bash
