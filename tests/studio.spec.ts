@@ -639,7 +639,8 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(exportedSvg).toContain("Product");
   expect(exportedSvg).not.toContain("rgb(234, 241, 248)");
 
-  await page.getByRole("button", { name: "Colorize boxes on export" }).click();
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  await page.getByRole("menuitem", { name: /Colorized export/i }).click();
   const colorSvgPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export SVG" }).click();
   const colorSvgDownload = await colorSvgPromise;
@@ -806,15 +807,14 @@ test("colorize boxes toggle applies live palette preview and restores on toggle 
   const initialInlineFill = await nodeShape.evaluate((el) => (el as SVGElement).style.fill);
   expect(initialInlineFill).toBe("");
 
-  const colorizeBtn = page.getByRole("button", { name: "Colorize boxes on export" });
-  await colorizeBtn.click();
-  await expect(colorizeBtn).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  await page.getByRole("menuitem", { name: /Colorized export: Off/i }).click();
   await expect
     .poll(async () => nodeShape.evaluate((el) => (el as SVGElement).style.fill))
     .not.toBe("");
 
-  await colorizeBtn.click();
-  await expect(colorizeBtn).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  await page.getByRole("menuitem", { name: /Colorized export: On/i }).click();
   await expect
     .poll(async () => nodeShape.evaluate((el) => (el as SVGElement).style.fill))
     .toBe("");
