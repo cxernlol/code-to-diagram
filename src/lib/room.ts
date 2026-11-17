@@ -68,7 +68,7 @@ export function startHostRoom(
     onError?: (message: string) => void;
   },
 ): HostRoomSession {
-  const guests = new Map<string, { conn?: DataConnection; lastSeen: number }>();
+  const guests = new Map<string, { conn?: DataConnection; lastSeen: number; viaBroadcast?: boolean }>();
   let closed = false;
 
   const channel =
@@ -105,7 +105,7 @@ export function startHostRoom(
     channel?.postMessage(msg);
   };
 
-  const handleIncoming = (msg: RoomMessage, conn?: DataConnection) => {
+  const handleIncoming = (msg: RoomMessage, conn?: DataConnection, fromBroadcast = false) => {
     if (closed || !msg || typeof msg !== "object") return;
     if (msg.type === "join") {
       if (!guests.has(msg.deviceId) && 1 + guests.size >= MAX_ROOM_DEVICES) {
@@ -119,7 +119,12 @@ export function startHostRoom(
         }
         return;
       }
-      guests.set(msg.deviceId, { conn, lastSeen: Date.now() });
+      const prev = guests.get(msg.deviceId);
+      guests.set(msg.deviceId, {
+        conn: conn ?? prev?.conn,
+        lastSeen: Date.now(),
+        viaBroadcast: prev?.viaBroadcast || fromBroadcast,
+      });
       const snap = getSnapshot();
       sendToGuest(conn, {
         type: "welcome",
@@ -139,6 +144,7 @@ export function startHostRoom(
       if (existing) {
         existing.lastSeen = Date.now();
         if (conn && !existing.conn) existing.conn = conn;
+        if (fromBroadcast) existing.viaBroadcast = true;
       }
       return;
     }
@@ -167,7 +173,7 @@ export function startHostRoom(
 
   if (channel) {
     channel.addEventListener("message", (event: MessageEvent<RoomMessage>) => {
-      handleIncoming(event.data);
+      handleIncoming(event.data, undefined, true);
     });
   }
 
@@ -184,7 +190,14 @@ export function startHostRoom(
         handleIncoming(msg, conn);
       });
       conn.on("close", () => {
-        if (boundDeviceId && guests.delete(boundDeviceId)) {
+        if (!boundDeviceId) return;
+        const entry = guests.get(boundDeviceId);
+        if (!entry) return;
+        if (entry.viaBroadcast) {
+          entry.conn = undefined;
+          return;
+        }
+        if (guests.delete(boundDeviceId)) {
           notifyCount();
         }
       });
@@ -272,6 +285,7 @@ export function joinHostRoom(
   const deviceId = crypto.randomUUID();
   let closed = false;
   let joined = false;
+  let viaBroadcastChannel = false;
   let lastHostSeen = Date.now();
 
   const channel =
@@ -336,6 +350,9 @@ export function joinHostRoom(
 
   if (channel) {
     channel.addEventListener("message", (event: MessageEvent<RoomMessage>) => {
+      if (event.data && typeof event.data === "object") {
+        viaBroadcastChannel = true;
+      }
       handleHostMsg(event.data);
     });
     channel.postMessage({ type: "join", deviceId } satisfies RoomMessage);
@@ -353,7 +370,7 @@ export function joinHostRoom(
         handleHostMsg(data as RoomMessage);
       });
       conn.on("close", () => {
-        if (joined && !closed) {
+        if (joined && !closed && !viaBroadcastChannel) {
           endSession("Host closed the browser or ended the room.");
         }
       });
