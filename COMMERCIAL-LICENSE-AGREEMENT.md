@@ -8,44 +8,37 @@ Contact: mrshimn@proton.me
 **Licensee:** [Company / individual name], [country] ("Licensee")
 Licensee contact email: [email]
 
-Effective Date: [date of purchase] · Plan: [Solo / Team / Business / OEM] · Order reference: [checkout order ID]
+Effective Date: [date of purchase] · Plan: [Hosted SaaS / White-Label / OEM / Redistribution] · Order reference: [checkout order ID]
 
 ## 1. Background
 
-The Licensor owns CTD Studio (`code-to-diagram` and `ctd-mcp`) (the "Software"), which is publicly available under the PolyForm Noncommercial License 1.0.0 (the "Public License"). The Public License does not permit commercial use. This Agreement grants the Licensee permission for the commercial uses described below, in exchange for the Fees.
+The Licensor owns CTD Studio (`code-to-diagram` and `ctd-mcp`) (the "Software"), which is publicly available under the Elastic License 2.0 (ELv2) (the "Public License"). Individual and internal use of the Software is free forever under the Public License, but the Public License does not permit providing the Software to third parties as a hosted or managed SaaS, selling or reselling the Software, or removing Licensor notices. This Agreement grants the Licensee permission for those commercial uses described below, in exchange for the Fees.
 
 ## 2. Grant of license
 
-2.1 Subject to this Agreement and payment of the Fees, the Licensor grants the Licensee a non-exclusive, non-transferable, non-sublicensable, worldwide license during the Term to use, copy and modify the Software for the Licensee's internal business purposes, up to the limits of the selected Plan:
+2.1 Subject to this Agreement and payment of the Fees, the Licensor grants the Licensee a non-exclusive, non-transferable, non-sublicensable, worldwide license during the Term to use, copy, modify, host, bundle, and distribute the Software as part of the Licensee's commercial product or hosted/managed service, solely within the scope of the agreed Plan.
 
-- **Solo:** 1 named user.
-- **Team:** up to 10 named users.
-- **Business:** up to 50 named users within the Licensee's own organization.
-
-2.2 The Licensee may use diagrams, exports and other outputs created with the Software for any purpose, including commercial purposes, without further payment.
+2.2 End users and the Licensee may use diagrams, exports and other outputs created with the Software for any purpose, including commercial purposes, without further payment.
 
 2.3 Modifications the Licensee makes remain subject to this Agreement. The Licensor owns the underlying Software; the Licensee owns its own modifications, subject to the Licensor's rights in the Software.
 
 ## 3. Restrictions
 
-Unless a separate Redistribution/OEM/SaaS plan is agreed in writing, the Licensee must not:
+Unless expressly permitted in writing under the agreed Plan, the Licensee must not:
 
-(a) offer the Software, or a product or service substantially based on it, to third parties as a hosted, managed, white-labeled or resold product;
-(b) sublicense, sell, rent, lease or distribute the Software or modifications of it;
-(c) remove or alter copyright, license or attribution notices;
-(d) use the Software in violation of applicable law; or
-(e) allow use beyond the number of users permitted by the Plan.
+(a) sublicense, sell, rent, lease, or redistribute the standalone Software as a competing developer tool outside the agreed product or service scope;
+(b) remove or alter copyright, license or attribution notices of the Licensor; or
+(c) use the Software in violation of applicable law.
 
 ## 4. Fees and payment
 
 4.1 The Licensee will pay the Fees for the selected Plan, per year, in advance, through the checkout link or invoice provided by the Licensor:
 
-| Plan                        | Who it's for                              | Price (USD / year)  |
-|-----------------------------|-------------------------------------------|---------------------|
-| Solo                        | 1 freelancer or founder                   | $39                 |
-| Team                        | Up to 10 users                            | $149                |
-| Business                    | Up to 50 users                            | $499                |
-| OEM / SaaS / Redistribution | 51+ users, hosting, reselling or bundling | Contact for a quote |
+| Plan                          | Who it's for                                                    | Price (USD / year)  |
+|-------------------------------|-----------------------------------------------------------------|---------------------|
+| Individual / Internal Use     | Personal, freelance, or internal org use (non-SaaS, non-resold) | Free forever (ELv2) |
+| Hosted SaaS / Managed Service | Rebuilding or offering CTD Studio as a hosted/managed service   | Contact for a quote |
+| OEM / Reselling / White-Label | Selling, bundling, or white-labeling CTD Studio in a product    | Contact for a quote |
 
 4.2 Fees are non-refundable except as required by law, or within 14 days of purchase if the Licensee has not deployed the Software commercially.
 
