@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  packages: write
 
 jobs:
   publish:
@@ -32,4 +33,26 @@ jobs:
 
       - name: Publish ctd-mcp to npm (OIDC Trusted Publishing)
         working-directory: mcp
-        run: npm publish --provenance --access public
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "ctd-mcp@${VERSION}" version >/dev/null 2>&1; then
+            echo "ctd-mcp@${VERSION} already published on npm; skipping."
+          else
+            npm publish --provenance --access public
+          fi
+
+      - name: Mirror @cxernlol/ctd-mcp to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          rm -rf /tmp/gh-pkg
+          cp -r mcp /tmp/gh-pkg
+          cd /tmp/gh-pkg
+          npm pkg set name="@cxernlol/ctd-mcp"
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "@cxernlol/ctd-mcp@${VERSION}" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "@cxernlol/ctd-mcp@${VERSION} already published on GitHub Packages; skipping."
+          else
+            printf "@cxernlol:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n" "$NODE_AUTH_TOKEN" > .npmrc
+            npm publish --registry=https://npm.pkg.github.com
+          fi

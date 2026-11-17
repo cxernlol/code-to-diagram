@@ -1,6 +1,7 @@
 # CTD Studio
 
 [![CI](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml/badge.svg)](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/ctd-mcp?label=ctd-mcp)](https://www.npmjs.com/package/ctd-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Write diagram code, drag it into shape, export. No account, no server.
