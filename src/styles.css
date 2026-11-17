@@ -1531,6 +1531,34 @@ summary:focus-visible,
   margin-block-start: 5px;
 }
 
+.app-tooltip {
+  position: fixed;
+  z-index: 60;
+  max-inline-size: min(280px, calc(100vw - 20px));
+  padding: 5px 9px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 5px;
+  color: #f3f6f3;
+  background: #14272b;
+  box-shadow: 0 8px 22px rgb(16 34 37 / 24%);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.app-tooltip.top {
+  transform: translate(-50%, -100%);
+}
+
+@media (pointer: coarse) {
+  .app-tooltip {
+    display: none;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   inline-size: 1px;

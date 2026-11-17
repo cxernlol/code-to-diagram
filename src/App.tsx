@@ -1,4 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AppTooltip } from "./AppTooltip";
 import { applyPageSeo } from "./lib/seo";
 import { NotFoundPage } from "./NotFoundPage";
 import {
@@ -2024,6 +2025,7 @@ function App() {
         </div>
       )}
       <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
+      <AppTooltip />
     </main>
   );
 }

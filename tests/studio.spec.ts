@@ -1200,3 +1200,13 @@ test("unknown routes render custom 404 page with noindex and working navigation"
   await page.getByRole("button", { name: "Back to home" }).click();
   await expect(page.locator(".home-hero")).toBeVisible();
 });
+
+test("studio buttons show styled hover tooltip and dismiss on Escape", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "Open settings" }).hover();
+  const tooltip = page.locator(".app-tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("Settings");
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toBeHidden();
+});
