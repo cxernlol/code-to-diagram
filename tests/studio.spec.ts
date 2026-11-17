@@ -633,6 +633,26 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   const pngHeight = pngBytes.readUInt32BE(20);
   expect(pngWidth).toBeGreaterThan(1000);
   expect(pngHeight).toBeGreaterThan(1000);
+
+  await page.getByLabel("Start from a template").selectOption({ label: "Sequence" });
+  await expect(page.locator(".diagram-graphic svg")).toContainText("DB");
+  const seqSvgPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export SVG" }).click();
+  const seqSvgDownload = await seqSvgPromise;
+  const seqSvgPath = await seqSvgDownload.path();
+  const seqExportedSvg = await fs.readFile(seqSvgPath!, "utf8");
+  const seqVb = seqExportedSvg.match(/viewBox="([^"]+)"/)![1]!.split(/\s+/).map(Number);
+  const [seqVbX, , seqVbW] = seqVb as [number, number, number, number];
+  const actorRects = [...seqExportedSvg.matchAll(/<rect[^>]*class="actor[^"]*"[^>]*>/g)].map((m) => {
+    const x = Number(m[0].match(/\bx="([^"]+)"/)?.[1] ?? 0);
+    const w = Number(m[0].match(/\bwidth="([^"]+)"/)?.[1] ?? 0);
+    return { x, right: x + w };
+  });
+  expect(actorRects.length).toBeGreaterThanOrEqual(2);
+  for (const rect of actorRects) {
+    expect(rect.x).toBeGreaterThanOrEqual(seqVbX);
+    expect(rect.right).toBeLessThanOrEqual(seqVbX + seqVbW);
+  }
 });
 
 test("renders DOT, PlantUML, D2, SQL DDL, TypeScript, and XML code and translates between formats", async ({ page }) => {

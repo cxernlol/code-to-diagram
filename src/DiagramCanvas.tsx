@@ -119,8 +119,7 @@ export function getDiagramBounds(svg: SVGSVGElement): {
       return { x: left, y: top, width: right - left, height: bottom - top };
     }
   }
-  const box = svg.getBBox();
-  return { x: box.x, y: box.y, width: box.width, height: box.height };
+  return boundsInRoot(svg, svg);
 }
 
 function distanceToBounds(point: Position, bounds: ReturnType<typeof boundsInRoot>) {
