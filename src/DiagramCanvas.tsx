@@ -232,9 +232,12 @@ function cssTransform(transform: ZoomTransform): string {
   return `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`;
 }
 
-function stableNodeId(id: string): string {
-  const withoutWrapper = id.match(/^(?:\d+-)?[^-]+-(.+)-\d+$/)?.[1] ?? id;
-  return withoutWrapper.replace(/^(?:\d+-)?(?:flowchart|classId|state|entity|node)-/, "");
+export function stableNodeId(id: string): string {
+  return (
+    id.match(/^sgs-\d+-(?:flowchart|classId|state|entity|node)-(.+)-\d+$/)?.[1] ??
+    id.match(/^sgs-\d+-(.+)-\d+$/)?.[1] ??
+    id
+  );
 }
 
 function pointInRoot(svg: SVGSVGElement, element: SVGGraphicsElement, x: number, y: number) {
@@ -1429,7 +1432,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       return !hasNodeAncestor && Boolean(element.id || element.dataset.id);
     });
     const nodes = candidates.map((element) => {
-      const id = stableNodeId(element.dataset.id || element.id);
+      const id = element.dataset.id || stableNodeId(element.id);
       const base = readTranslation(element.getAttribute("transform"));
       const initialBounds = boundsInRoot(svg, element);
       const position = document.layout[id] ?? base;
@@ -1814,11 +1817,39 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
         const bestPt =
           candidates.sort((a, b) => b.score - a.score)[0]?.pt ?? { ...routed.mid };
-        placedBoxes.push({ x: bestPt.x - lw / 2, y: bestPt.y - lh / 2, width: lw, height: lh });
+        const labelBox = { x: bestPt.x - lw / 2, y: bestPt.y - lh / 2, width: lw, height: lh };
+        placedBoxes.push(labelBox);
         const parent =
           label.parentElement instanceof SVGGraphicsElement ? label.parentElement : svg;
         const local = toLocalPoint(svg, parent, bestPt);
         label.setAttribute("transform", `translate(${local.x},${local.y})`);
+
+        const mid = routed.mid;
+        const overlapsLabel = (pt: Position) =>
+          pt.x >= labelBox.x - 8 &&
+          pt.x <= labelBox.x + labelBox.width + 8 &&
+          pt.y >= labelBox.y - 8 &&
+          pt.y <= labelBox.y + labelBox.height + 8;
+        if (overlapsLabel(mid)) {
+          const handleCandidates: Position[] = [];
+          for (let i = 1; i < pts.length; i += 1) {
+            const a = pts[i - 1]!;
+            const b = pts[i]!;
+            if (Math.hypot(b.x - a.x, b.y - a.y) < 12) continue;
+            for (const t of [0.15, 0.25, 0.75, 0.85]) {
+              const pt = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+              if (!overlapsLabel(pt)) handleCandidates.push(pt);
+            }
+          }
+          const clearPt = handleCandidates.sort(
+            (p, q) => Math.hypot(p.x - mid.x, p.y - mid.y) - Math.hypot(q.x - mid.x, q.y - mid.y),
+          )[0];
+          if (clearPt) {
+            const ctrlClear = toLocalPoint(svg, edge.control, clearPt);
+            edge.handle.setAttribute("cx", String(ctrlClear.x));
+            edge.handle.setAttribute("cy", String(ctrlClear.y));
+          }
+        }
       });
     };
     routeEdges();

@@ -21,6 +21,7 @@ import {
   Plus,
   Redo2,
   RotateCcw,
+  Settings,
   Settings2,
   Share2,
   StopCircle,
@@ -1216,7 +1217,7 @@ function App() {
             <BookOpen aria-hidden="true" size={17} />
           </button>
           <button className="icon-button settings-trigger" aria-label="Open settings" onClick={() => setSettingsOpen(true)}>
-            <Settings2 aria-hidden="true" size={17} />
+            <Settings aria-hidden="true" size={17} />
           </button>
         </div>
       </header>
@@ -1658,7 +1659,7 @@ function App() {
                       setSettingsOpen(true);
                     }}
                   >
-                    <Settings2 aria-hidden="true" size={14} />
+                    <Settings aria-hidden="true" size={14} />
                     Open AI settings
                   </button>
                   <button

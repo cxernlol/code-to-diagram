@@ -13,7 +13,7 @@ export default defineConfig({
     ssr: resolve(import.meta.dirname, "src/index.ts"),
     outDir: resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
-    target: "node18",
+    target: "node22",
     minify: false,
     rolldownOptions: {
       external: (id) => {
