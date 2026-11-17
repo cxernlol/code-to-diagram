@@ -283,7 +283,12 @@ function cleanText(raw) {
 function escapeXml(raw) {
 	return raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+var MAX_XML_BYTES = 524288;
+var MAX_XML_DEPTH = 64;
+var MAX_XML_NODES = 1500;
 function parseXmlToIR(source) {
+	if (source.length > MAX_XML_BYTES) throw new Error("XML input exceeds the 512 KB limit.");
+	if (/<!(?:DOCTYPE|ENTITY)\b/i.test(source)) throw new Error("XML DOCTYPE and ENTITY declarations are not allowed.");
 	const doc = new DOMParser().parseFromString(source.trim(), "application/xml");
 	if (doc.querySelector("parsererror")) throw new Error("Invalid XML syntax.");
 	const root = doc.documentElement;
@@ -395,8 +400,10 @@ function parseXmlToIR(source) {
 		};
 	}
 	let counter = 0;
-	const walk = (el, parentId) => {
+	const walk = (el, parentId, depth = 0) => {
+		if (depth > MAX_XML_DEPTH) throw new Error(`XML nesting exceeds the maximum supported depth (${MAX_XML_DEPTH}).`);
 		counter += 1;
+		if (counter > MAX_XML_NODES) throw new Error(`XML exceeds the maximum supported element count (${MAX_XML_NODES}).`);
 		const rawId = el.getAttribute("id") || `${el.tagName}_${counter}`;
 		const textOnly = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent?.trim() ?? "").join(" ").trim();
 		const label = el.getAttribute("label") || el.getAttribute("name") || (textOnly ? `${el.tagName}: ${textOnly}` : el.tagName);
@@ -405,9 +412,9 @@ function parseXmlToIR(source) {
 			from: parentId,
 			to: id
 		});
-		Array.from(el.children).forEach((child) => walk(child, id));
+		Array.from(el.children).forEach((child) => walk(child, id, depth + 1));
 	};
-	walk(root);
+	walk(root, void 0, 0);
 	return {
 		kind: "flowchart",
 		direction,
@@ -723,7 +730,7 @@ function detectCodeFormat(source) {
 	const trimmed = source.replace(/^\uFEFF/, "").trim();
 	if (!trimmed) return "mermaid";
 	if (MERMAID_HEADER_RE.test(trimmed)) return "mermaid";
-	if (/^<\?xml\b|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?>[\s\S]*<\/[A-Za-z_][\w:-]*>\s*$|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?\/>\s*$/i.test(trimmed)) return "xml";
+	if (/^<\?xml\b|^<!DOCTYPE\b|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?>[\s\S]*<\/[A-Za-z_][\w:-]*>\s*$|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?\/>\s*$/i.test(trimmed)) return "xml";
 	if (/^@startuml\b/im.test(trimmed)) return "plantuml";
 	if (/^(?:strict\s+)?(?:di)?graph\b[\s\S]*\{/i.test(trimmed)) return "dot";
 	if (/\bCREATE\s+TABLE\b/i.test(trimmed)) return "sql";
@@ -1039,7 +1046,9 @@ function detectDiagramType(source) {
 // mcp/src/dom-polyfill.ts
 function attachDomHelpers(root) {
 	if (!root) return;
-	const walk = (node) => {
+	const stack = [root];
+	while (stack.length > 0) {
+		const node = stack.pop();
 		if (node.nodeType === 1) {
 			if (!("children" in node)) Object.defineProperty(node, "children", {
 				configurable: true,
@@ -1061,12 +1070,11 @@ function attachDomHelpers(root) {
 			};
 		}
 		const children = node.childNodes;
-		if (children) for (let i = 0; i < children.length; i += 1) {
+		if (children) for (let i = children.length - 1; i >= 0; i -= 1) {
 			const child = children[i];
-			if (child) walk(child);
+			if (child) stack.push(child);
 		}
-	};
-	walk(root);
+	}
 }
 function querySelectorAllOnNode(root, selector) {
 	const parts = selector.split(",").map((s) => s.trim()).filter(Boolean);

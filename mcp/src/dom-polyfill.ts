@@ -14,7 +14,9 @@ interface XmlElementLike {
 function attachDomHelpers(root: XmlElementLike | null | undefined): void {
   if (!root) return;
 
-  const walk = (node: XmlElementLike) => {
+  const stack: XmlElementLike[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
     if (node.nodeType === 1) {
       if (!("children" in node)) {
         Object.defineProperty(node, "children", {
@@ -48,14 +50,12 @@ function attachDomHelpers(root: XmlElementLike | null | undefined): void {
 
     const children = node.childNodes;
     if (children) {
-      for (let i = 0; i < children.length; i += 1) {
+      for (let i = children.length - 1; i >= 0; i -= 1) {
         const child = children[i];
-        if (child) walk(child);
+        if (child) stack.push(child);
       }
     }
-  };
-
-  walk(root);
+  }
 }
 
 function querySelectorAllOnNode(

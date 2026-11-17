@@ -373,6 +373,23 @@ test("restores both Mermaid source and manual node layout from a share link", as
   const nodeA = page.locator('[data-sgs-node="A"]');
   await expect(nodeA).toBeVisible();
   await expect(nodeA).not.toHaveAttribute("transform", "translate(0,0)");
+
+  const hostile = btoa(
+    'flowchart TD\n  A["<script>alert(1)</script><img src=x onerror=alert(1)>Safe"] --> B[Done]\n  click A "javascript:alert(1)"',
+  );
+  await page.goto(`/#d=${encodeURIComponent(hostile)}`);
+  await expect(page.locator('[data-sgs-node="B"]')).toBeVisible();
+  const unsafe = await page.locator(".diagram-graphic svg").evaluate((svg) => {
+    const scripts = svg.querySelectorAll("script, iframe, object, embed").length;
+    const inlineHandlers = Array.from(svg.querySelectorAll("*")).filter((el) =>
+      Array.from(el.attributes).some((attr) => attr.name.toLowerCase().startsWith("on")),
+    ).length;
+    const jsLinks = Array.from(svg.querySelectorAll("[href], [xlink\\:href]")).filter((el) =>
+      /^\s*javascript:/i.test(el.getAttribute("href") ?? el.getAttribute("xlink:href") ?? ""),
+    ).length;
+    return { scripts, inlineHandlers, jsLinks };
+  });
+  expect(unsafe).toEqual({ scripts: 0, inlineHandlers: 0, jsLinks: 0 });
 });
 
 test("arranges nodes into a grid with one click and undo restores the original layout", async ({ page }) => {

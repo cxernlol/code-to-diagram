@@ -47,7 +47,17 @@ function escapeXml(raw: string): string {
     .replace(/"/g, "&quot;");
 }
 
+const MAX_XML_BYTES = 512 * 1024;
+const MAX_XML_DEPTH = 64;
+const MAX_XML_NODES = 1500;
+
 export function parseXmlToIR(source: string): DiagramIR {
+  if (source.length > MAX_XML_BYTES) {
+    throw new Error("XML input exceeds the 512 KB limit.");
+  }
+  if (/<!(?:DOCTYPE|ENTITY)\b/i.test(source)) {
+    throw new Error("XML DOCTYPE and ENTITY declarations are not allowed.");
+  }
   const doc = new DOMParser().parseFromString(source.trim(), "application/xml");
   if (doc.querySelector("parsererror")) {
     throw new Error("Invalid XML syntax.");
@@ -191,8 +201,14 @@ export function parseXmlToIR(source: string): DiagramIR {
 
   // 4. Generic hierarchical XML tree
   let counter = 0;
-  const walk = (el: Element, parentId?: string) => {
+  const walk = (el: Element, parentId?: string, depth = 0) => {
+    if (depth > MAX_XML_DEPTH) {
+      throw new Error(`XML nesting exceeds the maximum supported depth (${MAX_XML_DEPTH}).`);
+    }
     counter += 1;
+    if (counter > MAX_XML_NODES) {
+      throw new Error(`XML exceeds the maximum supported element count (${MAX_XML_NODES}).`);
+    }
     const rawId = el.getAttribute("id") || `${el.tagName}_${counter}`;
     const textOnly = Array.from(el.childNodes)
       .filter((n) => n.nodeType === Node.TEXT_NODE)
@@ -207,9 +223,9 @@ export function parseXmlToIR(source: string): DiagramIR {
     if (parentId) {
       edges.push({ from: parentId, to: id });
     }
-    Array.from(el.children).forEach((child) => walk(child, id));
+    Array.from(el.children).forEach((child) => walk(child, id, depth + 1));
   };
-  walk(root);
+  walk(root, undefined, 0);
   return { kind: "flowchart", direction, nodes: Array.from(nodes.values()), edges };
 }
 
