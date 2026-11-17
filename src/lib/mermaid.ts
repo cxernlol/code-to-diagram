@@ -24,9 +24,13 @@ export function parseMermaidSvg(markup: string): SVGSVGElement {
   if (!(svg instanceof SVGSVGElement) || parsed.querySelector("parsererror")) {
     throw new Error("Mermaid returned an invalid SVG diagram.");
   }
-  svg.querySelectorAll("script, iframe, object, embed").forEach((element) => {
-    element.remove();
-  });
+  svg
+    .querySelectorAll(
+      "script, iframe, object, embed, animate, animateTransform, animateMotion, set, form, input, button, textarea, select, link, meta, base, img, audio, video",
+    )
+    .forEach((element) => {
+      element.remove();
+    });
   [svg, ...Array.from(svg.querySelectorAll("*"))].forEach((element) => {
     Array.from(element.attributes).forEach((attribute) => {
       const name = attribute.name.toLowerCase();

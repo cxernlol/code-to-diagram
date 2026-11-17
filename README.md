@@ -102,7 +102,7 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
 
 - **Tools:** `detect_format`, `to_mermaid`, `translate_format`, `parse_diagram_ir`, `emit_from_ir`, `list_templates`, `get_studio_info`
 - **Resources & Prompt:** `ctd://formats`, `ctd://themes`, `ctd://templates/{name}`, `code_to_diagram`
-- **MCP Safety:** `ctd-mcp` runs purely in-memory over stdio with **no filesystem or network access**. As with any text tool, untrusted diagram labels passed to an assistant remain untrusted text.
+- **MCP Safety:** `ctd-mcp` runs purely in-memory over stdio and **does not use filesystem or network APIs**. As with any text tool, untrusted diagram labels passed to an assistant remain untrusted text.
 
 Example output from `npx -y ctd-mcp` (`to_mermaid` on SQL DDL):
 
