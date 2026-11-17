@@ -60,7 +60,7 @@ function getExportNodeShapes(node: SVGGElement): SVGElement[] {
   );
 }
 
-function colorizeExportedNodes(svg: SVGSVGElement, settings?: StudioSettings) {
+export function colorizeExportedNodes(svg: SVGSVGElement, settings?: StudioSettings) {
   const isDark = settings ? relativeLuminance(resolveDiagramPalette(settings).canvasColor) < 0.25 : false;
   const palette = isDark ? DARK_EXPORT_SWATCHES : LIGHT_EXPORT_SWATCHES;
   const nodes = svg.querySelectorAll<SVGGElement>(

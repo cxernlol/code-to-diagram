@@ -740,3 +740,25 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(guests[0]!.getByRole("button", { name: "Export SVG" })).toBeEnabled();
   await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
 });
+
+test("colorize boxes toggle applies live palette preview and restores on toggle off", async ({ page }) => {
+  await page.goto("/#app");
+  const nodeShape = page.locator('[data-sgs-node="Check"] .label-container, [data-sgs-node="Check"] polygon').first();
+  await expect(nodeShape).toBeVisible();
+
+  const initialInlineFill = await nodeShape.evaluate((el) => (el as SVGElement).style.fill);
+  expect(initialInlineFill).toBe("");
+
+  const colorizeBtn = page.getByRole("button", { name: "Colorize boxes on export" });
+  await colorizeBtn.click();
+  await expect(colorizeBtn).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(async () => nodeShape.evaluate((el) => (el as SVGElement).style.fill))
+    .not.toBe("");
+
+  await colorizeBtn.click();
+  await expect(colorizeBtn).toHaveAttribute("aria-pressed", "false");
+  await expect
+    .poll(async () => nodeShape.evaluate((el) => (el as SVGElement).style.fill))
+    .toBe("");
+});
