@@ -483,7 +483,7 @@ function convertTypeScriptToMermaid(source: string): string {
   return out.join("\n");
 }
 
-const MAX_SOURCE_CHARS = 512 * 1024;
+export const MAX_SOURCE_CHARS = 512 * 1024;
 
 export function toMermaidSource(source: string): {
   format: CodeFormat;

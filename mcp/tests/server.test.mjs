@@ -261,6 +261,14 @@ test("edge cases: invalid XML and empty input return errors without crashing ser
   assert.equal(deepRes.isError, true);
   assert.match(deepRes.content[0].text, /maximum supported depth/);
 
+  const wideXml = `<root>${"<item/>".repeat(1501)}</root>`;
+  const wideRes = await client.callTool({
+    name: "to_mermaid",
+    arguments: { source: wideXml },
+  });
+  assert.equal(wideRes.isError, true);
+  assert.match(wideRes.content[0].text, /maximum supported element count \(1500\)/);
+
   const hugeDot = `digraph G {\n${"  a -> b;\n".repeat(60000)}}`;
   const hugeRes = await client.callTool({
     name: "to_mermaid",

@@ -27,6 +27,9 @@ jobs:
       - name: Typecheck and build web + MCP
         run: npm run build
 
+      - name: Run parser unit tests
+        run: npm run test:parsers
+
       - name: Run MCP server tests
         run: npm run mcp:test
 
