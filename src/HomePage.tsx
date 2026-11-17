@@ -1,7 +1,7 @@
 import { animate, stagger, svg as animeSvg } from "animejs";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Check, Copy, GitBranch, Grid3x3, HardDrive, ImageDown, Star, Terminal } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Copy, GitBranch, Grid3x3, HardDrive, ImageDown, Star, Terminal } from "lucide-react";
 
 const GITHUB_URL = "https://github.com/cxernlol/code-to-diagram";
 const GITHUB_API_URL = "https://api.github.com/repos/cxernlol/code-to-diagram";
@@ -42,6 +42,7 @@ const MCP_SNIPPETS = [
 
 interface HomePageProps {
   onStart: (templateName?: string) => void;
+  onDocs: () => void;
   onLegal: (tab: "privacy" | "terms") => void;
 }
 
@@ -276,7 +277,7 @@ Canvas -> Export: SVG/PNG`,
   },
 ];
 
-export function HomePage({ onStart, onLegal }: HomePageProps) {
+export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
   const reduceMotion = useReducedMotion();
   const previewCanvasRef = useRef<HTMLDivElement>(null);
   const [activeFormat, setActiveFormat] = useState(FORMAT_DEMOS[0]!);
@@ -354,6 +355,10 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
             <span className="home-brand-name">CTD Studio</span>
           </div>
           <nav className="home-nav-actions" aria-label="Primary">
+            <button type="button" className="home-link" onClick={onDocs}>
+              <BookOpen aria-hidden="true" size={14} />
+              <span>Docs</span>
+            </button>
             <a
               className="home-link"
               href={GITHUB_URL}
@@ -590,6 +595,9 @@ export function HomePage({ onStart, onLegal }: HomePageProps) {
       <footer className="home-footer">
         <span>CTD Studio</span>
         <div className="home-footer-links">
+          <button type="button" className="home-footer-btn" onClick={onDocs}>
+            Docs
+          </button>
           <button type="button" className="home-footer-btn" onClick={() => onLegal("privacy")}>
             Privacy &amp; Cookies
           </button>

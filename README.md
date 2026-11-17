@@ -5,7 +5,7 @@
 
 Write diagram code, drag it into shape, export. No account, no server.
 
-**[Open the app ->](https://code-to-diagram.vercel.app/)**
+**[Open the app ->](https://code-to-diagram.vercel.app/)** · **[Syntax & Template Docs ->](https://code-to-diagram.vercel.app/#docs)**
 
 Supports Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN). Your diagrams stay in your browser.
 

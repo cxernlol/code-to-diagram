@@ -45,6 +45,7 @@ import {
 
 import { CodeEditor, type CodeEditorHandle } from "./CodeEditor";
 import { DiagramCanvas, type DiagramCanvasHandle } from "./DiagramCanvas";
+import { DocsPage } from "./DocsPage";
 import { HomePage } from "./HomePage";
 import { LegalPage, type LegalTab } from "./LegalPage";
 import { PROVIDERS, TEMPLATES, THEME_PRESETS, createDocument } from "./constants";
@@ -175,7 +176,7 @@ function errorText(error: unknown): string {
     : message;
 }
 
-type AppView = "home" | "studio" | "privacy" | "terms";
+type AppView = "home" | "studio" | "docs" | "privacy" | "terms";
 
 function isStudioHash(hash: string): boolean {
   return hash === "#app" || hash.startsWith("#d=") || hash.startsWith("#room=");
@@ -183,6 +184,7 @@ function isStudioHash(hash: string): boolean {
 
 function viewFromHash(hash: string): AppView {
   if (isStudioHash(hash)) return "studio";
+  if (hash === "#docs") return "docs";
   if (hash === "#privacy") return "privacy";
   if (hash === "#terms") return "terms";
   return "home";
@@ -486,6 +488,8 @@ function App() {
   useEffect(() => {
     if (view === "home") {
       document.title = "CTD Studio: Code to Diagram Editor for Mermaid, DOT & SQL";
+    } else if (view === "docs") {
+      document.title = "Syntax & Template Docs — CTD Studio";
     } else if (view === "privacy") {
       document.title = "Privacy & Cookies — CTD Studio";
     } else if (view === "terms") {
@@ -506,6 +510,11 @@ function App() {
   const openLegal = useCallback((tab: LegalTab) => {
     setView(tab);
     window.location.hash = `#${tab}`;
+  }, []);
+
+  const openDocs = useCallback(() => {
+    setView("docs");
+    window.location.hash = "#docs";
   }, []);
 
   const openHome = useCallback(() => {
@@ -1070,7 +1079,17 @@ function App() {
   }
 
   if (view === "home") {
-    return <HomePage onStart={openStudio} onLegal={openLegal} />;
+    return <HomePage onStart={openStudio} onDocs={openDocs} onLegal={openLegal} />;
+  }
+
+  if (view === "docs") {
+    return (
+      <DocsPage
+        onBack={openHome}
+        onStart={openStudio}
+        onLegal={openLegal}
+      />
+    );
   }
 
   if (view === "privacy" || view === "terms") {
