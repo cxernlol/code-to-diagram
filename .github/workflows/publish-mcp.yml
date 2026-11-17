@@ -33,5 +33,5 @@ jobs:
       - name: Publish ctd-mcp to npm
         working-directory: mcp
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.CTD_MCP_GITHUB_ACTIONS }}
         run: npm publish --provenance --access public
