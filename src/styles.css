@@ -2506,6 +2506,16 @@ summary:focus-visible,
   border-block-end: 0;
 }
 
+.docs-list {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding-inline-start: 18px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .docs-templates {
   display: grid;
   gap: 14px;

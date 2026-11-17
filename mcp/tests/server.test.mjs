@@ -105,6 +105,11 @@ test("to_mermaid converts DOT, PlantUML, D2, SQL, TypeScript, and XML (explicit,
       expectMatch: /sequenceDiagram[\s\S]*Alice ->> Bob: Hello[\s\S]*Bob -->> Alice: Hi/,
     },
     {
+      name: "PlantUML Class Multiplicity",
+      source: '@startuml\nclass Account\nclass Workspace\nAccount "1" --> "*" Workspace : owns\n@enduml',
+      expectMatch: /classDiagram[\s\S]*Account "1" --> "\*" Workspace : owns/,
+    },
+    {
       name: "D2",
       source: "direction: right\napi -> db: query\ndb.shape: cylinder",
       expectMatch: /flowchart LR[\s\S]*db\[\("db"\)\][\s\S]*api -->\|query\| db/,
