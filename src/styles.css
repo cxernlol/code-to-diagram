@@ -59,8 +59,16 @@ body {
   font-size: 14px;
 }
 
+html:has(.home-page),
 body:has(.home-page) {
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html:has(.home-page)::-webkit-scrollbar,
+body:has(.home-page)::-webkit-scrollbar {
+  display: none;
 }
 
 button,
