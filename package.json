@@ -1,10 +1,10 @@
 {
-  "name": "sgs-studio",
+  "name": "code-to-diagram",
   "version": "1.0.0",
-  "description": "A customizable Mermaid diagram editor and AI copilot",
+  "description": "CTD Studio: a local-first code-to-diagram editor and MCP server",
   "private": true,
   "bin": {
-    "sgs-diagram": "./mcp/dist/index.js"
+    "ctd-mcp": "./mcp/dist/index.js"
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -12,22 +12,22 @@
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc -b --pretty false && tsc --noEmit -p mcp/tsconfig.json",
     "test": "playwright test",
-    "mcp:build": "vite build --config mcp/vite.config.ts",
+    "mcp:build": "vite build --config mcp/vite.config.ts && node -e \"import('node:fs').then(fs => fs.chmodSync('mcp/dist/index.js', 0o755))\"",
     "mcp:test": "node --test mcp/tests/server.test.mjs",
     "prepare": "node -e \"import('node:fs').then(fs => { if (fs.existsSync('node_modules/vite')) { import('node:child_process').then(cp => cp.execSync('npm run mcp:build', { stdio: 'inherit' })); } })\""
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cxernlol/sgs-chify.git"
+    "url": "git+https://github.com/cxernlol/code-to-diagram.git"
   },
   "keywords": [],
   "author": "",
   "type": "module",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/cxernlol/sgs-chify/issues"
+    "url": "https://github.com/cxernlol/code-to-diagram/issues"
   },
-  "homepage": "https://github.com/cxernlol/sgs-chify#readme",
+  "homepage": "https://github.com/cxernlol/code-to-diagram#readme",
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.11.1",

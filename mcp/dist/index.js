@@ -4,19 +4,20 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { z } from "zod";
 import { DOMParser as DOMParser$1 } from "@xmldom/xmldom";
 var package_default = {
-	name: "sgs-diagram",
+	name: "ctd-mcp",
 	version: "1.0.0",
-	description: "SGS-Diagram MCP server — convert and translate Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
+	description: "CTD Studio MCP server — convert and translate Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
 	type: "module",
 	license: "MIT",
 	main: "./dist/index.js",
-	bin: { "sgs-diagram": "./dist/index.js" },
+	bin: { "ctd-mcp": "./dist/index.js" },
 	files: ["dist", "README.md"],
 	engines: { "node": ">=18" },
 	keywords: [
 		"mcp",
 		"model-context-protocol",
-		"sgs-studio",
+		"ctd-studio",
+		"ctd-mcp",
 		"mermaid",
 		"diagram",
 		"graphviz",
@@ -28,11 +29,11 @@ var package_default = {
 	],
 	repository: {
 		"type": "git",
-		"url": "git+https://github.com/cxernlol/sgs-chify.git",
+		"url": "git+https://github.com/cxernlol/code-to-diagram.git",
 		"directory": "mcp"
 	},
-	homepage: "https://sgs-chify.vercel.app/",
-	bugs: { "url": "https://github.com/cxernlol/sgs-chify/issues" },
+	homepage: "https://code-to-diagram.vercel.app/",
+	bugs: { "url": "https://github.com/cxernlol/code-to-diagram/issues" },
 	dependencies: {
 		"@modelcontextprotocol/sdk": "^1.32.2",
 		"@xmldom/xmldom": "^0.9.12",
@@ -1152,9 +1153,9 @@ function formatErrorResult(error) {
 function createSgsStudioMcpServer(version = "1.0.0") {
 	ensureNodeDomPolyfills();
 	const server = new McpServer({
-		name: "sgs-diagram",
+		name: "ctd-mcp",
 		version
-	}, { instructions: "SGS-Diagram MCP server for detecting, parsing, converting, and translating diagrams across Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML)." });
+	}, { instructions: "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, and translating diagrams across Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML)." });
 	server.registerTool("detect_format", {
 		title: "Detect Diagram / Code Format",
 		description: "Auto-detect the format of a diagram or code snippet (mermaid, dot, plantuml, d2, sql, typescript, xml) and its Mermaid diagram type.",
@@ -1208,7 +1209,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 	});
 	server.registerTool("translate_format", {
 		title: "Translate Between Diagram Formats",
-		description: "Translate diagram or code source between any two supported SGS Studio formats: mermaid, dot, plantuml, d2, sql, typescript, xml.",
+		description: "Translate diagram or code source between any two supported CTD Studio formats: mermaid, dot, plantuml, d2, sql, typescript, xml.",
 		inputSchema: {
 			source: z.string().trim().min(1, "Source must not be empty."),
 			targetFormat: FormatSchema
@@ -1236,7 +1237,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 	});
 	server.registerTool("parse_diagram_ir", {
 		title: "Parse Diagram to Intermediate Representation",
-		description: "Parse any supported diagram or code format into SGS Studio's structured DiagramIR (kind, direction, nodes, edges).",
+		description: "Parse any supported diagram or code format into CTD Studio's structured DiagramIR (kind, direction, nodes, edges).",
 		inputSchema: { source: z.string().trim().min(1, "Source must not be empty.") },
 		annotations: { readOnlyHint: true }
 	}, async ({ source }) => {
@@ -1279,8 +1280,8 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 		}
 	});
 	server.registerTool("list_templates", {
-		title: "List SGS Studio Diagram Templates",
-		description: "List built-in SGS Studio diagram templates or retrieve a specific template by name.",
+		title: "List CTD Studio Diagram Templates",
+		description: "List built-in CTD Studio diagram templates or retrieve a specific template by name.",
 		inputSchema: { name: z.string().optional() },
 		annotations: { readOnlyHint: true }
 	}, async ({ name }) => {
@@ -1313,16 +1314,17 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 		};
 	});
 	server.registerTool("get_studio_info", {
-		title: "Get SGS Studio Capabilities",
-		description: "Return SGS Studio supported formats, file extensions, theme presets, and web app URL.",
+		title: "Get CTD Studio Capabilities",
+		description: "Return CTD Studio supported formats, file extensions, theme presets, and web app URL.",
 		inputSchema: {},
 		annotations: { readOnlyHint: true }
 	}, async () => {
 		const info = {
-			name: "SGS-Diagram",
+			name: "CTD Studio",
+			mcpName: "ctd-mcp",
 			mermaidVersion: "11.4.1",
-			url: "https://sgs-chify.vercel.app/",
-			repository: "https://github.com/cxernlol/sgs-chify",
+			url: "https://code-to-diagram.vercel.app/",
+			repository: "https://github.com/cxernlol/code-to-diagram",
 			formats: CODE_FORMATS.map((id) => ({
 				id,
 				label: FORMAT_LABELS[id],
@@ -1339,8 +1341,8 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 			structuredContent: info
 		};
 	});
-	server.registerResource("formats", "sgs://formats", {
-		title: "SGS Studio Supported Formats",
+	server.registerResource("formats", "ctd://formats", {
+		title: "CTD Studio Supported Formats",
 		description: "Supported diagram and code formats with labels and file extensions.",
 		mimeType: "application/json"
 	}, async (uri) => ({ contents: [{
@@ -1352,21 +1354,21 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 			extension: FORMAT_EXTENSIONS[id]
 		})), null, 2)
 	}] }));
-	server.registerResource("themes", "sgs://themes", {
-		title: "SGS Studio Theme Presets",
-		description: "Built-in color palette presets for SGS Studio diagrams.",
+	server.registerResource("themes", "ctd://themes", {
+		title: "CTD Studio Theme Presets",
+		description: "Built-in color palette presets for CTD Studio diagrams.",
 		mimeType: "application/json"
 	}, async (uri) => ({ contents: [{
 		uri: uri.href,
 		mimeType: "application/json",
 		text: JSON.stringify(THEME_PRESETS, null, 2)
 	}] }));
-	server.registerResource("template", new ResourceTemplate("sgs://templates/{name}", { list: async () => ({ resources: Object.keys(TEMPLATES).map((name) => ({
-		uri: `sgs://templates/${encodeURIComponent(name)}`,
+	server.registerResource("template", new ResourceTemplate("ctd://templates/{name}", { list: async () => ({ resources: Object.keys(TEMPLATES).map((name) => ({
+		uri: `ctd://templates/${encodeURIComponent(name)}`,
 		name,
 		mimeType: "text/plain"
 	})) }) }), {
-		title: "SGS Studio Diagram Template",
+		title: "CTD Studio Diagram Template",
 		description: "Built-in Mermaid diagram template.",
 		mimeType: "text/plain"
 	}, async (uri, { name }) => {
@@ -1381,7 +1383,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 	});
 	server.registerPrompt("code_to_diagram", {
 		title: "Code to Diagram",
-		description: "Convert source code, SQL schema, XML, or architecture notes into a clean diagram using SGS Studio.",
+		description: "Convert source code, SQL schema, XML, or architecture notes into a clean diagram using CTD Studio.",
 		argsSchema: {
 			source: z.string().describe("Source code, schema, or diagram text to convert"),
 			targetFormat: FormatSchema.optional().describe("Desired output format (defaults to mermaid)")
@@ -1391,7 +1393,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 		content: {
 			type: "text",
 			text: [
-				`Use SGS Studio MCP tools (\`detect_format\`, \`to_mermaid\`, \`translate_format\`, \`parse_diagram_ir\`) to convert the following input into a clean ${targetFormat ?? "mermaid"} diagram:`,
+				`Use CTD Studio MCP tools (\`detect_format\`, \`to_mermaid\`, \`translate_format\`, \`parse_diagram_ir\`) to convert the following input into a clean ${targetFormat ?? "mermaid"} diagram:`,
 				"",
 				"```",
 				source,
@@ -1411,11 +1413,11 @@ async function main() {
 	if (args.includes("--help") || args.includes("-h")) {
 		process.stdout.write([
 			`${package_default.name} v${package_default.version}`,
-			"SGS Studio Model Context Protocol (MCP) server over stdio.",
+			"CTD Studio Model Context Protocol (MCP) server over stdio.",
 			"",
 			"Usage:",
-			"  npx sgs-diagram",
-			"  sgs-diagram [--help | --version]",
+			"  npx ctd-mcp",
+			"  ctd-mcp [--help | --version]",
 			"",
 			"Connect from Claude Desktop, Cursor, Windsurf, or VS Code via stdio."
 		].join("\n") + "\n");
@@ -1424,10 +1426,10 @@ async function main() {
 	const server = createSgsStudioMcpServer(package_default.version);
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
-	console.error(`SGS-Diagram MCP server v${package_default.version} running on stdio`);
+	console.error(`CTD Studio MCP server (ctd-mcp) v${package_default.version} running on stdio`);
 }
 main().catch((error) => {
-	console.error("Fatal error in SGS Studio MCP server:", error);
+	console.error("Fatal error in CTD Studio MCP server:", error);
 	process.exit(1);
 });
 export {};
