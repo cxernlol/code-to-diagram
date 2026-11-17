@@ -201,27 +201,3 @@ test("enforces 512 KB source limit and XML DOCTYPE/ENTITY/depth/element caps", (
   const tooManyNodes = `<root>${"<item/>".repeat(1501)}</root>`;
   assert.throws(() => translate.parseXmlToIR(tooManyNodes), /maximum supported element count \(1500\)/);
 });
-
-test("converting classDiagram to Graphviz DOT and D2 preserves class members", () => {
-  const mermaidClass = `
-    classDiagram
-      class Animal {
-        +String name
-        +int age
-        +speak() void
-      }
-      class Dog {
-        +String breed
-      }
-      Animal <|-- Dog
-  `;
-  const dot = formats.translateCodeFormat(mermaidClass, "dot");
-  assert.match(dot, /\+String name/);
-  assert.match(dot, /\+speak\(\) void/);
-  assert.match(dot, /\+String breed/);
-
-  const d2 = formats.translateCodeFormat(mermaidClass, "d2");
-  assert.match(d2, /\+String name/);
-  assert.match(d2, /\+speak\(\) void/);
-  assert.match(d2, /\+String breed/);
-});

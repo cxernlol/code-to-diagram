@@ -642,16 +642,15 @@ function emitFromIR(ir, target) {
 			return out.join("\n");
 		}
 		case "dot": {
-			const escapeDot = (value) => value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
 			const out = ["digraph Diagram {", `  rankdir=${ir.direction === "LR" ? "LR" : "TB"};`];
 			for (const n of ir.nodes) {
-				const attrs = [`label="${escapeDot(n.fields?.length ? `${n.label}\n${n.fields.join("\n")}` : n.label).replace(/\n/g, "\\n")}"`];
+				const attrs = [`label="${n.label.replace(/"/g, "\\\"")}"`];
 				if (n.shape) attrs.push(`shape=${n.shape}`);
 				out.push(`  ${n.id} [${attrs.join(", ")}];`);
 			}
 			for (const e of ir.edges) {
 				const attrs = [];
-				if (e.label) attrs.push(`label="${escapeDot(e.label)}"`);
+				if (e.label) attrs.push(`label="${e.label.replace(/"/g, "\\\"")}"`);
 				if (e.dashed) attrs.push("style=dashed");
 				out.push(`  ${e.from} -> ${e.to}${attrs.length ? ` [${attrs.join(", ")}]` : ""};`);
 			}
@@ -675,8 +674,7 @@ function emitFromIR(ir, target) {
 		case "d2": {
 			const out = [`direction: ${ir.direction === "LR" ? "right" : "down"}`];
 			for (const n of ir.nodes) {
-				if (n.fields?.length) out.push(`${n.id}: "${n.label}\\n${n.fields.join("\\n")}"`);
-				else out.push(`${n.id}: ${n.label}`);
+				out.push(`${n.id}: ${n.label}`);
 				if (n.shape) out.push(`${n.id}.shape: ${n.shape}`);
 			}
 			for (const e of ir.edges) out.push(`${e.from} -> ${e.to}${e.label ? `: ${e.label}` : ""}`);
