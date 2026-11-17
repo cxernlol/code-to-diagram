@@ -10,7 +10,7 @@ Write diagram code, drag it into shape, export. No account, no server.
 
 Supports Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN). Your diagrams stay in your browser.
 
-![CTD Studio split code editor and draggable diagram canvas](docs/preview.png)
+https://github.com/cxernlol/code-to-diagram/raw/main/assets/demo.mp4
 
 ## Features
 
