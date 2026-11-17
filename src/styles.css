@@ -1658,6 +1658,14 @@ summary:focus-visible,
   gap: 10px;
 }
 
+.home-brand-btn {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
 .home-brand-name {
   font-size: 15px;
   font-weight: 700;
@@ -1675,8 +1683,11 @@ summary:focus-visible,
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
+  border: 0;
   border-radius: 4px;
   color: #dbe5e2;
+  background: transparent;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDownToLine,
+  BookOpen,
   Check,
   ChevronDown,
   Clipboard,
@@ -1167,6 +1168,9 @@ function App() {
           </button>
           <button className="icon-button" title="Export PNG" aria-label="Export PNG" disabled={saveBusy} onClick={() => void savePng()}>
             <ArrowDownToLine aria-hidden="true" size={17} />
+          </button>
+          <button className="icon-button" title="Syntax & template docs" aria-label="Open docs" onClick={openDocs}>
+            <BookOpen aria-hidden="true" size={17} />
           </button>
           <button className="icon-button settings-trigger" aria-label="Open settings" onClick={() => setSettingsOpen(true)}>
             <Settings2 aria-hidden="true" size={17} />
