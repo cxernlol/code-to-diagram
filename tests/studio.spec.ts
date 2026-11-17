@@ -838,11 +838,17 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await menu.getByRole("button", { name: "Apply" }).click();
   await expect(page.locator("g.edgeLabel", { hasText: "approved" })).toBeVisible();
 
-  // Canvas right-click -> Add node
+  // Canvas right-click -> Add node, then right-click Node1 -> Change shape
+  await expect(page.getByRole("button", { name: "Copy share link" })).toHaveCount(0);
   await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
   await expect(menu).toBeVisible();
   await menu.getByRole("menuitem", { name: "Add node" }).click();
-  await expect(page.locator('[data-sgs-node="Node1"]')).toBeVisible();
+  const node1 = page.locator('[data-sgs-node="Node1"]');
+  await expect(node1).toBeVisible();
+  await node1.click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "Change shape…" }).click();
+  await menu.getByRole("menuitem", { name: "Diamond" }).click();
+  await expect(node1.locator("polygon")).toBeVisible();
 
   // Class diagram node label edit & Add class
   await page.getByLabel("Start from a template").selectOption({ label: "Class" });
