@@ -1,6 +1,6 @@
 # CTD Studio
 
-[![CI](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml/badge.svg)](https://github.com/cxernlol/code-to-diagram/actions/workflows/ci.yml)
+[![CI](https://github.com/cxernlol/sgs-chify/actions/workflows/ci.yml/badge.svg)](https://github.com/cxernlol/sgs-chify/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A local-first code-to-diagram editor that runs in your browser. Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML on the left, drag nodes and connector lines into place on the right, and export without creating an account.
