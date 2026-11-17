@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>CTD Studio: Code to Diagram Editor for Mermaid, DOT &amp; SQL</title>
+    <title>CTD Studio: Code to Diagram Editor for Mermaid, DOT, SQL &amp; XML</title>
     <meta
       name="description"
-      content="Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, or TypeScript and drag boxes and connector lines into place. Local-first browser diagram editor with SVG and PNG export."
+      content="Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML and drag boxes and connector lines into place. Local-first browser diagram editor with SVG/PNG export and ctd-mcp."
     />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#1c3439" />
@@ -17,18 +17,18 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="CTD Studio" />
     <meta property="og:url" content="https://code-to-diagram.vercel.app/" />
-    <meta property="og:title" content="CTD Studio: Code to Diagram Editor for Mermaid, DOT &amp; SQL" />
+    <meta property="og:title" content="CTD Studio: Code to Diagram Editor for Mermaid, DOT, SQL &amp; XML" />
     <meta
       property="og:description"
-      content="Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, or TypeScript and drag boxes and connector lines into place. Local-first browser diagram editor with SVG and PNG export."
+      content="Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML and drag boxes and connector lines into place. Local-first browser diagram editor with SVG/PNG export and ctd-mcp."
     />
     <meta property="og:image" content="https://code-to-diagram.vercel.app/og-image.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="CTD Studio: Code to Diagram Editor for Mermaid, DOT &amp; SQL" />
+    <meta name="twitter:title" content="CTD Studio: Code to Diagram Editor for Mermaid, DOT, SQL &amp; XML" />
     <meta
       name="twitter:description"
-      content="Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, or TypeScript and drag boxes and connector lines into place."
+      content="Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML and drag boxes and connector lines into place. Local-first browser diagram editor with SVG/PNG export."
     />
     <meta name="twitter:image" content="https://code-to-diagram.vercel.app/og-image.png" />
 
@@ -41,7 +41,7 @@
         "operatingSystem": "Web Browser",
         "url": "https://code-to-diagram.vercel.app/",
         "codeRepository": "https://github.com/cxernlol/code-to-diagram",
-        "description": "Local-first code-to-diagram editor supporting Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, and TypeScript with draggable boxes, movable connector lines, and SVG/PNG export.",
+        "description": "Local-first code-to-diagram editor supporting Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN) with draggable boxes, movable connector lines, SVG/PNG export, and ctd-mcp.",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -53,9 +53,30 @@
   <body>
     <div id="root"></div>
     <noscript>
-      <main style="max-width: 720px; margin: 48px auto; padding: 0 20px; font-family: system-ui, sans-serif; color: #1c3439;">
-        <h1>CTD Studio: Code to Diagram Editor</h1>
-        <p>Write Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, or TypeScript and drag boxes and connector lines into place directly in your browser. Enable JavaScript to launch the editor.</p>
+      <main style="max-width: 760px; margin: 48px auto; padding: 0 20px; font-family: system-ui, sans-serif; color: #1c3439; line-height: 1.6;">
+        <h1>CTD Studio: Local-First Code to Diagram Editor</h1>
+        <p>Write diagram code, drag boxes and connector lines into place, and export SVG or PNG directly in your browser. No account, no paywall, and local-first IndexedDB storage.</p>
+        <h2>Supported Formats (7)</h2>
+        <ul>
+          <li><strong>Mermaid (v11.4.1):</strong> Full local runtime (flowchart, class, state, ER, sequence, gantt, mindmap, pie, journey, gitGraph, C4, requirement).</li>
+          <li><strong>Graphviz DOT:</strong> <code>digraph</code>/<code>graph</code>, <code>rankdir</code>, node labels &amp; shapes, and <code>-&gt;</code> / <code>--</code> edges.</li>
+          <li><strong>PlantUML:</strong> <code>@startuml</code> sequence, state, and class diagrams.</li>
+          <li><strong>D2:</strong> <code>direction</code>, nested <code>{ ... }</code> containers, <code>.shape</code>, and labeled edges.</li>
+          <li><strong>SQL DDL:</strong> <code>CREATE TABLE</code>, <code>PRIMARY KEY</code>, and <code>FOREIGN KEY</code> / <code>REFERENCES</code> into ER diagrams.</li>
+          <li><strong>TypeScript:</strong> <code>interface</code>, <code>class</code>, and object <code>type</code> declarations into class diagrams.</li>
+          <li><strong>XML:</strong> Explicit <code>&lt;diagram&gt;</code>, Draw.io <code>mxGraphModel</code>, BPMN <code>sequenceFlow</code>, and generic XML trees.</li>
+        </ul>
+        <h2>Quick Arrow &amp; Shape Reference</h2>
+        <ul>
+          <li><code>A --&gt; B</code> (solid arrow), <code>A -.-&gt; B</code> (dotted arrow), <code>A ==&gt; B</code> (thick arrow), <code>A --- B</code> (line)</li>
+          <li><code>[Process]</code>, <code>([Start/End])</code>, <code>{Decision}</code>, <code>[/I/O/]</code>, <code>[(Database)]</code>, <code>((Circle))</code></li>
+        </ul>
+        <h2>Links &amp; MCP</h2>
+        <p>
+          <a href="https://github.com/cxernlol/code-to-diagram">GitHub Repository (MIT)</a> ·
+          <a href="https://www.npmjs.com/package/ctd-mcp">ctd-mcp on npm (<code>npx -y ctd-mcp</code>)</a> ·
+          Enable JavaScript to launch the interactive editor and <a href="https://code-to-diagram.vercel.app/#docs">Syntax &amp; Template Docs</a>.
+        </p>
       </main>
     </noscript>
     <script defer src="/mermaid.min.js"></script>
