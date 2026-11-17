@@ -5,12 +5,12 @@ import { z } from "zod";
 import { DOMParser as DOMParser$1 } from "@xmldom/xmldom";
 var package_default = {
 	name: "ctd-mcp",
-	version: "1.0.0",
+	version: "1.0.1",
 	description: "CTD Studio MCP server — convert and translate Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
 	type: "module",
 	license: "MIT",
 	main: "./dist/index.js",
-	bin: { "ctd-mcp": "./dist/index.js" },
+	bin: { "ctd-mcp": "dist/index.js" },
 	files: ["dist", "README.md"],
 	engines: { "node": ">=18" },
 	keywords: [
