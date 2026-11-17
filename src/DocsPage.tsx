@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, GitBranch } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, GitBranch, Search, Terminal, X } from "lucide-react";
 import { TEMPLATES } from "./constants";
 
 interface DocsPageProps {
@@ -240,10 +240,52 @@ const FEATURED_TEMPLATES = [
   "BPMN Flow",
 ] as const;
 
+type DocsSectionId = "syntax" | "formats" | "workbench" | "mcp" | "templates";
+
+const DOCS_SECTIONS: ReadonlyArray<{ id: DocsSectionId; label: string; group: string }> = [
+  { id: "syntax", label: "Syntax & Arrows", group: "Reference" },
+  { id: "formats", label: "Supported Formats", group: "Reference" },
+  { id: "workbench", label: "Workbench & Keys", group: "Studio" },
+  { id: "mcp", label: "MCP API (ctd-mcp)", group: "Automation" },
+  { id: "templates", label: "Starter Templates", group: "Examples" },
+];
+
+const MCP_TOOLS = [
+  { name: "detect_format", params: "source", returns: "Format + Mermaid diagram kind" },
+  { name: "to_mermaid", params: "source, format?", returns: "Compiled Mermaid diagram code" },
+  { name: "translate_format", params: "source, targetFormat", returns: "Converted DOT / PlantUML / D2 / SQL / TS / XML" },
+  { name: "parse_diagram_ir", params: "source", returns: "Structured DiagramIR (nodes, edges, direction)" },
+  { name: "emit_from_ir", params: "ir, targetFormat", returns: "Diagram source generated from DiagramIR" },
+  { name: "list_templates", params: "name?", returns: "Built-in starter templates or a single template" },
+  { name: "get_studio_info", params: "—", returns: "Supported formats, extensions, themes, metadata" },
+] as const;
+
 export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
   const reduceMotion = useReducedMotion();
+  const [activeSection, setActiveSection] = useState<DocsSectionId>("syntax");
   const [activeGuideId, setActiveGuideId] = useState(FORMAT_GUIDES[0]!.id);
+  const [query, setQuery] = useState("");
   const activeGuide = FORMAT_GUIDES.find((g) => g.id === activeGuideId) ?? FORMAT_GUIDES[0]!;
+  const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
+
+  const filteredArrows = searching
+    ? ARROW_SYNTAX.filter((i) => `${i.diagram} ${i.syntax} ${i.meaning}`.toLowerCase().includes(q))
+    : ARROW_SYNTAX;
+  const filteredShapes = searching
+    ? SHAPE_SYNTAX.filter((i) => `${i.syntax} ${i.shape} ${i.use}`.toLowerCase().includes(q))
+    : SHAPE_SYNTAX;
+  const filteredFormats = searching
+    ? FORMAT_SUPPORT.filter((i) => `${i.format} ${i.scope} ${i.omissions}`.toLowerCase().includes(q))
+    : FORMAT_SUPPORT;
+  const filteredMcpTools = searching
+    ? MCP_TOOLS.filter((t) => `${t.name} ${t.params} ${t.returns}`.toLowerCase().includes(q))
+    : MCP_TOOLS;
+  const filteredTemplates = searching
+    ? FEATURED_TEMPLATES.filter((n) => `${n} ${TEMPLATES[n]}`.toLowerCase().includes(q))
+    : FEATURED_TEMPLATES;
+
+  const showSection = (id: DocsSectionId) => (!searching && activeSection === id);
 
   return (
     <div className="home-page">
@@ -269,228 +311,331 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
       </header>
 
       <main className="docs-main">
-        <header className="docs-hero">
+        <header className="docs-hero docs-api-header">
           <span className="home-eyebrow">
-            <BookOpen aria-hidden="true" size={13} /> Reference
+            <BookOpen aria-hidden="true" size={13} /> API &amp; Syntax Reference
           </span>
           <h1>Syntax &amp; Template Docs</h1>
           <p>
-            Quick guide to arrows (like <code>-.-&gt;</code> dotted links), node shapes, supported
-            code formats, and starter templates you can open directly in the editor.
+            Concise reference for arrows (<code>-.-&gt;</code>), shapes, all 7 input formats,
+            workbench shortcuts, and <code>ctd-mcp</code> endpoints.
           </p>
         </header>
 
-        <section className="docs-grid" aria-label="Arrows and shapes reference">
-          <article className="legal-card">
-            <h2>Arrows &amp; Connectors</h2>
-            <div className="docs-table-wrap">
-              <table className="docs-table">
-                <thead>
-                  <tr>
-                    <th>Diagram</th>
-                    <th>Syntax</th>
-                    <th>Meaning</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ARROW_SYNTAX.map((item) => (
-                    <tr key={item.syntax}>
-                      <td><strong>{item.diagram}</strong></td>
-                      <td><code>{item.syntax}</code></td>
-                      <td>{item.meaning}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <article className="legal-card">
-            <h2>Flowchart Shapes</h2>
-            <div className="docs-table-wrap">
-              <table className="docs-table">
-                <thead>
-                  <tr>
-                    <th>Syntax</th>
-                    <th>Shape</th>
-                    <th>Typical use</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SHAPE_SYNTAX.map((item) => (
-                    <tr key={item.syntax}>
-                      <td><code>{item.syntax}</code></td>
-                      <td>{item.shape}</td>
-                      <td>{item.use}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </section>
-
-        <article className="legal-card docs-format-guide" aria-label="Syntax by format">
-          <div className="docs-guide-head">
-            <div>
-              <h2>Syntax by Format (All 7 Languages)</h2>
-              <p>{activeGuide.summary}</p>
-            </div>
-            <button
-              type="button"
-              className="home-open-template"
-              onClick={() => onStart(activeGuide.template)}
-            >
-              Try {activeGuide.label} in editor
-              <ArrowRight aria-hidden="true" size={13} />
-            </button>
-          </div>
-          <div className="home-format-tabs docs-guide-tabs" role="tablist" aria-label="Format syntax tabs">
-            {FORMAT_GUIDES.map((guide, index) => {
-              const active = guide.id === activeGuide.id;
-              return (
+        <div className="docs-api-layout">
+          <aside className="docs-sidebar" aria-label="Documentation sections">
+            <div className="docs-search-box">
+              <Search aria-hidden="true" size={14} className="docs-search-icon" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Filter reference..."
+                aria-label="Filter documentation"
+              />
+              {query && (
                 <button
-                  key={guide.id}
-                  id={`docs-guide-tab-${guide.id}`}
                   type="button"
-                  role="tab"
-                  aria-selected={active}
-                  aria-controls="docs-guide-panel"
-                  tabIndex={active ? 0 : -1}
-                  className={`home-format-tab${active ? " active" : ""}`}
-                  onClick={() => setActiveGuideId(guide.id)}
-                  onKeyDown={(event) => {
-                    let nextIndex: number | null = null;
-                    if (event.key === "ArrowRight") nextIndex = (index + 1) % FORMAT_GUIDES.length;
-                    else if (event.key === "ArrowLeft") nextIndex = (index - 1 + FORMAT_GUIDES.length) % FORMAT_GUIDES.length;
-                    else if (event.key === "Home") nextIndex = 0;
-                    else if (event.key === "End") nextIndex = FORMAT_GUIDES.length - 1;
-                    if (nextIndex === null) return;
-                    event.preventDefault();
-                    const nextGuide = FORMAT_GUIDES[nextIndex]!;
-                    setActiveGuideId(nextGuide.id);
-                    document.getElementById(`docs-guide-tab-${nextGuide.id}`)?.focus();
-                  }}
+                  className="docs-search-clear"
+                  aria-label="Clear filter"
+                  onClick={() => setQuery("")}
                 >
-                  {active && (
-                    <motion.span
-                      layoutId="docs-syntax-pill"
-                      className="home-format-pill"
-                      transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
-                    />
-                  )}
-                  <span className="home-format-label">{guide.label}</span>
+                  <X aria-hidden="true" size={13} />
                 </button>
-              );
-            })}
-          </div>
-          <div
-            id="docs-guide-panel"
-            role="tabpanel"
-            tabIndex={0}
-            aria-labelledby={`docs-guide-tab-${activeGuide.id}`}
-            className="docs-guide-split"
-          >
-            <table className="docs-table">
-              <thead>
-                <tr>
-                  <th>Syntax</th>
-                  <th>Meaning</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeGuide.items.map((item) => (
-                  <tr key={item.syntax}>
-                    <td><code>{item.syntax}</code></td>
-                    <td>{item.meaning}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <pre className="docs-template-code docs-guide-code">{activeGuide.example}</pre>
-          </div>
-        </article>
+              )}
+            </div>
 
-        <article className="legal-card">
-          <h2>Supported Formats (7)</h2>
-          <p>
-            CTD Studio auto-detects the input format as you type, compiles non-Mermaid formats into
-            Mermaid, and lets you convert between formats via <strong>Convert to…</strong> or{" "}
-            <code>ctd-mcp</code>.
-          </p>
-          <table className="docs-table">
-            <thead>
-              <tr>
-                <th>Format</th>
-                <th>What is parsed &amp; rendered</th>
-                <th>Notable omissions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {FORMAT_SUPPORT.map((item) => (
-                <tr key={item.format}>
-                  <td><strong>{item.format}</strong></td>
-                  <td>{item.scope}</td>
-                  <td>{item.omissions}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </article>
-
-        <section className="docs-grid" aria-label="Workbench and MCP guide">
-          <article className="legal-card">
-            <h2>Using the Workbench</h2>
-            <ul className="docs-list">
-              <li><strong>Drag boxes &amp; lines:</strong> Switch to Move (<code>V</code>) to drag nodes or connector segments in flowchart, class, state, and ER diagrams, <strong>Shift+click</strong> or <strong>Shift+drag</strong> to box-select and move multiple nodes together, or Pan (<code>H</code>) to move the canvas.</li>
-              <li><strong>Right-click canvas menu:</strong> Right-click a node or edge to edit its label, add a connected item, jump to code, or reset its position; right-click empty canvas to add nodes/classes/states/entities or auto-arrange.</li>
-              <li><strong>Grid snap &amp; arrange:</strong> Toggle grid snapping, nudge selected boxes with arrow keys, or click <strong>Arrange nodes in grid</strong>.</li>
-              <li><strong>BYOK AI assistant:</strong> Configure OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, Groq, or custom OpenAI/Anthropic-compatible endpoints in Settings (stored in IndexedDB), with model auto-detect and <strong>Low / Medium / High / Max</strong> usage levels.</li>
-              <li><strong>Share &amp; collaborate:</strong> <strong>Copy share link</strong> encodes source and manual positions in the URL (never API keys). <strong>Share live</strong> starts a 5-device PeerJS room.</li>
-              <li><strong>Export:</strong> Export full-bounds <strong>SVG</strong> or <strong>PNG</strong>, with an opt-in palette toggle to preview and export colorized boxes and classes.</li>
-            </ul>
-          </article>
-
-          <article className="legal-card">
-            <h2>MCP Server (<code>ctd-mcp</code>)</h2>
-            <p>
-              Run the same 7-format parser and translator inside Claude Desktop, Cursor, Windsurf,
-              or VS Code over stdio:
-            </p>
-            <pre className="docs-template-code docs-guide-code">{`npx -y ctd-mcp`}</pre>
-            <p>
-              <strong>Tools:</strong> <code>detect_format</code>, <code>to_mermaid</code>,{" "}
-              <code>translate_format</code>, <code>parse_diagram_ir</code>,{" "}
-              <code>emit_from_ir</code>, <code>list_templates</code>,{" "}
-              <code>get_studio_info</code>.
-            </p>
-          </article>
-        </section>
-
-        <section className="docs-templates" aria-label="Starter templates">
-          <div className="docs-section-head">
-            <h2>Starter Templates</h2>
-            <p>Click any template to open it in the interactive workbench.</p>
-          </div>
-          <div className="docs-template-grid">
-            {FEATURED_TEMPLATES.map((name) => (
-              <article key={name} className="docs-template-card">
-                <div className="docs-template-head">
-                  <h3>{name}</h3>
+            <nav className="docs-nav-list" aria-label="Reference sections">
+              {DOCS_SECTIONS.map((section) => {
+                const isActive = !searching && activeSection === section.id;
+                return (
                   <button
+                    key={section.id}
                     type="button"
-                    className="home-open-template"
-                    onClick={() => onStart(name)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`docs-nav-item${isActive ? " active" : ""}`}
+                    onClick={() => {
+                      setQuery("");
+                      setActiveSection(section.id);
+                    }}
                   >
-                    Try in editor
-                    <ArrowRight aria-hidden="true" size={13} />
+                    <span className="docs-nav-group">{section.group}</span>
+                    <span className="docs-nav-label">{section.label}</span>
                   </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          <div className="docs-content">
+            {(showSection("syntax") || (searching && (filteredArrows.length > 0 || filteredShapes.length > 0))) && (
+              <>
+                <section className="docs-grid" aria-label="Arrows and shapes reference">
+                  {(!searching || filteredArrows.length > 0) && (
+                    <article className="legal-card">
+                      <h2>Arrows &amp; Connectors</h2>
+                      <div className="docs-table-wrap">
+                        <table className="docs-table">
+                          <thead>
+                            <tr>
+                              <th>Diagram</th>
+                              <th>Syntax</th>
+                              <th>Meaning</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredArrows.map((item) => (
+                              <tr key={item.syntax}>
+                                <td><strong>{item.diagram}</strong></td>
+                                <td><code>{item.syntax}</code></td>
+                                <td>{item.meaning}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </article>
+                  )}
+
+                  {(!searching || filteredShapes.length > 0) && (
+                    <article className="legal-card">
+                      <h2>Flowchart Shapes</h2>
+                      <div className="docs-table-wrap">
+                        <table className="docs-table">
+                          <thead>
+                            <tr>
+                              <th>Syntax</th>
+                              <th>Shape</th>
+                              <th>Typical use</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredShapes.map((item) => (
+                              <tr key={item.syntax}>
+                                <td><code>{item.syntax}</code></td>
+                                <td>{item.shape}</td>
+                                <td>{item.use}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </article>
+                  )}
+                </section>
+
+                {!searching && (
+                  <article className="legal-card docs-format-guide" aria-label="Syntax by format">
+                    <div className="docs-guide-head">
+                      <div>
+                        <h2>Syntax by Format (All 7 Languages)</h2>
+                        <p>{activeGuide.summary}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="home-open-template"
+                        onClick={() => onStart(activeGuide.template)}
+                      >
+                        Try {activeGuide.label} in editor
+                        <ArrowRight aria-hidden="true" size={13} />
+                      </button>
+                    </div>
+                    <div className="home-format-tabs docs-guide-tabs" role="tablist" aria-label="Format syntax tabs">
+                      {FORMAT_GUIDES.map((guide, index) => {
+                        const active = guide.id === activeGuide.id;
+                        return (
+                          <button
+                            key={guide.id}
+                            id={`docs-guide-tab-${guide.id}`}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            aria-controls="docs-guide-panel"
+                            tabIndex={active ? 0 : -1}
+                            className={`home-format-tab${active ? " active" : ""}`}
+                            onClick={() => setActiveGuideId(guide.id)}
+                            onKeyDown={(event) => {
+                              let nextIndex: number | null = null;
+                              if (event.key === "ArrowRight") nextIndex = (index + 1) % FORMAT_GUIDES.length;
+                              else if (event.key === "ArrowLeft") nextIndex = (index - 1 + FORMAT_GUIDES.length) % FORMAT_GUIDES.length;
+                              else if (event.key === "Home") nextIndex = 0;
+                              else if (event.key === "End") nextIndex = FORMAT_GUIDES.length - 1;
+                              if (nextIndex === null) return;
+                              event.preventDefault();
+                              const nextGuide = FORMAT_GUIDES[nextIndex]!;
+                              setActiveGuideId(nextGuide.id);
+                              document.getElementById(`docs-guide-tab-${nextGuide.id}`)?.focus();
+                            }}
+                          >
+                            {active && (
+                              <motion.span
+                                layoutId="docs-syntax-pill"
+                                className="home-format-pill"
+                                transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+                              />
+                            )}
+                            <span className="home-format-label">{guide.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div
+                      id="docs-guide-panel"
+                      role="tabpanel"
+                      tabIndex={0}
+                      aria-labelledby={`docs-guide-tab-${activeGuide.id}`}
+                      className="docs-guide-split"
+                    >
+                      <div className="docs-table-wrap">
+                        <table className="docs-table">
+                          <thead>
+                            <tr>
+                              <th>Syntax</th>
+                              <th>Meaning</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeGuide.items.map((item) => (
+                              <tr key={item.syntax}>
+                                <td><code>{item.syntax}</code></td>
+                                <td>{item.meaning}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <pre className="docs-template-code docs-guide-code">{activeGuide.example}</pre>
+                    </div>
+                  </article>
+                )}
+              </>
+            )}
+
+            {(showSection("formats") || (searching && filteredFormats.length > 0)) && (
+              <article className="legal-card">
+                <h2>Supported Formats (7)</h2>
+                <p>
+                  CTD Studio auto-detects the input format as you type, compiles non-Mermaid formats
+                  into Mermaid, and converts between formats via <strong>Convert to…</strong> or{" "}
+                  <code>ctd-mcp</code>.
+                </p>
+                <div className="docs-table-wrap">
+                  <table className="docs-table">
+                    <thead>
+                      <tr>
+                        <th>Format</th>
+                        <th>What is parsed &amp; rendered</th>
+                        <th>Notable omissions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredFormats.map((item) => (
+                        <tr key={item.format}>
+                          <td><strong>{item.format}</strong></td>
+                          <td>{item.scope}</td>
+                          <td>{item.omissions}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <pre className="docs-template-code">{TEMPLATES[name]}</pre>
               </article>
-            ))}
+            )}
+
+            {showSection("workbench") && (
+              <article className="legal-card">
+                <h2>Workbench &amp; Shortcuts</h2>
+                <ul className="docs-list">
+                  <li><strong>Drag boxes &amp; lines:</strong> Move (<code>V</code>) drags nodes or connector segments in flowchart, class, state, and ER diagrams; <strong>Shift+click</strong> or <strong>Shift+drag</strong> box-selects multiple nodes; Pan (<code>H</code>) moves the canvas.</li>
+                  <li><strong>Right-click canvas menu:</strong> Right-click a node or edge to edit its label, change node shape, hide class members, add a connected item, jump to code, or reset its position; right-click empty canvas to add items or auto-arrange.</li>
+                  <li><strong>Grid snap &amp; arrange:</strong> Toggle grid snapping, nudge selected boxes with arrow keys, or click <strong>Arrange nodes in grid</strong>.</li>
+                  <li><strong>BYOK AI assistant:</strong> Configure OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, Groq, or custom endpoints in Settings (stored in IndexedDB), with model auto-detect and <strong>Low / Medium / High / Max</strong> usage levels.</li>
+                  <li><strong>Share live:</strong> <strong>Share live</strong> starts a 5-device PeerJS room (never includes API keys).</li>
+                  <li><strong>Export:</strong> Export full-bounds <strong>SVG</strong> or <strong>PNG</strong>, with an opt-in palette toggle for colorized boxes and classes.</li>
+                </ul>
+              </article>
+            )}
+
+            {(showSection("mcp") || (searching && filteredMcpTools.length > 0)) && (
+              <article className="legal-card">
+                <div className="docs-guide-head">
+                  <div>
+                    <h2>MCP Server (<code>ctd-mcp</code>)</h2>
+                    <p>Stdio MCP API for Claude Desktop, Cursor, Windsurf, and VS Code.</p>
+                  </div>
+                  <span className="home-hero-mcp-badge">
+                    <Terminal aria-hidden="true" size={13} />
+                    npx -y ctd-mcp
+                  </span>
+                </div>
+                <div className="docs-table-wrap">
+                  <table className="docs-table">
+                    <thead>
+                      <tr>
+                        <th>Tool</th>
+                        <th>Arguments</th>
+                        <th>Returns</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredMcpTools.map((tool) => (
+                        <tr key={tool.name}>
+                          <td><code>{tool.name}</code></td>
+                          <td><code>{tool.params}</code></td>
+                          <td>{tool.returns}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p>
+                  <strong>Resources:</strong> <code>ctd://formats</code>, <code>ctd://themes</code>,{" "}
+                  <code>ctd://templates/&#123;name&#125;</code> · <strong>Prompt:</strong>{" "}
+                  <code>code_to_diagram</code>
+                </p>
+              </article>
+            )}
+
+            {(showSection("templates") || (searching && filteredTemplates.length > 0)) && (
+              <section className="docs-templates" aria-label="Starter templates">
+                <div className="docs-section-head">
+                  <h2>Starter Templates</h2>
+                  <p>Click any template to open it in the interactive workbench.</p>
+                </div>
+                <div className="docs-template-grid">
+                  {filteredTemplates.map((name) => (
+                    <article key={name} className="docs-template-card">
+                      <div className="docs-template-head">
+                        <h3>{name}</h3>
+                        <button
+                          type="button"
+                          className="home-open-template"
+                          onClick={() => onStart(name)}
+                        >
+                          Try in editor
+                          <ArrowRight aria-hidden="true" size={13} />
+                        </button>
+                      </div>
+                      <pre className="docs-template-code">{TEMPLATES[name]}</pre>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {searching &&
+              filteredArrows.length === 0 &&
+              filteredShapes.length === 0 &&
+              filteredFormats.length === 0 &&
+              filteredMcpTools.length === 0 &&
+              filteredTemplates.length === 0 && (
+                <article className="legal-card">
+                  <h2>No matches for &ldquo;{query}&rdquo;</h2>
+                  <p>Try searching for a format (<code>dot</code>, <code>sql</code>, <code>bpmn</code>), an arrow (<code>-.-&gt;</code>), or an MCP tool (<code>to_mermaid</code>).</p>
+                </article>
+              )}
           </div>
-        </section>
+        </div>
       </main>
 
       <footer className="home-footer">
