@@ -2146,6 +2146,15 @@ summary:focus-visible,
   border-inline-end: 1px solid var(--border);
 }
 
+.home-mcp-proof-diagram {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background-color: var(--canvas);
+  background-image: radial-gradient(var(--grid-dot) 0.9px, transparent 0.9px);
+  background-size: 16px 16px;
+}
+
 .home-footer {
   display: flex;
   align-items: center;

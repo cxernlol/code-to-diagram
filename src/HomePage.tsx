@@ -621,17 +621,30 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
             <div className="home-mcp-proof-split">
               <pre className="home-mcp-proof-pre">{`CREATE TABLE users (id INT PRIMARY KEY, email TEXT);
 CREATE TABLE diagrams (id INT PRIMARY KEY, user_id INT REFERENCES users(id), title TEXT);`}</pre>
-              <pre className="home-mcp-proof-pre">{`erDiagram
-  users {
-    int id PK
-    text email
-  }
-  diagrams {
-    int id PK
-    int user_id FK
-    text title
-  }
-  users ||--o{ diagrams : references`}</pre>
+              <div className="home-mcp-proof-diagram">
+                <svg viewBox="0 0 360 148" className="home-preview-svg" role="img" aria-label="Rendered Mermaid ER diagram for users and diagrams">
+                  <path d="M 134 74 L 222 74" stroke="#315158" strokeWidth="1.6" fill="none" />
+                  <line x1="142" y1="67" x2="142" y2="81" stroke="#315158" strokeWidth="1.5" />
+                  <line x1="147" y1="67" x2="147" y2="81" stroke="#315158" strokeWidth="1.5" />
+                  <circle cx="204" cy="74" r="4" fill="#ffffff" stroke="#315158" strokeWidth="1.4" />
+                  <path d="M 222 67 L 210 74 L 222 81" stroke="#315158" strokeWidth="1.4" fill="none" />
+                  <rect x="155" y="54" width="46" height="16" rx="3" fill="#f5f7f5" />
+                  <text x="178" y="65" textAnchor="middle" fill="#1c3439" fontSize="9.5" fontWeight="600">references</text>
+
+                  <rect x="16" y="34" width="118" height="80" rx="5" fill="#eaf1f8" stroke="#2c5d8a" strokeWidth="1.4" />
+                  <line x1="16" y1="58" x2="134" y2="58" stroke="#2c5d8a" strokeWidth="1.2" />
+                  <text x="75" y="50" textAnchor="middle" fill="#152b40" fontSize="11" fontWeight="700">users</text>
+                  <text x="26" y="76" fill="#152b40" fontSize="10" fontFamily="monospace">int id PK</text>
+                  <text x="26" y="96" fill="#152b40" fontSize="10" fontFamily="monospace">text email</text>
+
+                  <rect x="222" y="24" width="124" height="100" rx="5" fill="#e6f4ea" stroke="#2e7d5b" strokeWidth="1.4" />
+                  <line x1="222" y1="48" x2="346" y2="48" stroke="#2e7d5b" strokeWidth="1.2" />
+                  <text x="284" y="40" textAnchor="middle" fill="#143527" fontSize="11" fontWeight="700">diagrams</text>
+                  <text x="232" y="66" fill="#143527" fontSize="10" fontFamily="monospace">int id PK</text>
+                  <text x="232" y="86" fill="#143527" fontSize="10" fontFamily="monospace">int user_id FK</text>
+                  <text x="232" y="106" fill="#143527" fontSize="10" fontFamily="monospace">text title</text>
+                </svg>
+              </div>
             </div>
           </div>
         </section>
