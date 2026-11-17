@@ -454,9 +454,6 @@ function App() {
               });
               markDirty(doc.id);
             }
-            window.setTimeout(() => {
-              applyingRoomSyncRef.current = false;
-            }, 0);
           },
           onEnded: (reason) => {
             guestRoomRef.current = null;
@@ -881,6 +878,7 @@ function App() {
   useEffect(() => {
     if (!activeDocument || applyingRoomSyncRef.current) return;
     if (roomMode === "host" && hostRoomRef.current) {
+      roomDocIdRef.current = activeDocument.id;
       hostRoomRef.current.broadcast({
         name: activeDocument.name,
         code: activeDocument.code,
@@ -889,7 +887,11 @@ function App() {
     } else if (roomMode === "guest" && guestRoomRef.current) {
       guestRoomRef.current.sendEdit(activeDocument.code, activeDocument.layout);
     }
-  }, [activeDocument?.name, activeDocument?.code, activeDocument?.layout, roomMode]);
+  }, [activeDocument?.id, activeDocument?.name, activeDocument?.code, activeDocument?.layout, roomMode]);
+
+  useEffect(() => {
+    applyingRoomSyncRef.current = false;
+  }, [data]);
 
   useEffect(() => {
     return () => {
@@ -934,9 +936,6 @@ function App() {
           if (!targetId) return;
           applyingRoomSyncRef.current = true;
           updateDocument(targetId, (doc) => ({ ...doc, code, layout }));
-          window.setTimeout(() => {
-            applyingRoomSyncRef.current = false;
-          }, 0);
         },
         onError: (msg) => setStorageError(msg),
       },

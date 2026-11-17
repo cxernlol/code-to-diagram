@@ -19,6 +19,7 @@ type RoomMessage =
   | { type: "edit"; deviceId: string; code: string; layout: Record<string, Position> }
   | {
       type: "welcome";
+      targetDeviceId?: string;
       name: string;
       code: string;
       layout: Record<string, Position>;
@@ -78,12 +79,15 @@ export function startHostRoom(
   };
 
   const sendToGuest = (conn: DataConnection | undefined, msg: RoomMessage) => {
-    if (conn && conn.open) {
-      try {
-        conn.send(msg);
-      } catch {
-        // ignore closed channel errors
+    if (conn) {
+      if (conn.open) {
+        try {
+          conn.send(msg);
+        } catch {
+          // ignore closed channel errors
+        }
       }
+      return;
     }
     channel?.postMessage(msg);
   };
@@ -119,6 +123,7 @@ export function startHostRoom(
       const snap = getSnapshot();
       sendToGuest(conn, {
         type: "welcome",
+        targetDeviceId: msg.deviceId,
         name: snap.name,
         code: snap.code,
         layout: snap.layout,
@@ -308,7 +313,12 @@ export function joinHostRoom(
 
   const handleHostMsg = (msg: RoomMessage) => {
     if (closed || !msg || typeof msg !== "object") return;
-    if (msg.type === "welcome" || msg.type === "sync") {
+    if (msg.type === "welcome") {
+      if (msg.targetDeviceId && msg.targetDeviceId !== deviceId) return;
+      joined = true;
+      lastHostSeen = Date.now();
+      callbacks.onSync({ name: msg.name, code: msg.code, layout: msg.layout }, msg.devices);
+    } else if (msg.type === "sync") {
       joined = true;
       lastHostSeen = Date.now();
       callbacks.onSync({ name: msg.name, code: msg.code, layout: msg.layout }, msg.devices);
