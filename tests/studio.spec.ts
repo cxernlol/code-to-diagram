@@ -30,7 +30,7 @@ async function expectEdgeEndsAtNodes(edge: Locator): Promise<void> {
 
 test("shows the home page with Start and GitHub links and opens the diagram app on Start", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Write code\. Drag boxes and lines into place\./i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Code to diagram, or right-click to edit directly\./i })).toBeVisible();
   const githubLinks = page.getByRole("link", { name: /GitHub/i });
   await expect(githubLinks.first()).toHaveAttribute("href", "https://github.com/cxernlol/code-to-diagram");
 
@@ -41,7 +41,7 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   await expect(page.locator(".language-chip")).toHaveText("SQL DDL");
 
   await page.getByRole("button", { name: "CTD Studio home" }).click();
-  await expect(page.getByRole("heading", { name: /Write code\. Drag boxes and lines into place\./i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Code to diagram, or right-click to edit directly\./i })).toBeVisible();
 
   await page.getByRole("button", { name: "Privacy & Cookies" }).click();
   await expect(page).toHaveURL(/#privacy$/);

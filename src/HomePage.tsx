@@ -385,12 +385,12 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.32, ease: "easeOut" }}
           >
-            <p className="home-eyebrow">Local-first code to diagrams</p>
-            <h1 id="home-title">Write code. Drag boxes and lines into place.</h1>
+            <p className="home-eyebrow">MCP-Ready · Modern Alternative to Draw.io &amp; Mermaid.ai</p>
+            <h1 id="home-title">Code to diagram, or right-click to edit directly.</h1>
             <p className="home-lead">
-              Paste Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML and
-              reposition every node and connector by hand. Your work stays in your browser with no
-              account required.
+              Skip clunky legacy UIs and annoying AI paywalls. Paste Mermaid, DOT, PlantUML, D2,
+              SQL, TypeScript, or XML — or right-click any box, line, or canvas to edit, add nodes,
+              and drag into place. Local-first with zero sign-in.
             </p>
             <div className="home-cta-row">
               <button className="button primary home-cta-start" type="button" onClick={() => onStart()}>
@@ -412,12 +412,39 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
                 {stars !== null && <span className="home-star-count">{stars}</span>}
               </a>
             </div>
+            <div className="home-hero-mcp" aria-label="Install MCP server">
+              <span className="home-hero-mcp-badge">
+                <Terminal aria-hidden="true" size={13} />
+                MCP Ready
+              </span>
+              <code className="home-hero-mcp-cmd">npx -y ctd-mcp</code>
+              <button
+                type="button"
+                className="home-mcp-copy"
+                onClick={() => {
+                  void navigator.clipboard.writeText("npx -y ctd-mcp").then(() => {
+                    setMcpCopied(true);
+                    window.setTimeout(() => setMcpCopied(false), 1800);
+                  });
+                }}
+              >
+                {mcpCopied ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
+                <span>{mcpCopied ? "Copied" : "Install MCP"}</span>
+              </button>
+              <button
+                type="button"
+                className="home-hero-mcp-more"
+                onClick={() => document.getElementById("home-mcp-section")?.scrollIntoView({ behavior: "smooth" })}
+              >
+                Client configs ↓
+              </button>
+            </div>
             <ul className="home-trust-strip" aria-label="Highlights">
               <li>Mermaid v12.3.0</li>
               <li>7 code formats</li>
+              <li>Right-click edits</li>
               <li>SVG &amp; PNG export</li>
               <li>5-device live rooms</li>
-              <li>MCP via npx</li>
             </ul>
           </motion.div>
 
@@ -519,7 +546,7 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
           </motion.article>
         </section>
 
-        <section className="home-mcp" aria-label="MCP integration">
+        <section id="home-mcp-section" className="home-mcp" aria-label="MCP integration">
           <div className="home-mcp-copy">
             <span className="home-eyebrow">
               <Terminal aria-hidden="true" size={13} /> CTD Studio MCP (ctd-mcp)

@@ -1808,6 +1808,55 @@ summary:focus-visible,
   text-decoration: none;
 }
 
+.home-hero-mcp {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  inline-size: fit-content;
+  max-inline-size: 100%;
+}
+
+.home-hero-mcp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft, rgb(184 99 36 / 12%));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.home-hero-mcp-cmd {
+  padding: 2px 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.home-hero-mcp-more {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.home-hero-mcp-more:hover {
+  color: var(--ink);
+}
+
 .home-trust-strip {
   display: flex;
   flex-wrap: wrap;
