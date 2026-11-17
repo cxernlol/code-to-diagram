@@ -136,3 +136,7 @@ npm run mcp:test
 - **Storage:** Diagrams, layouts, and preferences stay in your browser's IndexedDB. Legacy `mstudio2` `localStorage` data is migrated on first load while keeping a recovery copy.
 - **AI Requests & Keys:** API keys are stored in your browser only and are never included in share URLs. Prompts, diagram source, and keys are sent directly from your browser to the endpoint you configure.
 - **Cost:** CTD Studio is free to run and has no accounts or paid tiers. If you connect a commercial AI API key, provider usage is billed by that provider.
+
+## Contributing
+
+All changes go through Pull Requests. See [CONTRIBUTING.md](CONTRIBUTING.md) for strict scope boundaries, local-first rules, and required checks before opening a PR.
