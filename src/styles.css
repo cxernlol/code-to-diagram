@@ -3323,6 +3323,7 @@ summary:focus-visible,
 .canvas-context-menu button[role="menuitem"] {
   display: flex;
   align-items: center;
+  gap: 8px;
   inline-size: 100%;
   padding: 7px 10px;
   border: 0;
@@ -3330,8 +3331,17 @@ summary:focus-visible,
   background: transparent;
   color: var(--ink);
   font-size: 12px;
+  line-height: 1.3;
   text-align: start;
   cursor: pointer;
+}
+
+.canvas-context-menu button[role="menuitem"] svg {
+  flex: 0 0 auto;
+}
+
+.canvas-context-menu button[role="menuitem"].danger-item {
+  color: #b43c2c;
 }
 
 .canvas-context-menu button[role="menuitem"]:hover:not(:disabled),

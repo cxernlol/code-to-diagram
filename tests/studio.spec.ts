@@ -1261,3 +1261,20 @@ test("node context menu toggles visibility of multiple class members like Canva"
   await page.getByRole("button", { name: "Show all" }).click();
   await expect(page.locator(".cm-content")).not.toContainText("sgs-hidden-member");
 });
+
+test("deletes nodes via right-click menu and Delete key", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByLabel("Start from a template").selectOption("Class");
+  const dogNode = page.locator('[data-sgs-node="Dog"]');
+  await expect(dogNode).toBeVisible();
+
+  await dogNode.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete class" }).click();
+  await expect(dogNode).toHaveCount(0);
+
+  const catNode = page.locator('[data-sgs-node="Cat"]');
+  await expect(catNode).toBeVisible();
+  await catNode.focus();
+  await page.keyboard.press("Delete");
+  await expect(catNode).toHaveCount(0);
+});

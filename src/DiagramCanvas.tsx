@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Code2, Eye, EyeOff, LayoutGrid, Pencil, Plus, RotateCcw, Scan, Shapes, Trash2 } from "lucide-react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import type { DiagramDocument, Position, StudioSettings } from "./types";
@@ -221,6 +222,40 @@ function showHiddenNodesInCode(code: string): string | null {
     .filter((line) => !/^\s*%%\s*sgs-hide:\s*.+$/.test(line))
     .map((line) => line.replace(/^(\s*)%%\s*sgs-hidden-member:\s*(.+)$/, "$1$2"))
     .join("\n");
+  return next !== code ? next : null;
+}
+
+function deleteNodesInCode(code: string, nodeIds: string[]): string | null {
+  const targets = Array.from(new Set(nodeIds.map((id) => id.trim()).filter(Boolean)));
+  if (!targets.length) return null;
+  let lines = code.split(/\r?\n/);
+  const kind = detectDiagramType(code);
+
+  for (const nodeId of targets) {
+    const range = findNodeBlockRange(lines, lines.join("\n"), nodeId);
+    if (range) {
+      lines.splice(range.start, range.end - range.start + 1);
+    }
+    const escaped = escapeRegex(nodeId);
+    const idTokenRe = new RegExp(`(?:^|[\\s|>])${escaped}(?:$|[\\s\\[\\(\\{<:\\-.=])`);
+    const declRe =
+      kind === "class"
+        ? new RegExp(`^\\s*class\\s+${escaped}(?:\\s*\\[[^\\]]*\\])?\\s*$`)
+        : kind === "state"
+          ? new RegExp(`^\\s*state\\s+(?:"[^"]*"\\s+as\\s+)?${escaped}\\s*$`)
+          : new RegExp(`^\\s*${escaped}\\s*(?:\\[|\\(|\\{|$)`);
+
+    lines = lines.filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("%%")) return true;
+      if (declRe.test(line)) return false;
+      const isEdgeLine = /(?:-->|---|==>|-\.->|--x|--o|<\|--|--\|>|\*--|o--|\.\.|--)/.test(trimmed);
+      if (isEdgeLine && idTokenRe.test(trimmed)) return false;
+      return true;
+    });
+  }
+
+  const next = lines.join("\n");
   return next !== code ? next : null;
 }
 
@@ -1118,6 +1153,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const onLayoutChangeRef = useRef(onLayoutChange);
   const onNodeMovedRef = useRef(onNodeMoved);
   const onNodeSelectRef = useRef(onNodeSelect);
+  const documentRef = useRef(document);
+  const onCodeChangeRef = useRef(onCodeChange);
+  documentRef.current = document;
+  onCodeChangeRef.current = onCodeChange;
   const spaceDown = useRef(false);
   const toolModeRef = useRef<"move" | "hand">("move");
   const pendingFitRef = useRef(false);
@@ -1460,8 +1499,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      const element = event.target instanceof HTMLElement ? event.target : undefined;
-      const editing = element?.isContentEditable ||
+      const element = event.target instanceof Element ? event.target : undefined;
+      const editing =
+        (element instanceof HTMLElement && element.isContentEditable) ||
         Boolean(element?.closest("input, textarea, select, [contenteditable='true']"));
       if (event.code === "Space") {
         if (!editing && !element?.closest("button, a, summary")) {
@@ -1495,6 +1535,22 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       } else if (event.key === "-" || event.code === "NumpadSubtract") {
         event.preventDefault();
         zoomBy(1 / 1.15);
+      } else if ((event.key === "Delete" || event.key === "Backspace") && !readOnlyRef.current && onCodeChangeRef.current) {
+        const focusedNodeId = element?.closest<SVGGElement>("[data-sgs-node]")?.dataset.sgsNode;
+        const targets = selectedIdsRef.current.size > 0
+          ? Array.from(selectedIdsRef.current)
+          : focusedNodeId
+            ? [focusedNodeId]
+            : [];
+        if (!targets.length) return;
+        const updated = deleteNodesInCode(documentRef.current.code, targets);
+        if (!updated) return;
+        event.preventDefault();
+        selectedIdsRef.current.clear();
+        const nextLayout = { ...documentRef.current.layout };
+        for (const id of targets) delete nextLayout[id];
+        onLayoutChangeRef.current(nextLayout);
+        onCodeChangeRef.current(updated);
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -2605,12 +2661,14 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 <>
                   {onCodeChange && !readOnly && updateNodeLabelInCode(document.code, contextMenu.id, contextMenu.label) && (
                     <button type="button" role="menuitem" onClick={() => setEditingLabel(true)}>
-                      Edit label…
+                      <Pencil aria-hidden="true" size={14} />
+                      <span>Edit label…</span>
                     </button>
                   )}
                   {onCodeChange && !readOnly && detectDiagramType(document.code) === "flowchart" && (
                     <button type="button" role="menuitem" onClick={() => setPickingShape(true)}>
-                      Change shape…
+                      <Shapes aria-hidden="true" size={14} />
+                      <span>Change shape…</span>
                     </button>
                   )}
                   {onCodeChange && !readOnly && (() => {
@@ -2624,13 +2682,15 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                           setContextMenu(null);
                         }}
                       >
-                        {addition.label}
+                        <Plus aria-hidden="true" size={14} />
+                        <span>{addition.label}</span>
                       </button>
                     ) : null;
                   })()}
                   {onCodeChange && !readOnly && listNodeMembersInCode(document.code, contextMenu.id).length > 0 && (
                     <button type="button" role="menuitem" onClick={() => setPickingMembers(true)}>
-                      Visibility / members…
+                      <Eye aria-hidden="true" size={14} />
+                      <span>Visibility / members…</span>
                     </button>
                   )}
                   {onCodeChange && !readOnly && contextMenu.member && hideClassMemberInCode(document.code, contextMenu.id, contextMenu.member) && (
@@ -2643,7 +2703,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                         setContextMenu(null);
                       }}
                     >
-                      Hide "{contextMenu.member}" (suppress)
+                      <EyeOff aria-hidden="true" size={14} />
+                      <span>Hide "{contextMenu.member}" (suppress)</span>
                     </button>
                   )}
                   {onCodeChange && !readOnly && hideNodeInCode(document.code, contextMenu.id) && (
@@ -2656,7 +2717,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                         setContextMenu(null);
                       }}
                     >
-                      {detectDiagramType(document.code) === "class" ? "Hide class (suppress)" : "Hide node (suppress)"}
+                      <EyeOff aria-hidden="true" size={14} />
+                      <span>{detectDiagramType(document.code) === "class" ? "Hide class (suppress)" : "Hide node (suppress)"}</span>
                     </button>
                   )}
                   <button
@@ -2667,7 +2729,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       setContextMenu(null);
                     }}
                   >
-                    Jump to code
+                    <Code2 aria-hidden="true" size={14} />
+                    <span>Jump to code</span>
                   </button>
                   <button
                     type="button"
@@ -2680,8 +2743,29 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       setContextMenu(null);
                     }}
                   >
-                    Reset node position
+                    <RotateCcw aria-hidden="true" size={14} />
+                    <span>Reset node position</span>
                   </button>
+                  {onCodeChange && !readOnly && deleteNodesInCode(document.code, [contextMenu.id]) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="danger-item"
+                      onClick={() => {
+                        const updated = deleteNodesInCode(document.code, [contextMenu.id]);
+                        if (updated) {
+                          const nextLayout = { ...document.layout };
+                          delete nextLayout[contextMenu.id];
+                          onLayoutChange(nextLayout);
+                          onCodeChange(updated);
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" size={14} />
+                      <span>{detectDiagramType(document.code) === "class" ? "Delete class" : "Delete node"}</span>
+                    </button>
+                  )}
                 </>
               )}
             </>
@@ -2710,7 +2794,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 <>
                   {onCodeChange && !readOnly && updateEdgeLabelInCode(document.code, contextMenu.id, contextMenu.label || "label") && (
                     <button type="button" role="menuitem" onClick={() => setEditingLabel(true)}>
-                      Edit label…
+                      <Pencil aria-hidden="true" size={14} />
+                      <span>Edit label…</span>
                     </button>
                   )}
                   <button
@@ -2724,7 +2809,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       setContextMenu(null);
                     }}
                   >
-                    Reset line offset
+                    <RotateCcw aria-hidden="true" size={14} />
+                    <span>Reset line offset</span>
                   </button>
                 </>
               )}
@@ -2743,7 +2829,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       setContextMenu(null);
                     }}
                   >
-                    {addition.label}
+                    <Plus aria-hidden="true" size={14} />
+                    <span>{addition.label}</span>
                   </button>
                 ) : null;
               })()}
@@ -2756,7 +2843,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   setContextMenu(null);
                 }}
               >
-                Auto-arrange (grid)
+                <LayoutGrid aria-hidden="true" size={14} />
+                <span>Auto-arrange (grid)</span>
               </button>
               <button
                 type="button"
@@ -2766,7 +2854,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   setContextMenu(null);
                 }}
               >
-                Fit to view
+                <Scan aria-hidden="true" size={14} />
+                <span>Fit to view</span>
               </button>
               <button
                 type="button"
@@ -2776,7 +2865,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   setContextMenu(null);
                 }}
               >
-                Reset zoom (100%)
+                <RotateCcw aria-hidden="true" size={14} />
+                <span>Reset zoom (100%)</span>
               </button>
               <button
                 type="button"
@@ -2787,7 +2877,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   setContextMenu(null);
                 }}
               >
-                Reset all positions
+                <RotateCcw aria-hidden="true" size={14} />
+                <span>Reset all positions</span>
               </button>
               {onCodeChange && !readOnly && showHiddenNodesInCode(document.code) && (
                 <button
@@ -2799,7 +2890,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                     setContextMenu(null);
                   }}
                 >
-                  Show hidden nodes
+                  <Eye aria-hidden="true" size={14} />
+                  <span>Show hidden nodes</span>
                 </button>
               )}
             </>
