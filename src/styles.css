@@ -1185,6 +1185,77 @@ summary:focus-visible,
   box-shadow: var(--shadow);
 }
 
+.new-diagram-dialog::backdrop {
+  overflow: hidden;
+  background: rgb(16 34 37 / 54%);
+  overscroll-behavior: contain;
+}
+
+.new-diagram-dialog {
+  inline-size: min(560px, calc(100vw - 24px));
+  max-block-size: min(84dvh, 640px);
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.new-diagram-dialog[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.new-diagram-body {
+  display: grid;
+  gap: 18px;
+  overflow: auto;
+  padding: 16px 19px 20px;
+}
+
+.new-diagram-section {
+  display: grid;
+  gap: 10px;
+}
+
+.new-diagram-section h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.new-diagram-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  gap: 8px;
+}
+
+.new-diagram-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--editor-bg);
+  cursor: pointer;
+  font-size: 12.5px;
+  text-align: left;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.new-diagram-option:hover,
+.new-diagram-option:focus-visible {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
 .confirm-dialog-body {
   display: grid;
   gap: 6px;

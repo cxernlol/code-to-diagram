@@ -1171,6 +1171,10 @@ test("mobile layout has no horizontal overflow or toolbar overlap across all pag
 test("deleting a diagram tab opens a centered confirmation dialog with Delete and Cancel", async ({ page }) => {
   await page.goto("/#app");
   await page.getByRole("button", { name: "New diagram" }).click();
+  const picker = page.locator(".new-diagram-dialog");
+  await expect(picker).toBeVisible();
+  await expect(picker.getByRole("button", { name: "Decision {Check}" })).toBeVisible();
+  await picker.getByRole("button", { name: "Flowchart", exact: true }).click();
   await expect(page.locator(".document-tab")).toHaveCount(2);
 
   await page.getByRole("button", { name: "Close Flowchart" }).first().click();

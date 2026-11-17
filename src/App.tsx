@@ -258,6 +258,7 @@ function App() {
   const canvasRef = useRef<DiagramCanvasHandle>(null);
   const settingsDialog = useRef<HTMLDialogElement>(null);
   const deleteDialog = useRef<HTMLDialogElement>(null);
+  const newDiagramDialog = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const splitRef = useRef<HTMLDivElement>(null);
   const [bootError, setBootError] = useState<unknown>();
@@ -275,6 +276,7 @@ function App() {
   const [mobilePane, setMobilePane] = useState<"code" | "preview">("preview");
   const [expandedPane, setExpandedPane] = useState<"none" | "code" | "preview">("none");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newDiagramOpen, setNewDiagramOpen] = useState(false);
   const [aiMenuOpen, setAiMenuOpen] = useState(false);
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [studioMenuOpen, setStudioMenuOpen] = useState(false);
@@ -704,6 +706,16 @@ function App() {
       dialog.close();
     }
   }, [pendingDeleteId]);
+
+  useEffect(() => {
+    const dialog = newDiagramDialog.current;
+    if (!dialog) return;
+    if (newDiagramOpen && !dialog.open) {
+      dialog.showModal();
+    } else if (!newDiagramOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [newDiagramOpen]);
 
   const createTab = useCallback(
     (name = "Flowchart", code = TEMPLATES.Flowchart) => {
@@ -1343,7 +1355,7 @@ function App() {
             </div>
           ))}
         </div>
-        <button className="new-tab-button" type="button" onClick={() => createTab()} aria-label="New diagram">
+        <button className="new-tab-button" type="button" onClick={() => setNewDiagramOpen(true)} aria-label="New diagram" title="New diagram">
           <Plus aria-hidden="true" size={17} />
         </button>
         <div className="tab-actions-wrap">
@@ -2157,6 +2169,71 @@ function App() {
           )}
         </div>
       </div>
+
+      <dialog
+        ref={newDiagramDialog}
+        className="new-diagram-dialog"
+        aria-labelledby="new-diagram-title"
+        onClose={() => setNewDiagramOpen(false)}
+        onClick={(event) => {
+          if (event.target === newDiagramDialog.current) setNewDiagramOpen(false);
+        }}
+      >
+        <div className="dialog-heading">
+          <div>
+            <h2 id="new-diagram-title">New diagram</h2>
+            <p>Start from a template or pick a starter node.</p>
+          </div>
+          <button className="icon-button" type="button" aria-label="Close new diagram picker" onClick={() => setNewDiagramOpen(false)}>
+            <X aria-hidden="true" size={17} />
+          </button>
+        </div>
+        <div className="new-diagram-body">
+          <div className="new-diagram-section">
+            <h3>Templates</h3>
+            <div className="new-diagram-grid">
+              {Object.entries(TEMPLATES).map(([name, code]) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="new-diagram-option"
+                  onClick={() => {
+                    createTab(name, code);
+                    setNewDiagramOpen(false);
+                  }}
+                >
+                  <strong>{name}</strong>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="new-diagram-section">
+            <h3>Quick Nodes &amp; Shapes</h3>
+            <div className="new-diagram-grid">
+              {[
+                { label: "Rectangle [Node]", title: "Flowchart", code: "flowchart TD\n  A[Start]" },
+                { label: "Decision {Check}", title: "Decision Flow", code: "flowchart TD\n  Start([Start]) --> Check{Condition?}" },
+                { label: "Database [(DB)]", title: "Service DB", code: "flowchart TD\n  Service[Service] --> DB[(Database)]" },
+                { label: "Class { }", title: "Class", code: "classDiagram\n  class Class1 {\n    +String id\n  }" },
+                { label: "ER Entity { }", title: "ER Entity", code: "erDiagram\n  ENTITY1 {\n    int id PK\n  }" },
+                { label: "State", title: "State", code: "stateDiagram-v2\n  [*] --> Idle" },
+              ].map((nodeItem) => (
+                <button
+                  key={nodeItem.label}
+                  type="button"
+                  className="new-diagram-option"
+                  onClick={() => {
+                    createTab(nodeItem.title, nodeItem.code);
+                    setNewDiagramOpen(false);
+                  }}
+                >
+                  <strong>{nodeItem.label}</strong>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </dialog>
 
       <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
       <AppTooltip />
