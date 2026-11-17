@@ -42,6 +42,40 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const FLOWCHART_SHAPES = [
+  { label: "Rectangle", open: "[", close: "]" },
+  { label: "Rounded", open: "(", close: ")" },
+  { label: "Stadium", open: "([", close: "])" },
+  { label: "Diamond", open: "{", close: "}" },
+  { label: "Circle", open: "((", close: "))" },
+  { label: "Subroutine", open: "[[", close: "]]" },
+  { label: "Cylinder", open: "[(", close: ")]" },
+  { label: "Hexagon", open: "{{", close: "}}" },
+] as const;
+
+function updateNodeShapeInCode(
+  code: string,
+  nodeId: string,
+  open: string,
+  close: string,
+  fallbackLabel: string,
+): string | null {
+  if (detectDiagramType(code) !== "flowchart") return null;
+  const escapedId = escapeRegex(nodeId);
+  const shapeRe = new RegExp(
+    `(\\b${escapedId})(\\[\\[|\\[\\(|\\(\\(|\\(\\[|\\{\\{|\\[|\\(|\\{)([^\\]\\)\\}]*)(\\]\\]|\\)\\]|\\)\\)|\\]\\)|\\}\\}|\\]|\\)|\\})`,
+    "m",
+  );
+  if (shapeRe.test(code)) {
+    return code.replace(shapeRe, `$1${open}$3${close}`);
+  }
+  if (new RegExp(`\\b${escapedId}\\b`).test(code)) {
+    const safe = (fallbackLabel.trim() || nodeId).replace(/"/g, "'");
+    return `${code.trimEnd()}\n  ${nodeId}${open}"${safe}"${close}`;
+  }
+  return null;
+}
+
 function updateNodeLabelInCode(code: string, nodeId: string, nextLabel: string): string | null {
   const trimmed = nextLabel.trim();
   if (!trimmed) return null;
@@ -943,6 +977,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
   const [editingLabel, setEditingLabel] = useState(false);
+  const [pickingShape, setPickingShape] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
 
   settingsRef.current = settings;
@@ -2239,6 +2274,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const nodeEl = target?.closest<SVGGElement>("[data-sgs-node]");
     const edgeEl = target?.closest<SVGGElement>("[data-sgs-edge], [data-sgs-edge-id]");
     setEditingLabel(false);
+    setPickingShape(false);
     const edgeId = edgeEl?.dataset.sgsEdge || edgeEl?.dataset.sgsEdgeId;
     if (nodeEl?.dataset.sgsNode) {
       const id = nodeEl.dataset.sgsNode;
@@ -2333,11 +2369,39 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   />
                   <button className="button primary compact" type="submit">Apply</button>
                 </form>
+              ) : pickingShape && onCodeChange ? (
+                <>
+                  {FLOWCHART_SHAPES.map((shape) => (
+                    <button
+                      key={shape.label}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        const updated = updateNodeShapeInCode(
+                          document.code,
+                          contextMenu.id,
+                          shape.open,
+                          shape.close,
+                          contextMenu.label,
+                        );
+                        if (updated) onCodeChange(updated);
+                        setContextMenu(null);
+                      }}
+                    >
+                      {shape.label}
+                    </button>
+                  ))}
+                </>
               ) : (
                 <>
                   {onCodeChange && !readOnly && updateNodeLabelInCode(document.code, contextMenu.id, contextMenu.label) && (
                     <button type="button" role="menuitem" onClick={() => setEditingLabel(true)}>
                       Edit label…
+                    </button>
+                  )}
+                  {onCodeChange && !readOnly && detectDiagramType(document.code) === "flowchart" && (
+                    <button type="button" role="menuitem" onClick={() => setPickingShape(true)}>
+                      Change shape…
                     </button>
                   )}
                   {onCodeChange && !readOnly && (() => {

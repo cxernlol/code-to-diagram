@@ -15,7 +15,6 @@ import {
   History,
   ImageDown,
   LayoutGrid,
-  Link2,
   MousePointer,
   Palette,
   PanelRight,
@@ -64,7 +63,6 @@ import {
 } from "./ai";
 
 import {
-  createShareHash,
   exportPng,
   exportSvg,
   getImportedMermaid,
@@ -1032,17 +1030,6 @@ function App() {
     }
   };
 
-  const share = async () => {
-    if (!activeDocument) return;
-    try {
-      const url = `${window.location.origin}${window.location.pathname}${createShareHash(activeDocument.code, activeDocument.layout)}`;
-      await navigator.clipboard.writeText(url);
-      setNotice("Share link copied.");
-    } catch (error) {
-      setStorageError(`Share link could not be copied: ${errorText(error)}`);
-    }
-  };
-
   const saveMmd = () => {
     if (!activeDocument) return;
     const format = detectCodeFormat(activeDocument.code);
@@ -1201,9 +1188,6 @@ function App() {
           <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,text/plain,text/markdown,application/xml" onChange={(event) => void importFile(event)} />
           <button className="icon-button" title="Copy source" aria-label="Copy Mermaid source" onClick={() => void copyCode()}>
             <Copy aria-hidden="true" size={17} />
-          </button>
-          <button className="icon-button" title="Copy share link" aria-label="Copy share link" onClick={() => void share()}>
-            <Link2 aria-hidden="true" size={17} />
           </button>
           <button
             className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
