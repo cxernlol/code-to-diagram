@@ -42,6 +42,39 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function readNodeTitle(nodeEl: SVGGElement, id: string): string {
+  const titleEl = nodeEl.querySelector<HTMLElement | SVGElement>(
+    ".classTitleText, .label-group .nodeLabel, .entityLabel, .nodeLabel",
+  );
+  const text = titleEl?.textContent?.trim();
+  if (text) return text;
+  if (nodeEl.querySelector(".divider, .outer-path")) return id;
+  return nodeEl.textContent?.trim() || id;
+}
+
+function getHiddenNodeIds(code: string): Set<string> {
+  const ids = new Set<string>();
+  for (const line of code.split(/\r?\n/)) {
+    const m = line.match(/^\s*%%\s*sgs-hide:\s*(.+?)\s*$/);
+    if (m?.[1]) ids.add(m[1]);
+  }
+  return ids;
+}
+
+function hideNodeInCode(code: string, nodeId: string): string | null {
+  const hidden = getHiddenNodeIds(code);
+  if (hidden.has(nodeId)) return null;
+  return `${code.trimEnd()}\n%% sgs-hide: ${nodeId}`;
+}
+
+function showHiddenNodesInCode(code: string): string | null {
+  const filtered = code
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*%%\s*sgs-hide:\s*.+$/.test(line));
+  const next = filtered.join("\n");
+  return next !== code ? next : null;
+}
+
 function updateNodeLabelInCode(code: string, nodeId: string, nextLabel: string): string | null {
   const trimmed = nextLabel.trim();
   if (!trimmed) return null;
@@ -1436,6 +1469,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       );
       return !hasNodeAncestor && Boolean(element.id || element.dataset.id);
     });
+    const hiddenNodeIds = getHiddenNodeIds(document.code);
     const nodes = candidates.map((element) => {
       const id = element.dataset.id || stableNodeId(element.id);
       const base = readTranslation(element.getAttribute("transform"));
@@ -1443,6 +1477,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const position = document.layout[id] ?? base;
       const wrapper = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
       wrapper.dataset.sgsNode = id;
+      if (hiddenNodeIds.has(id)) wrapper.style.display = "none";
       wrapper.setAttribute("tabindex", "0");
       wrapper.setAttribute("role", "group");
       wrapper.setAttribute("aria-label", `Diagram node ${id}. Use arrow keys to move.`);
@@ -1497,6 +1532,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       if (source && target && source.id !== target.id) {
         path.dataset.sgsSource = source.id;
         path.dataset.sgsTarget = target.id;
+        if (hiddenNodeIds.has(source.id) || hiddenNodeIds.has(target.id)) {
+          path.style.display = "none";
+        }
         return [{ path, source, target, start, end, mid, samples }];
       }
       return [];
@@ -2132,7 +2170,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const edgeId = edgeEl?.dataset.sgsEdge || edgeEl?.dataset.sgsEdgeId;
     if (nodeEl?.dataset.sgsNode) {
       const id = nodeEl.dataset.sgsNode;
-      const label = nodeEl.textContent?.trim() || id;
+      const label = readNodeTitle(nodeEl, id);
       setLabelDraft(label);
       setContextMenu({ kind: "node", x, y, id, label });
     } else if (edgeId) {
@@ -2233,6 +2271,19 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       </button>
                     ) : null;
                   })()}
+                  {onCodeChange && !readOnly && hideNodeInCode(document.code, contextMenu.id) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        const updated = hideNodeInCode(document.code, contextMenu.id);
+                        if (updated) onCodeChange(updated);
+                        setContextMenu(null);
+                      }}
+                    >
+                      {detectDiagramType(document.code) === "class" ? "Hide class (suppress)" : "Hide node (suppress)"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     role="menuitem"
@@ -2363,6 +2414,19 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
               >
                 Reset all positions
               </button>
+              {onCodeChange && !readOnly && showHiddenNodesInCode(document.code) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    const updated = showHiddenNodesInCode(document.code);
+                    if (updated) onCodeChange(updated);
+                    setContextMenu(null);
+                  }}
+                >
+                  Show hidden nodes
+                </button>
+              )}
             </>
           )}
         </div>
