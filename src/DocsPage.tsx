@@ -162,6 +162,9 @@ CREATE TABLE diagrams (
     example: `interface Node {
   id: string;
 }
+interface User {
+  id: string;
+}
 class Diagram implements Node {
   id: string;
   owner: User;
@@ -306,16 +309,31 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
             </button>
           </div>
           <div className="home-format-tabs docs-guide-tabs" role="tablist" aria-label="Format syntax tabs">
-            {FORMAT_GUIDES.map((guide) => {
+            {FORMAT_GUIDES.map((guide, index) => {
               const active = guide.id === activeGuide.id;
               return (
                 <button
                   key={guide.id}
+                  id={`docs-guide-tab-${guide.id}`}
                   type="button"
                   role="tab"
                   aria-selected={active}
+                  aria-controls="docs-guide-panel"
+                  tabIndex={active ? 0 : -1}
                   className={`home-format-tab${active ? " active" : ""}`}
                   onClick={() => setActiveGuideId(guide.id)}
+                  onKeyDown={(event) => {
+                    let nextIndex: number | null = null;
+                    if (event.key === "ArrowRight") nextIndex = (index + 1) % FORMAT_GUIDES.length;
+                    else if (event.key === "ArrowLeft") nextIndex = (index - 1 + FORMAT_GUIDES.length) % FORMAT_GUIDES.length;
+                    else if (event.key === "Home") nextIndex = 0;
+                    else if (event.key === "End") nextIndex = FORMAT_GUIDES.length - 1;
+                    if (nextIndex === null) return;
+                    event.preventDefault();
+                    const nextGuide = FORMAT_GUIDES[nextIndex]!;
+                    setActiveGuideId(nextGuide.id);
+                    document.getElementById(`docs-guide-tab-${nextGuide.id}`)?.focus();
+                  }}
                 >
                   {active && (
                     <motion.span
@@ -329,7 +347,12 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
               );
             })}
           </div>
-          <div className="docs-guide-split">
+          <div
+            id="docs-guide-panel"
+            role="tabpanel"
+            aria-labelledby={`docs-guide-tab-${activeGuide.id}`}
+            className="docs-guide-split"
+          >
             <table className="docs-table">
               <thead>
                 <tr>
