@@ -1107,3 +1107,28 @@ test("preserves prefix-like user node IDs without collisions and respects data-i
   await expect(page.locator('[data-sgs-node="entity-Item"]')).toHaveCount(1);
   await expect(page.locator('[data-sgs-node="Item"]')).toHaveCount(1);
 });
+
+test("mobile topbar and pane toolbars do not overlap on narrow viewports", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/#app");
+
+  const brandBox = await page.locator(".brand-home-button").boundingBox();
+  const topActionsBox = await page.locator(".top-actions").boundingBox();
+  expect(brandBox).not.toBeNull();
+  expect(topActionsBox).not.toBeNull();
+  expect(brandBox!.x + brandBox!.width).toBeLessThanOrEqual(topActionsBox!.x + 1);
+
+  await page.locator(".mobile-pane-switch").getByRole("button", { name: "Preview", exact: true }).click();
+  const previewTitleBox = await page.locator(".preview-toolbar .pane-title").boundingBox();
+  const previewActionsBox = await page.locator(".preview-toolbar .preview-actions").boundingBox();
+  expect(previewTitleBox).not.toBeNull();
+  expect(previewActionsBox).not.toBeNull();
+  expect(previewTitleBox!.x + previewTitleBox!.width).toBeLessThanOrEqual(previewActionsBox!.x + 1);
+
+  await page.locator(".mobile-pane-switch").getByRole("button", { name: "Code", exact: true }).click();
+  const editorTitleBox = await page.locator(".editor-toolbar .pane-title").boundingBox();
+  const editorActionsBox = await page.locator(".editor-toolbar .pane-actions").boundingBox();
+  expect(editorTitleBox).not.toBeNull();
+  expect(editorActionsBox).not.toBeNull();
+  expect(editorTitleBox!.x + editorTitleBox!.width).toBeLessThanOrEqual(editorActionsBox!.x + 1);
+});

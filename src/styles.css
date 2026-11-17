@@ -1513,6 +1513,31 @@ summary:focus-visible,
     white-space: nowrap;
   }
 
+  .pane-title {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .pane-actions,
+  .preview-actions {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pane-actions::-webkit-scrollbar,
+  .preview-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pane-actions > *,
+  .preview-actions > * {
+    flex: 0 0 auto;
+  }
+
   .workspace {
     grid-template-columns: minmax(240px, var(--split)) 6px minmax(250px, 1fr);
   }
@@ -1536,6 +1561,16 @@ summary:focus-visible,
     padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
   }
 
+  .topbar {
+    gap: 10px;
+    min-block-size: 48px;
+    padding-block-end: 6px;
+  }
+
+  .brand-lockup {
+    flex: 0 0 auto;
+  }
+
   .diagram-viewport {
     overscroll-behavior: contain;
   }
@@ -1547,10 +1582,21 @@ summary:focus-visible,
   }
 
   .top-actions {
+    flex: 0 1 auto;
+    min-inline-size: 0;
     gap: 2px;
     overflow-x: auto;
+    flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+  }
+
+  .top-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .pane-toolbar {
+    gap: 8px;
   }
 
   .top-actions::-webkit-scrollbar,
