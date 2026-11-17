@@ -851,9 +851,17 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await animalNode.click({ button: "right" });
   await expect(menu).toBeVisible();
   await menu.getByRole("menuitem", { name: "Edit label…" }).click();
+  await expect(menu.getByLabel("Node label")).toHaveValue("Animal");
   await menu.getByLabel("Node label").fill("Creature");
   await menu.getByRole("button", { name: "Apply" }).click();
   await expect(animalNode).toContainText("Creature");
+
+  await animalNode.click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "Hide class (suppress)" }).click();
+  await expect(animalNode).toBeHidden();
+  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
+  await menu.getByRole("menuitem", { name: "Show hidden nodes" }).click();
+  await expect(animalNode).toBeVisible();
 
   await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
   await menu.getByRole("menuitem", { name: "Add class" }).click();
