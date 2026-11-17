@@ -332,7 +332,7 @@ test("creates structured tabs only after every Mermaid block validates", async (
   });
   await page.goto("/#app");
   await page.getByRole("button", { name: "AI actions" }).click();
-  await page.getByRole("button", { name: "Structure" }).click();
+  await page.getByRole("menuitem", { name: "Structure" }).click();
   await expect(page.getByRole("heading", { name: "Structured diagrams" })).toBeVisible();
   await expect(page.getByText("Checkout", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Apply" }).click();
