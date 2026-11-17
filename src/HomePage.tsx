@@ -369,10 +369,6 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
               <span>Star on GitHub</span>
               {stars !== null && <span className="home-star-pill">{stars}</span>}
             </a>
-            <button className="button primary home-nav-start" type="button" onClick={() => onStart()}>
-              Start
-              <ArrowRight aria-hidden="true" size={15} />
-            </button>
           </nav>
         </div>
       </header>
