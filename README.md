@@ -10,7 +10,7 @@ Write diagram code, drag it into shape, export. No account, no server.
 
 Supports Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN). Your diagrams stay in your browser.
 
-<video src="https://github.com/cxernlol/code-to-diagram/raw/main/assets/demo.mp4" controls muted loop playsinline width="100%">
+<video src="https://github.com/cxernlol/code-to-diagram/raw/main/assets/demo.mp4" controls muted loop playsinline width="800">
   <a href="https://github.com/cxernlol/code-to-diagram/blob/main/assets/demo.mp4">Watch the CTD Studio demo video</a>
 </video>
 
