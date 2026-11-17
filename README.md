@@ -35,6 +35,21 @@ Run the Playwright end-to-end test suite:
 npm test
 ```
 
+## MCP Server (`npx`)
+
+SGS Studio includes a Model Context Protocol (MCP) server in [`mcp/`](mcp/README.md) that reuses the same multi-format parsers and translators:
+
+```bash
+npx -y github:cxernlol/sgs-chify
+```
+
+Build and test the MCP server locally:
+
+```bash
+npm run mcp:build
+npm run mcp:test
+```
+
 ## Data & Privacy
 
 - **Storage:** Diagrams and preferences stay in your browser's IndexedDB. Legacy `mstudio2` `localStorage` data is migrated on first load while keeping a recovery copy.

@@ -1,0 +1,44 @@
+{
+  "name": "sgs-studio-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for SGS Studio — convert and translate Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "sgs-studio-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sgs-studio",
+    "mermaid",
+    "diagram",
+    "graphviz",
+    "plantuml",
+    "d2",
+    "sql",
+    "typescript",
+    "xml"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cxernlol/sgs-chify.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://sgs-chify.vercel.app/",
+  "bugs": {
+    "url": "https://github.com/cxernlol/sgs-chify/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@xmldom/xmldom": "^0.9.12",
+    "zod": "^4.6.7"
+  }
+}
