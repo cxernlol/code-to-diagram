@@ -1507,17 +1507,57 @@ summary:focus-visible,
 }
 
 @media (max-width: 700px) {
+  html,
+  body {
+    overscroll-behavior-y: contain;
+  }
+
   .studio {
-    grid-template-rows: 53px 42px auto 38px minmax(0, 1fr);
+    grid-template-rows: auto 42px auto 42px minmax(0, 1fr);
+    padding-block-end: env(safe-area-inset-bottom);
+  }
+
+  .topbar,
+  .home-nav-inner,
+  .docs-nav-inner {
+    padding-block-start: max(6px, env(safe-area-inset-top));
+    padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+  }
+
+  .diagram-viewport {
+    overscroll-behavior: contain;
+  }
+
+  input:not([type="color"]):not([type="checkbox"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
   }
 
   .top-actions {
-    gap: 1px;
+    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .top-actions::-webkit-scrollbar,
+  .pane-tools::-webkit-scrollbar,
+  .ai-presets::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pane-tools,
+  .ai-presets {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
 
   .top-actions .icon-button {
-    min-inline-size: 30px;
-    min-block-size: 32px;
+    min-inline-size: 36px;
+    min-block-size: 36px;
   }
 
   .save-status {
@@ -1626,12 +1666,54 @@ summary:focus-visible,
     padding-inline: 8px;
   }
 
+  .settings-dialog {
+    inline-size: calc(100vw - 20px);
+    max-block-size: 88dvh;
+    padding-block-end: max(16px, env(safe-area-inset-bottom));
+  }
+
   .settings-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .settings-grid .wide-field {
     grid-column: auto;
+  }
+
+  .home-cta-row {
+    inline-size: 100%;
+  }
+
+  .home-cta-start,
+  .home-cta-github {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .home-main,
+  .docs-main {
+    padding-inline: max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-right));
+    padding-block-end: max(40px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (pointer: coarse) {
+  .button,
+  .icon-button,
+  .mobile-pane-switch button,
+  .home-format-tab,
+  .docs-table,
+  .zoom-menu summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .icon-button.compact {
+    min-inline-size: 36px;
+    min-block-size: 36px;
+  }
+
+  .mobile-pane-switch button {
+    min-block-size: 36px;
   }
 }
 
