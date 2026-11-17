@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import type { DiagramDocument, Position, StudioSettings } from "./types";
+import { colorizeExportedNodes } from "./export";
 import {
   detectDiagramType,
   getMermaidErrorLine,
@@ -1367,13 +1368,17 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const graphic = graphicRef.current;
     if (!graphic || !rendered.svg) return;
     try {
-      graphic.replaceChildren(parseMermaidSvg(rendered.svg));
+      const svgEl = parseMermaidSvg(rendered.svg);
+      if (settings.colorizeBoxes) {
+        colorizeExportedNodes(svgEl, settingsRef.current);
+      }
+      graphic.replaceChildren(svgEl);
     } catch (error) {
       onRenderError({
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [rendered, onRenderError]);
+  }, [rendered, onRenderError, settings.colorizeBoxes]);
 
   useEffect(() => {
     const graphic = graphicRef.current;
@@ -2109,7 +2114,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         else term.setAttribute("transform", origTransform);
       });
     };
-  }, [rendered, document.id, document.code, document.layout, fit]);
+  }, [rendered, document.id, document.code, document.layout, fit, settings.colorizeBoxes]);
 
   const gridSize = Math.max(4, settings.snapSize) * viewTransform.k;
   const resolvedPalette = resolveDiagramPalette(settings);
