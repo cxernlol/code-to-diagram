@@ -1183,3 +1183,15 @@ test("deleting a diagram tab opens a centered confirmation dialog with Delete an
   await expect(dialog).toBeHidden();
   await expect(page.locator(".document-tab")).toHaveCount(1);
 });
+
+test("unknown routes render custom 404 page with noindex and working navigation", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/missing-route-404");
+
+  await expect(page.getByRole("heading", { name: /This diagram node isn't connected\./i })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+  await page.getByRole("button", { name: "Back to home" }).click();
+  await expect(page.locator(".home-hero")).toBeVisible();
+});

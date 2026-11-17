@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { applyPageSeo } from "./lib/seo";
+import { NotFoundPage } from "./NotFoundPage";
 import {
   BookOpen,
   Check,
@@ -194,7 +195,7 @@ function errorText(error: unknown): string {
     : message;
 }
 
-type AppView = "home" | "studio" | "docs" | "privacy" | "terms";
+type AppView = "home" | "studio" | "docs" | "privacy" | "terms" | "notFound";
 
 function isStudioHash(hash: string): boolean {
   return hash === "#app" || hash.startsWith("#d=") || hash.startsWith("#room=");
@@ -206,11 +207,12 @@ function viewFromLocation(pathname: string, hash: string): AppView {
   if (hash === "#privacy") return "privacy";
   if (hash === "#terms") return "terms";
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+  if (normalizedPath === "/") return "home";
   if (normalizedPath === "/app") return "studio";
   if (normalizedPath === "/docs") return "docs";
   if (normalizedPath === "/privacy") return "privacy";
   if (normalizedPath === "/terms") return "terms";
-  return "home";
+  return "notFound";
 }
 
 function App() {
@@ -1147,6 +1149,17 @@ function App() {
 
   if (view === "home") {
     return <HomePage onStart={openStudio} onDocs={openDocs} onLegal={openLegal} />;
+  }
+
+  if (view === "notFound") {
+    return (
+      <NotFoundPage
+        path={window.location.pathname}
+        onHome={openHome}
+        onStart={() => openStudio()}
+        onDocs={openDocs}
+      />
+    );
   }
 
   if (view === "docs") {

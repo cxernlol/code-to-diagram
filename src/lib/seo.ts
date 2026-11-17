@@ -1,4 +1,4 @@
-export type SeoView = "home" | "studio" | "docs" | "privacy" | "terms";
+export type SeoView = "home" | "studio" | "docs" | "privacy" | "terms" | "notFound";
 
 interface PageSeo {
   title: string;
@@ -43,6 +43,13 @@ const PAGE_SEO: Record<SeoView, PageSeo> = {
     description:
       "Interactive local-first diagram workbench for Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML.",
     canonical: `${SITE_ORIGIN}/app`,
+    robots: "noindex, follow",
+  },
+  notFound: {
+    title: "404: Page Not Found — CTD Studio",
+    description:
+      "The requested page could not be found on CTD Studio. Return home, open the diagram studio, or browse syntax docs.",
+    canonical: `${SITE_ORIGIN}/`,
     robots: "noindex, follow",
   },
 };

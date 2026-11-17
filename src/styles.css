@@ -2706,6 +2706,44 @@ summary:focus-visible,
   font-size: 12px;
 }
 
+.not-found-card {
+  gap: 16px;
+}
+
+.not-found-diagram {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  background: var(--canvas);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.not-found-node {
+  padding: 6px 14px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.not-found-node.missing {
+  border-style: dashed;
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.not-found-edge {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .docs-guide-head {
   display: flex;
   flex-wrap: wrap;
