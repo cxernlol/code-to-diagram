@@ -2319,6 +2319,7 @@ summary:focus-visible,
 
 .legal-card {
   display: grid;
+  align-content: start;
   gap: 12px;
   padding: 28px;
   border: 1px solid var(--border);
@@ -2472,6 +2473,7 @@ summary:focus-visible,
 .docs-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 18px;
 }
 
