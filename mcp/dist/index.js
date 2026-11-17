@@ -5,7 +5,7 @@ import { z } from "zod";
 import { DOMParser as DOMParser$1 } from "@xmldom/xmldom";
 var package_default = {
 	name: "ctd-mcp",
-	version: "1.0.2",
+	version: "1.0.3",
 	description: "CTD Studio MCP server — convert and translate Mermaid (v11.4.1), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
 	type: "module",
 	license: "MIT",
