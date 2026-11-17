@@ -593,6 +593,47 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
               {MCP_SNIPPETS.find((s) => s.id === activeMcpTab)?.code}
             </pre>
           </div>
+
+          <div className="home-mcp-proof" aria-label="Verified MCP output">
+            <div className="home-mcp-proof-head">
+              <span>
+                Verified <code>to_mermaid</code> output via <code>npx -y ctd-mcp</code>
+              </span>
+              <div className="home-mcp-proof-actions">
+                <a
+                  className="home-mcp-npm-link"
+                  href="https://www.npmjs.com/package/ctd-mcp"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  npmjs.com/package/ctd-mcp
+                </a>
+                <button
+                  type="button"
+                  className="home-open-template"
+                  onClick={() => onStart("SQL Schema")}
+                >
+                  Try SQL in editor
+                  <ArrowRight aria-hidden="true" size={13} />
+                </button>
+              </div>
+            </div>
+            <div className="home-mcp-proof-split">
+              <pre className="home-mcp-proof-pre">{`CREATE TABLE users (id INT PRIMARY KEY, email TEXT);
+CREATE TABLE diagrams (id INT PRIMARY KEY, user_id INT REFERENCES users(id), title TEXT);`}</pre>
+              <pre className="home-mcp-proof-pre">{`erDiagram
+  users {
+    int id PK
+    text email
+  }
+  diagrams {
+    int id PK
+    int user_id FK
+    text title
+  }
+  users ||--o{ diagrams : references`}</pre>
+            </div>
+          </div>
         </section>
       </main>
 
