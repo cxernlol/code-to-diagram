@@ -1,6 +1,6 @@
 {
   "name": "code-to-diagram",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "CTD Studio: a local-first code-to-diagram editor and MCP server",
   "private": true,
   "bin": {
