@@ -19,12 +19,13 @@
   <text x="64" y="180" fill="#ad612e" font-family="Consolas, monospace" font-size="16" font-weight="700">LOCAL-FIRST CODE TO DIAGRAMS</text>
   <text x="64" y="242" fill="#1c3439" font-family="Segoe UI, system-ui, sans-serif" font-size="52" font-weight="700">Write code.</text>
   <text x="64" y="304" fill="#1c3439" font-family="Segoe UI, system-ui, sans-serif" font-size="52" font-weight="700">Drag boxes and lines.</text>
-  <text x="64" y="362" fill="#315158" font-family="Segoe UI, system-ui, sans-serif" font-size="24">Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, and TypeScript</text>
+  <text x="64" y="354" fill="#315158" font-family="Segoe UI, system-ui, sans-serif" font-size="22">Mermaid, Graphviz DOT, PlantUML, D2,</text>
+  <text x="64" y="386" fill="#315158" font-family="Segoe UI, system-ui, sans-serif" font-size="22">SQL DDL, TypeScript, and XML · MCP Ready</text>
 
-  <rect x="64" y="416" width="144" height="50" rx="6" fill="#ad612e" />
-  <text x="136" y="447" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, system-ui, sans-serif" font-size="18" font-weight="700">Start</text>
-  <rect x="224" y="416" width="184" height="50" rx="6" fill="#fbfcfa" stroke="#bac8c3" stroke-width="1.5" />
-  <text x="316" y="447" text-anchor="middle" fill="#1c3439" font-family="Segoe UI, system-ui, sans-serif" font-size="18" font-weight="600">Star on GitHub</text>
+  <rect x="64" y="428" width="144" height="50" rx="6" fill="#ad612e" />
+  <text x="136" y="459" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, system-ui, sans-serif" font-size="18" font-weight="700">Start</text>
+  <rect x="224" y="428" width="184" height="50" rx="6" fill="#fbfcfa" stroke="#bac8c3" stroke-width="1.5" />
+  <text x="316" y="459" text-anchor="middle" fill="#1c3439" font-family="Segoe UI, system-ui, sans-serif" font-size="18" font-weight="600">Star on GitHub</text>
 
   <g transform="translate(710, 150)">
     <rect width="426" height="360" rx="10" fill="#fbfcfa" stroke="#bac8c3" stroke-width="1.5" />
