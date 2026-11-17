@@ -350,6 +350,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
           <div
             id="docs-guide-panel"
             role="tabpanel"
+            tabIndex={0}
             aria-labelledby={`docs-guide-tab-${activeGuide.id}`}
             className="docs-guide-split"
           >
