@@ -887,9 +887,12 @@ function App() {
   };
 
   useEffect(() => {
-    if (!activeDocument || applyingRoomSyncRef.current) return;
+    if (!activeDocument) return;
     if (roomMode === "host" && hostRoomRef.current) {
       roomDocIdRef.current = activeDocument.id;
+    }
+    if (applyingRoomSyncRef.current) return;
+    if (roomMode === "host" && hostRoomRef.current) {
       hostRoomRef.current.broadcast({
         name: activeDocument.name,
         code: activeDocument.code,
