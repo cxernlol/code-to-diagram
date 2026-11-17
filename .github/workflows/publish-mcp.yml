@@ -30,8 +30,6 @@ jobs:
           npm run mcp:build
           npm run mcp:test
 
-      - name: Publish ctd-mcp to npm
+      - name: Publish ctd-mcp to npm (OIDC Trusted Publishing)
         working-directory: mcp
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.CTD_MCP_GITHUB_ACTIONS }}
         run: npm publish --provenance --access public

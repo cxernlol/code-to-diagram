@@ -62,10 +62,10 @@ npm test
 
 `ctd-mcp` is the Model Context Protocol (MCP) server ([`mcp/`](mcp/README.md)) bundled with this repo, reusing the same multi-format parsers and translators. Use it in **Claude Desktop**, **Cursor**, **Windsurf**, **VS Code**, **Claude Code**, or directly from your terminal.
 
-Run directly from GitHub with `npx` (uses the prebuilt `mcp/dist/index.js` bundle so no build step is needed on first run):
+Run directly via `npx` (`ctd-mcp` on npm):
 
 ```bash
-npx -y github:cxernlol/code-to-diagram
+npx -y ctd-mcp
 ```
 
 ### Claude Desktop / Cursor / Windsurf
@@ -77,7 +77,7 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
   "mcpServers": {
     "ctd-mcp": {
       "command": "npx",
-      "args": ["-y", "github:cxernlol/code-to-diagram"]
+      "args": ["-y", "ctd-mcp"]
     }
   }
 }
@@ -91,7 +91,7 @@ Add to `claude_desktop_config.json`, `.cursor/mcp.json`, or `mcp_config.json`:
     "ctd-mcp": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "github:cxernlol/code-to-diagram"]
+      "args": ["-y", "ctd-mcp"]
     }
   }
 }

@@ -15,7 +15,7 @@ const MCP_SNIPPETS = [
   "mcpServers": {
     "ctd-mcp": {
       "command": "npx",
-      "args": ["-y", "github:cxernlol/code-to-diagram"]
+      "args": ["-y", "ctd-mcp"]
     }
   }
 }`,
@@ -28,7 +28,7 @@ const MCP_SNIPPETS = [
     "ctd-mcp": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "github:cxernlol/code-to-diagram"]
+      "args": ["-y", "ctd-mcp"]
     }
   }
 }`,
@@ -36,7 +36,7 @@ const MCP_SNIPPETS = [
   {
     id: "cli",
     label: "Terminal / npx",
-    code: `npx -y github:cxernlol/code-to-diagram`,
+    code: `npx -y ctd-mcp`,
   },
 ] as const;
 

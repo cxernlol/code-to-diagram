@@ -4,17 +4,14 @@ Model Context Protocol (MCP) server for **CTD Studio** (`code-to-diagram`) — d
 
 ## Quick Start (`npx`)
 
-Run from the repository root or via GitHub:
+Run from npm (recommended) or directly from GitHub:
 
 ```bash
-# From a local clone
-npx .
+# From npm
+npx -y ctd-mcp
 
 # Or directly from GitHub
 npx -y github:cxernlol/code-to-diagram
-
-# Or from npm (once published)
-npx -y ctd-mcp
 ```
 
 ## Client Configuration
@@ -28,7 +25,7 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, or `mc
   "mcpServers": {
     "ctd-mcp": {
       "command": "npx",
-      "args": ["-y", "github:cxernlol/code-to-diagram"]
+      "args": ["-y", "ctd-mcp"]
     }
   }
 }
@@ -42,7 +39,7 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, or `mc
     "ctd-mcp": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "github:cxernlol/code-to-diagram"]
+      "args": ["-y", "ctd-mcp"]
     }
   }
 }
