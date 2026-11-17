@@ -13,7 +13,7 @@ var package_default = {
 	main: "./dist/index.js",
 	bin: { "ctd-mcp": "dist/index.js" },
 	files: ["dist", "README.md"],
-	engines: { "node": ">=18" },
+	engines: { "node": ">=22" },
 	keywords: [
 		"mcp",
 		"model-context-protocol",

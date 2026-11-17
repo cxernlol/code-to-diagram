@@ -3,6 +3,9 @@
   "version": "1.0.4",
   "description": "CTD Studio: a local-first code-to-diagram editor and MCP server",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "bin": {
     "ctd-mcp": "./mcp/dist/index.js"
   },

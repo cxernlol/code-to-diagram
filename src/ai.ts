@@ -1,4 +1,5 @@
-import type { ProviderSettings } from "./types";
+import type { AiProtocol, ProviderSettings } from "./types";
+import { AI_USAGE_TOKENS, PROVIDERS } from "./constants";
 import { parseMermaid } from "./lib/mermaid";
 
 export interface AiRequest {
@@ -23,13 +24,62 @@ export function cleanMermaidCode(value: string): string {
   return (fenced?.[1] ?? cleaned).trim();
 }
 
-function endpoint(baseUrl: string): string {
-  const base = baseUrl.trim().replace(/\/+$/, "").replace(/\/chat\/completions$/i, "");
+function normalizeBaseUrl(baseUrl: string): string {
+  const base = baseUrl
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/chat\/completions$/i, "")
+    .replace(/\/messages$/i, "");
   const url = new URL(base);
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new Error("The AI endpoint must use HTTP or HTTPS.");
   }
-  return `${base}/chat/completions`;
+  return base;
+}
+
+function providerProtocol(provider: ProviderSettings): AiProtocol {
+  return PROVIDERS[provider.provider]?.protocol ?? "openai";
+}
+
+function buildHeaders(protocol: AiProtocol, apiKey: string): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const key = apiKey.trim();
+  if (protocol === "anthropic") {
+    headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
+    if (key) headers["x-api-key"] = key;
+  } else if (key) {
+    headers.Authorization = `Bearer ${key}`;
+  }
+  return headers;
+}
+
+export async function fetchProviderModels(
+  provider: ProviderSettings,
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  if (!provider.baseUrl.trim()) {
+    throw new Error("Enter an AI endpoint base URL first.");
+  }
+  const base = normalizeBaseUrl(provider.baseUrl);
+  const protocol = providerProtocol(provider);
+  const headers = buildHeaders(protocol, apiKey);
+  delete headers["Content-Type"];
+
+  const response = await fetch(`${base}/models`, { method: "GET", headers, signal });
+  if (!response.ok) {
+    throw new Error(`Model list returned ${response.status} (${response.statusText || "error"}).`);
+  }
+  const parsed = (await response.json()) as {
+    data?: Array<{ id?: unknown }>;
+    models?: Array<{ id?: unknown; name?: unknown }>;
+  };
+  const ids = [
+    ...(Array.isArray(parsed.data) ? parsed.data.map((m) => m?.id) : []),
+    ...(Array.isArray(parsed.models) ? parsed.models.map((m) => m?.id ?? m?.name) : []),
+  ].filter((id): id is string => typeof id === "string" && id.trim().length > 0);
+  return Array.from(new Set(ids));
 }
 
 export async function requestAiText({
@@ -43,19 +93,32 @@ export async function requestAiText({
   if (!provider.baseUrl.trim() || !provider.model.trim()) {
     throw new Error("Enter an AI endpoint and model in AI settings.");
   }
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (apiKey.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`;
-  const body: Record<string, unknown> = {
-    model: provider.model.trim(),
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: prompt },
-    ],
-    stream: true,
-  };
-  if (provider.temperature !== null) body.temperature = provider.temperature;
+  const base = normalizeBaseUrl(provider.baseUrl);
+  const protocol = providerProtocol(provider);
+  const headers = buildHeaders(protocol, apiKey);
+  const usage = provider.usage ?? "medium";
+  const maxTokens = AI_USAGE_TOKENS[usage]?.maxTokens ?? AI_USAGE_TOKENS.medium.maxTokens;
+  const endpointUrl = protocol === "anthropic" ? `${base}/messages` : `${base}/chat/completions`;
+  const body: Record<string, unknown> =
+    protocol === "anthropic"
+      ? {
+          model: provider.model.trim(),
+          max_tokens: maxTokens,
+          system,
+          messages: [{ role: "user", content: prompt }],
+          stream: true,
+        }
+      : {
+          model: provider.model.trim(),
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: maxTokens,
+          stream: true,
+        };
 
-  const response = await fetch(endpoint(provider.baseUrl), {
+  const response = await fetch(endpointUrl, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -89,11 +152,17 @@ export async function requestAiText({
     for (const line of lines) {
       if (!line.startsWith("data:")) continue;
       const payload = line.slice(5).trim();
-      if (payload === "[DONE]") {
-        onText(cleanModelText(fullText));
-        return cleanModelText(fullText);
+      if (!payload || payload === "[DONE]") {
+        if (payload === "[DONE]") {
+          onText(cleanModelText(fullText));
+          return cleanModelText(fullText);
+        }
+        continue;
       }
       let chunk: {
+        type?: string;
+        error?: { message?: string };
+        delta?: { type?: string; text?: string };
         choices?: Array<{ delta?: { content?: string | Array<{ text?: string }> } }>;
       };
       try {
@@ -101,10 +170,21 @@ export async function requestAiText({
       } catch (error) {
         throw new Error("The AI provider returned malformed streaming data.", { cause: error });
       }
-      const content = chunk.choices?.[0]?.delta?.content;
-      if (typeof content === "string") fullText += content;
-      else if (Array.isArray(content)) {
-        fullText += content.map((part) => part.text ?? "").join("");
+      if (chunk.type === "error" && chunk.error?.message) {
+        throw new Error(chunk.error.message);
+      }
+      if (chunk.type === "message_stop") {
+        onText(cleanModelText(fullText));
+        return cleanModelText(fullText);
+      }
+      if (chunk.type === "content_block_delta" && chunk.delta?.type === "text_delta" && typeof chunk.delta.text === "string") {
+        fullText += chunk.delta.text;
+      } else {
+        const content = chunk.choices?.[0]?.delta?.content;
+        if (typeof content === "string") fullText += content;
+        else if (Array.isArray(content)) {
+          fullText += content.map((part) => part.text ?? "").join("");
+        }
       }
       onText(cleanModelText(fullText));
     }
