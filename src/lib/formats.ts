@@ -66,7 +66,7 @@ export function detectCodeFormat(source: string): CodeFormat {
   const trimmed = source.replace(/^\uFEFF/, "").trim();
   if (!trimmed) return "mermaid";
   if (MERMAID_HEADER_RE.test(trimmed)) return "mermaid";
-  if (/^<\?xml\b|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?>[\s\S]*<\/[A-Za-z_][\w:-]*>\s*$|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?\/>\s*$/i.test(trimmed)) {
+  if (/^<\?xml\b|^<!DOCTYPE\b|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?>[\s\S]*<\/[A-Za-z_][\w:-]*>\s*$|^<[A-Za-z_][\w:-]*(?:\s+[^>]*)?\/>\s*$/i.test(trimmed)) {
     return "xml";
   }
   if (/^@startuml\b/im.test(trimmed)) return "plantuml";

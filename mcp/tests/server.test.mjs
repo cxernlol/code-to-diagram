@@ -244,6 +244,23 @@ test("edge cases: invalid XML and empty input return errors without crashing ser
   assert.equal(badXml.isError, true);
   assert.match(badXml.content[0].text, /Invalid XML syntax/);
 
+  const entityXml = await client.callTool({
+    name: "to_mermaid",
+    arguments: {
+      source: '<!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;">]><diagram><node id="A" label="&lol2;"/></diagram>',
+    },
+  });
+  assert.equal(entityXml.isError, true);
+  assert.match(entityXml.content[0].text, /DOCTYPE and ENTITY/);
+
+  const deepXml = `${"<a>".repeat(80)}leaf${"</a>".repeat(80)}`;
+  const deepRes = await client.callTool({
+    name: "to_mermaid",
+    arguments: { source: deepXml },
+  });
+  assert.equal(deepRes.isError, true);
+  assert.match(deepRes.content[0].text, /maximum supported depth/);
+
   const unknownTemplate = await client.callTool({
     name: "list_templates",
     arguments: { name: "does-not-exist" },
