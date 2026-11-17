@@ -839,6 +839,47 @@ function toLocalPoint(
   return { x: local.x, y: local.y };
 }
 
+function toRootPoint(svg: SVGSVGElement, clientX: number, clientY: number): Position {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return { x: clientX, y: clientY };
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const root = pt.matrixTransform(ctm.inverse());
+  return { x: root.x, y: root.y };
+}
+
+function projectToBoxAnchor(
+  point: Position,
+  box: { x: number; y: number; width: number; height: number },
+): Position {
+  const w = Math.max(1, box.width);
+  const h = Math.max(1, box.height);
+  const rx = Math.min(0.92, Math.max(0.08, (point.x - box.x) / w));
+  const ry = Math.min(0.92, Math.max(0.08, (point.y - box.y) / h));
+  const dTop = Math.abs(point.y - box.y);
+  const dBottom = Math.abs(point.y - (box.y + h));
+  const dLeft = Math.abs(point.x - box.x);
+  const dRight = Math.abs(point.x - (box.x + w));
+  const best = Math.min(dTop, dBottom, dLeft, dRight);
+  if (best === dTop) return { x: rx, y: 0 };
+  if (best === dBottom) return { x: rx, y: 1 };
+  if (best === dLeft) return { x: 0, y: ry };
+  return { x: 1, y: ry };
+}
+
+function resolveAnchorOnBox(
+  box: { x: number; y: number; width: number; height: number },
+  anchor: Position,
+): { point: Position; normal: Position } {
+  const rx = Math.min(0.92, Math.max(0.08, anchor.x));
+  const ry = Math.min(0.92, Math.max(0.08, anchor.y));
+  if (anchor.y <= 0.001) return { point: { x: box.x + box.width * rx, y: box.y }, normal: { x: 0, y: -1 } };
+  if (anchor.y >= 0.999) return { point: { x: box.x + box.width * rx, y: box.y + box.height }, normal: { x: 0, y: 1 } };
+  if (anchor.x <= 0.001) return { point: { x: box.x, y: box.y + box.height * ry }, normal: { x: -1, y: 0 } };
+  return { point: { x: box.x + box.width, y: box.y + box.height * ry }, normal: { x: 1, y: 0 } };
+}
+
 function routeEdge(
   svg: SVGSVGElement,
   path: SVGPathElement,
@@ -852,6 +893,7 @@ function routeEdge(
   channelOffset = 0,
   manualOffset: Position = { x: 0, y: 0 },
   usedSegments: { a: Position; b: Position }[] = [],
+  endOverride?: { point: Position; normal: Position },
 ): {
   points: Position[];
   mid: Position;
@@ -870,11 +912,13 @@ function routeEdge(
     sourceDiamond ? 0 : sourceOffset,
   );
 
-  const { point: end, normal: endNormal } = portOnFace(
-    targetBounds,
-    targetFace,
-    targetDiamond ? 0 : targetOffset,
-  );
+  const { point: end, normal: endNormal } = endOverride
+    ? { point: { ...endOverride.point }, normal: { ...endOverride.normal } }
+    : portOnFace(
+        targetBounds,
+        targetFace,
+        targetDiamond ? 0 : targetOffset,
+      );
 
   if (
     startNormal.y !== 0 &&
@@ -1780,9 +1824,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const index = pairIndices.get(edge.path) ?? 0;
       const id = `edge::${edge.source.id}->${edge.target.id}::${index}`;
       const manualOffset: Position = { ...(document.layout[id] ?? { x: 0, y: 0 }) };
+      const savedEnd = document.layout[`${id}::end`];
+      const endAnchor: Position | undefined = savedEnd ? { ...savedEnd } : undefined;
       const control = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
       control.dataset.sgsEdge = id;
-      if (Math.hypot(manualOffset.x, manualOffset.y) > 0.5) control.dataset.moved = "true";
+      if (Math.hypot(manualOffset.x, manualOffset.y) > 0.5 || endAnchor) control.dataset.moved = "true";
       control.setAttribute("tabindex", "0");
       control.setAttribute("role", "group");
       control.setAttribute(
@@ -1797,17 +1843,23 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const handle = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "circle");
       handle.setAttribute("class", "sgs-edge-handle");
       handle.setAttribute("r", "4.5");
+      const endHandle = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "circle");
+      endHandle.setAttribute("class", "sgs-edge-handle sgs-edge-end-handle");
+      endHandle.setAttribute("r", "5");
       control.appendChild(hitPath);
       control.appendChild(handle);
+      control.appendChild(endHandle);
       edgeControlsGroup.appendChild(control);
       return {
         ...edge,
         id,
         parallelOffset: (index - (count - 1) / 2) * 16,
         manualOffset,
+        endAnchor,
         control,
         hitPath,
         handle,
+        endHandle,
       };
     });
     const usedEdgesForLabels = new Set<(typeof edges)[number]>();
@@ -1963,6 +2015,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const usedSegments: { a: Position; b: Position }[] = [];
       edges.forEach((edge, idx) => {
         const { sourceFace, targetFace, sourceOffset, targetOffset } = edgeFaces[idx]!;
+        const tBox = nodeBounds.get(edge.target.id);
+        const endOverride = edge.endAnchor && tBox ? resolveAnchorOnBox(tBox, edge.endAnchor) : undefined;
         const routed = routeEdge(
           svg,
           edge.path,
@@ -1976,6 +2030,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           edge.parallelOffset,
           edge.manualOffset,
           usedSegments,
+          endOverride,
         );
         routedByEdge.set(edge, routed);
         for (let i = 1; i < routed.points.length; i += 1) {
@@ -1989,7 +2044,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         const ctrlMid = toLocalPoint(svg, edge.control, routed.mid);
         edge.handle.setAttribute("cx", String(ctrlMid.x));
         edge.handle.setAttribute("cy", String(ctrlMid.y));
-        if (Math.hypot(edge.manualOffset.x, edge.manualOffset.y) > 0.5) {
+        const ctrlEnd = toLocalPoint(svg, edge.control, routed.end);
+        edge.endHandle.setAttribute("cx", String(ctrlEnd.x));
+        edge.endHandle.setAttribute("cy", String(ctrlEnd.y));
+        if (Math.hypot(edge.manualOffset.x, edge.manualOffset.y) > 0.5 || edge.endAnchor) {
           edge.control.dataset.moved = "true";
         } else {
           delete edge.control.dataset.moved;
@@ -2119,6 +2177,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const validLayoutKeys = new Set([
       ...nodes.map((node) => node.id),
       ...edges.map((edge) => edge.id),
+      ...edges.map((edge) => `${edge.id}::end`),
     ]);
     const trimmedLayout = Object.fromEntries(
       Object.entries(document.layout).filter(([id]) => validLayoutKeys.has(id)),
@@ -2135,9 +2194,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           next[nodeId] = position;
         }
       });
-      edges.forEach(({ id: edgeId, manualOffset }) => {
+      edges.forEach(({ id: edgeId, manualOffset, endAnchor }) => {
         if (Math.abs(manualOffset.x) > 0.5 || Math.abs(manualOffset.y) > 0.5) {
           next[edgeId] = { ...manualOffset };
+        }
+        if (endAnchor) {
+          next[`${edgeId}::end`] = { ...endAnchor };
         }
       });
       onLayoutChangeRef.current(next);
@@ -2248,6 +2310,44 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       edge.control.addEventListener("pointercancel", onPointerUp);
       edge.control.addEventListener("dblclick", onDoubleClick);
       edge.control.addEventListener("keydown", onKeyDown);
+
+      let endDragId: number | undefined;
+      const onEndPointerDown = (event: PointerEvent) => {
+        if (readOnlyRef.current || event.button !== 0 || spaceDown.current || toolModeRef.current === "hand") return;
+        event.preventDefault();
+        event.stopPropagation();
+        endDragId = event.pointerId;
+        edge.endHandle.setPointerCapture(event.pointerId);
+      };
+      const onEndPointerMove = (event: PointerEvent) => {
+        if (endDragId !== event.pointerId) return;
+        event.stopPropagation();
+        const tBox = boundsInRoot(svg, edge.target.wrapper);
+        const rootPt = toRootPoint(svg, event.clientX, event.clientY);
+        edge.endAnchor = projectToBoxAnchor(rootPt, tBox);
+        moved = true;
+        routeEdges();
+      };
+      const onEndPointerUp = (event: PointerEvent) => {
+        if (endDragId !== event.pointerId) return;
+        endDragId = undefined;
+        if (edge.endHandle.hasPointerCapture(event.pointerId)) {
+          edge.endHandle.releasePointerCapture(event.pointerId);
+        }
+        finishDrag(edge.id);
+      };
+      const onEndDoubleClick = (event: MouseEvent) => {
+        event.stopPropagation();
+        edge.endAnchor = undefined;
+        moved = true;
+        routeEdges();
+        finishDrag(edge.id);
+      };
+      edge.endHandle.addEventListener("pointerdown", onEndPointerDown);
+      edge.endHandle.addEventListener("pointermove", onEndPointerMove);
+      edge.endHandle.addEventListener("pointerup", onEndPointerUp);
+      edge.endHandle.addEventListener("pointercancel", onEndPointerUp);
+      edge.endHandle.addEventListener("dblclick", onEndDoubleClick);
     });
 
     const syncSelectionAttrs = () => {
@@ -2735,10 +2835,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   <button
                     type="button"
                     role="menuitem"
-                    disabled={readOnly || !(contextMenu.id in document.layout)}
+                    disabled={readOnly || (!(contextMenu.id in document.layout) && !(`${contextMenu.id}::end` in document.layout))}
                     onClick={() => {
                       const next = { ...document.layout };
                       delete next[contextMenu.id];
+                      delete next[`${contextMenu.id}::end`];
                       onLayoutChange(next);
                       setContextMenu(null);
                     }}
@@ -2801,10 +2902,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   <button
                     type="button"
                     role="menuitem"
-                    disabled={readOnly || !(contextMenu.id in document.layout)}
+                    disabled={readOnly || (!(contextMenu.id in document.layout) && !(`${contextMenu.id}::end` in document.layout))}
                     onClick={() => {
                       const next = { ...document.layout };
                       delete next[contextMenu.id];
+                      delete next[`${contextMenu.id}::end`];
                       onLayoutChange(next);
                       setContextMenu(null);
                     }}

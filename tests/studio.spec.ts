@@ -1278,3 +1278,20 @@ test("deletes nodes via right-click menu and Delete key", async ({ page }) => {
   await page.keyboard.press("Delete");
   await expect(catNode).toHaveCount(0);
 });
+
+test("dragging arrowhead handle repositions arrow along target node perimeter while staying attached", async ({ page }) => {
+  await page.goto("/#app");
+  const endHandle = page.locator(".sgs-edge-end-handle").first();
+  const edgePath = page.locator("g.edgePaths path[data-sgs-source]").first();
+  const control = page.locator("[data-sgs-edge]").first();
+  const box = await endHandle.boundingBox();
+  expect(box).not.toBeNull();
+
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 + 45, box!.y + box!.height / 2 + 12, { steps: 5 });
+  await page.mouse.up();
+
+  await expect(control).toHaveAttribute("data-moved", "true");
+  await expectEdgeEndsAtNodes(edgePath);
+});
