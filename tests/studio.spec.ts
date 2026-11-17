@@ -45,7 +45,7 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
 
   await page.getByRole("button", { name: "Privacy & Cookies" }).click();
   await expect(page).toHaveURL(/#privacy$/);
-  await expect(page.getByRole("heading", { name: /Privacy Policy & Minimal Cookies/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Privacy Policy \(No Cookies\)/i })).toBeVisible();
   await page.getByRole("button", { name: "Terms" }).click();
   await expect(page).toHaveURL(/#terms$/);
   await expect(page.getByRole("heading", { name: /Terms of Use/i })).toBeVisible();
