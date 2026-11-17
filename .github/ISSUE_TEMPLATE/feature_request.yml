@@ -1,0 +1,39 @@
+name: Feature or Syntax Request
+description: Propose a new feature, template, or parser improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        CTD Studio is local-first, zero-account, and keeps non-Mermaid parsers focused. Please read [CONTRIBUTING.md](https://github.com/cxernlol/code-to-diagram/blob/main/CONTRIBUTING.md) before opening a PR.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web App (Editor / Canvas / Export)
+        - ctd-mcp (MCP Tools / Resources)
+        - Parser / Format Translation
+        - Templates / Docs
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      placeholder: What workflow is blocked or awkward right now?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example input / expected output
+      render: text
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Compatibility check
+      options:
+        - label: Fits a local-first, browser-only / stdio-MCP workflow (no server accounts or tracking required)
+          required: true
