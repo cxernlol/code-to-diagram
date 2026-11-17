@@ -1301,8 +1301,22 @@ function App() {
                 <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); void copyCode(); }}>
                   <Copy aria-hidden="true" size={15} /> Copy source
                 </button>
-                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); changeSettings({ colorizeBoxes: !data.settings.colorizeBoxes }); }}>
-                  <Palette aria-hidden="true" size={15} /> {data.settings.colorizeBoxes ? "Colorized export: On" : "Colorized export: Off"}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(data.settings.colorizeBoxes)}
+                  className="theme-switch-row"
+                  onClick={() => changeSettings({ colorizeBoxes: !data.settings.colorizeBoxes })}
+                >
+                  <span className="theme-switch-label">
+                    <Palette aria-hidden="true" size={15} />
+                    <span>Colorized export</span>
+                  </span>
+                  <span className={`theme-switch-track${data.settings.colorizeBoxes ? " is-on" : ""}`} aria-hidden="true">
+                    <span className="theme-switch-thumb">
+                      <Palette size={11} />
+                    </span>
+                  </span>
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); openDocs(); }}>
                   <BookOpen aria-hidden="true" size={15} /> Syntax &amp; Template Docs
@@ -1581,6 +1595,7 @@ function App() {
                 ref={editorRef}
                 value={activeDocument.code}
                 readOnly={isReadOnlySnapshot}
+                darkMode={data.settings.theme === "dark"}
                 error={renderError}
                 onChange={changeCode}
                 onUndo={undo}

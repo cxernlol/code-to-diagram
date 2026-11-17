@@ -94,6 +94,14 @@ html[data-theme="dark"] .code-editor .cm-activeLineGutter {
   background: rgb(138 180 173 / 10%);
 }
 
+html[data-theme="dark"] .code-editor .cm-cursor {
+  border-inline-start-color: var(--ink);
+}
+
+html[data-theme="dark"] .code-editor .cm-selectionBackground {
+  background: var(--selection) !important;
+}
+
 html[data-theme="dark"] .error-banner {
   color: #ffd3c4;
   background: #331b17;
@@ -392,7 +400,7 @@ summary:focus-visible,
 .tab-close:hover,
 .tab-delete-confirm button:hover {
   color: var(--ink);
-  background: #e7ece9;
+  background: var(--surface-2);
 }
 
 .rename-input {
@@ -401,7 +409,8 @@ summary:focus-visible,
   padding: 3px 7px;
   border: 1px solid var(--border-strong);
   border-radius: 3px;
-  background: white;
+  color: var(--ink);
+  background: var(--surface);
 }
 
 .tab-delete-confirm {
@@ -439,14 +448,15 @@ summary:focus-visible,
   place-items: center;
   border: 1px solid transparent;
   border-radius: 4px;
-  color: #627473;
+  color: var(--muted);
   background: transparent;
   cursor: pointer;
 }
 
 .new-tab-button:hover {
   border-color: var(--border);
-  background: white;
+  color: var(--ink);
+  background: var(--surface);
 }
 
 .template-picker {
@@ -458,7 +468,7 @@ summary:focus-visible,
   margin-inline-start: 4px;
   padding-inline: 8px;
   border-inline-start: 1px solid var(--border);
-  color: #526669;
+  color: var(--muted);
 }
 
 .template-picker select {

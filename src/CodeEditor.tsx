@@ -5,10 +5,12 @@ import {
   bracketMatching,
   defaultHighlightStyle,
   foldGutter,
+  HighlightStyle,
   indentOnInput,
   syntaxHighlighting,
   StreamLanguage,
 } from "@codemirror/language";
+import { tags } from "@lezer/highlight";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState } from "@codemirror/state";
 import {
@@ -84,9 +86,19 @@ export interface CodeEditorHandle {
   focusNode: (nodeId: string) => void;
 }
 
+const darkHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: "#f0a36b", fontWeight: "600" },
+  { tag: tags.variableName, color: "#8ad6cb" },
+  { tag: tags.string, color: "#a8d99a" },
+  { tag: tags.operator, color: "#f3c98b" },
+  { tag: tags.comment, color: "#7d9691", fontStyle: "italic" },
+  { tag: [tags.punctuation, tags.bracket], color: "#b5c9c5" },
+]);
+
 export interface CodeEditorProps {
   value: string;
   readOnly?: boolean;
+  darkMode?: boolean;
   error?: { message: string; line?: number };
   onChange: (value: string) => void;
   onUndo: () => boolean;
@@ -94,12 +106,13 @@ export interface CodeEditorProps {
 }
 
 export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor(
-  { value, readOnly = false, error, onChange, onUndo, onRedo },
+  { value, readOnly = false, darkMode = false, error, onChange, onUndo, onRedo },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const readOnlyCompartment = useRef(new Compartment());
+  const highlightCompartment = useRef(new Compartment());
   const readOnlyRef = useRef(readOnly);
   const callbackRef = useRef({ onChange, onUndo, onRedo });
   const suppressChange = useRef(false);
@@ -165,7 +178,9 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
           indentOnInput(),
           search({ top: true }),
           highlightSelectionMatches(),
-          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+          highlightCompartment.current.of(
+            syntaxHighlighting(darkMode ? darkHighlightStyle : defaultHighlightStyle, { fallback: true }),
+          ),
           mermaidLanguage,
           autocompletion({
             activateOnTyping: true,
@@ -243,6 +258,16 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
+      effects: highlightCompartment.current.reconfigure(
+        syntaxHighlighting(darkMode ? darkHighlightStyle : defaultHighlightStyle, { fallback: true }),
+      ),
+    });
+  }, [darkMode]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
       effects: readOnlyCompartment.current.reconfigure([
         EditorState.readOnly.of(readOnly),
         EditorView.editable.of(!readOnly),
@@ -264,6 +289,16 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
     });
     suppressChange.current = false;
   }, [value]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: highlightCompartment.current.reconfigure(
+        syntaxHighlighting(darkMode ? darkHighlightStyle : defaultHighlightStyle, { fallback: true }),
+      ),
+    });
+  }, [darkMode]);
 
   useEffect(() => {
     const view = viewRef.current;
