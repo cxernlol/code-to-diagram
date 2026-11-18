@@ -415,8 +415,12 @@ test("arranges nodes into a grid with one click and undo restores the original l
   await expect(dog).toBeVisible();
   const initialTransform = await dog.getAttribute("transform");
 
-  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
-  await page.getByRole("menuitem", { name: "Auto-arrange (grid)" }).click();
+  const dogBox = await dog.boundingBox();
+  if (!dogBox) throw new Error("Dog node has no bounds.");
+  await page.mouse.move(dogBox.x + dogBox.width / 2, dogBox.y + dogBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dogBox.x + dogBox.width / 2 + 80, dogBox.y + dogBox.height / 2 + 40, { steps: 4 });
+  await page.mouse.up();
   await expect.poll(() => dog.getAttribute("transform")).not.toBe(initialTransform);
 
   await page.getByRole("button", { name: "Undo" }).click();
@@ -450,7 +454,7 @@ test("expands preview pane, auto-focuses on grid layout, and enforces readable c
       textFill: text ? getComputedStyle(text).fill : "",
     };
   });
-  expect(colors.fill).toBe("rgb(255, 255, 255)");
+  expect(colors.fill).toBe("rgb(243, 247, 245)");
   expect(colors.textFill).toBe("rgb(28, 52, 57)");
 
   const expandBtn = page.getByRole("button", { name: "Expand preview" });
@@ -467,8 +471,7 @@ test("expands preview pane, auto-focuses on grid layout, and enforces readable c
   await page.mouse.move(vpBox.x + 320, vpBox.y + 260, { steps: 4 });
   await page.mouse.up();
 
-  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
-  await page.getByRole("menuitem", { name: "Auto-arrange (grid)" }).click();
+  await page.getByRole("button", { name: "Fit diagram" }).click();
   const dogBox = await page.locator('[data-sgs-node="Dog"]').boundingBox();
   if (!dogBox) throw new Error("Dog node has no bounds.");
   expect(dogBox.x).toBeGreaterThanOrEqual(vpBox.x);
@@ -597,8 +600,6 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   });
   await expect(page.locator('[data-sgs-node="Product"]')).toBeVisible();
 
-  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
-  await page.getByRole("menuitem", { name: "Auto-arrange (grid)" }).click();
   const routingCheck = await page.evaluate(() => {
     const svg = document.querySelector<SVGSVGElement>(".diagram-graphic svg")!;
     const paths = Array.from(svg.querySelectorAll<SVGPathElement>("path.relation"));

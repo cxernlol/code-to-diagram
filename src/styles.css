@@ -9,21 +9,21 @@
   color-scheme: light;
 
   /* 60% Dominant: main workspace & diagram canvas */
-  --canvas: #f5f7f5;
-  --editor-bg: #fbfcfa;
-  --grid-dot: rgb(105 125 120 / 32%);
+  --canvas: #eaf0ed;
+  --editor-bg: #eef3f0;
+  --grid-dot: rgb(90 112 108 / 34%);
 
   /* 30% Secondary: structural chrome, toolbars, cards, borders */
   --ink: #1c3439;
   --ink-soft: #315158;
   --text: #23363b;
-  --muted: #5a6d6f;
-  --surface: #fbfcfa;
-  --surface-2: #eef2ef;
-  --surface-chrome: #f3f6f4;
-  --border: #d7dfdc;
-  --border-strong: #bac8c3;
-  --selection: #dce8e2;
+  --muted: #516466;
+  --surface: #f1f5f3;
+  --surface-2: #e3ebe7;
+  --surface-chrome: #e7eeeb;
+  --border: #cbd6d2;
+  --border-strong: #aebdb8;
+  --selection: #d2e0da;
 
   /* 10% Accent: focal points & primary actions */
   --accent: #ad612e;
@@ -983,6 +983,10 @@ summary:focus-visible,
   user-select: none;
 }
 
+.diagram-graphic [data-sgs-node] {
+  pointer-events: bounding-box;
+}
+
 .diagram-graphic [data-sgs-node]:active,
 .diagram-graphic [data-sgs-edge]:active {
   cursor: grabbing;
@@ -1785,6 +1789,18 @@ html[data-theme="dark"] .dialog-footer .button.apply-green-btn:hover {
   border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
+}
+
+.settings-preview-swatch[data-look="handDrawn"] .swatch-node {
+  border-radius: 10px 4px 12px 5px / 5px 11px 4px 9px;
+  border-width: 1.75px;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    rgb(138 180 173 / 12%) 5px,
+    rgb(138 180 173 / 12%) 6px
+  );
 }
 
 .settings-grid {

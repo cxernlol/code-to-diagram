@@ -2166,6 +2166,7 @@ function App() {
             </button>
             <div
               className="settings-preview-swatch"
+              data-look={data.settings.look}
               aria-hidden="true"
               style={{ backgroundColor: data.settings.canvasColor }}
             >

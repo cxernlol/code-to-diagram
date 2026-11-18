@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Code2, Eye, EyeOff, LayoutGrid, Pencil, Plus, RotateCcw, Scan, Shapes, Trash2 } from "lucide-react";
+import { Code2, Eye, EyeOff, Pencil, Plus, RotateCcw, Scan, Shapes, Trash2 } from "lucide-react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import type { DiagramDocument, Position, StudioSettings } from "./types";
@@ -1763,8 +1763,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const palette = resolveDiagramPalette(settingsRef.current);
     normalizeMarkers(svg, palette.canvasColor);
     const kind = detectDiagramType(document.code);
-    if (kind === "class" && settingsRef.current.look !== "handDrawn") {
-      svg.querySelectorAll<SVGGElement>("g.node, g.classGroup").forEach((nodeEl) => {
+    const isHandDrawn = settingsRef.current.look === "handDrawn";
+    if (kind === "class") {
+      svg.querySelectorAll<SVGGElement>("g.node, g.rough-node, g.classGroup").forEach((nodeEl) => {
         const membersGroup = nodeEl.querySelector<SVGGElement>(".members-group");
         const methodsGroup = nodeEl.querySelector<SVGGElement>(".methods-group");
         const labelGroup = nodeEl.querySelector<SVGGElement>(".label-group");
@@ -1805,10 +1806,18 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
               const minY = curBox.y;
               const curMaxY = curBox.y + curBox.height;
               if (desiredBottom > minY + 20 && desiredBottom < curMaxY - 4) {
-                boxShape.setAttribute(
-                  "d",
-                  `M${minX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${desiredBottom.toFixed(2)} L${minX.toFixed(2)} ${desiredBottom.toFixed(2)} Z`,
-                );
+                if (isHandDrawn) {
+                  const scaleY = (desiredBottom - minY) / curBox.height;
+                  boxShape.setAttribute(
+                    "transform",
+                    `translate(0 ${(minY * (1 - scaleY)).toFixed(2)}) scale(1 ${scaleY.toFixed(4)})`,
+                  );
+                } else {
+                  boxShape.setAttribute(
+                    "d",
+                    `M${minX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${desiredBottom.toFixed(2)} L${minX.toFixed(2)} ${desiredBottom.toFixed(2)} Z`,
+                  );
+                }
               }
             }
           });
@@ -1828,11 +1837,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     }
     const candidates = Array.from(
       svg.querySelectorAll<SVGGElement>(
-        "g.node, g.statediagram-state, g.entityBox, g.classGroup",
+        "g.node, g.rough-node, g.statediagram-state, g.entityBox, g.classGroup",
       ),
     ).filter((element) => {
       const hasNodeAncestor = element.parentElement?.closest(
-        "g.node, g.statediagram-state, g.entityBox, g.classGroup",
+        "g.node, g.rough-node, g.statediagram-state, g.entityBox, g.classGroup",
       );
       return !hasNodeAncestor && Boolean(element.id || element.dataset.id);
     });
@@ -2977,21 +2986,22 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                     <Code2 aria-hidden="true" size={14} />
                     <span>Jump to code</span>
                   </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={readOnly || (!(contextMenu.id in document.layout) && !(`${contextMenu.id}::end` in document.layout))}
-                    onClick={() => {
-                      const next = { ...document.layout };
-                      delete next[contextMenu.id];
-                      delete next[`${contextMenu.id}::end`];
-                      onLayoutChange(next);
-                      setContextMenu(null);
-                    }}
-                  >
-                    <RotateCcw aria-hidden="true" size={14} />
-                    <span>Reset node position</span>
-                  </button>
+                  {!readOnly && (contextMenu.id in document.layout || `${contextMenu.id}::end` in document.layout) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        const next = { ...document.layout };
+                        delete next[contextMenu.id];
+                        delete next[`${contextMenu.id}::end`];
+                        onLayoutChange(next);
+                        setContextMenu(null);
+                      }}
+                    >
+                      <RotateCcw aria-hidden="true" size={14} />
+                      <span>Reset node position</span>
+                    </button>
+                  )}
                   {onCodeChange && !readOnly && deleteNodesInCode(document.code, [contextMenu.id]) && (
                     <button
                       type="button"
@@ -3084,18 +3094,6 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
               <button
                 type="button"
                 role="menuitem"
-                disabled={readOnly}
-                onClick={() => {
-                  arrangeGrid();
-                  setContextMenu(null);
-                }}
-              >
-                <LayoutGrid aria-hidden="true" size={14} />
-                <span>Auto-arrange (grid)</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
                 onClick={() => {
                   fit();
                   setContextMenu(null);
@@ -3114,18 +3112,6 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
               >
                 <RotateCcw aria-hidden="true" size={14} />
                 <span>Reset zoom (100%)</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={readOnly || Object.keys(document.layout).length === 0}
-                onClick={() => {
-                  onLayoutChange({});
-                  setContextMenu(null);
-                }}
-              >
-                <RotateCcw aria-hidden="true" size={14} />
-                <span>Reset all positions</span>
               </button>
               {onCodeChange && !readOnly && showHiddenNodesInCode(document.code) && (
                 <button

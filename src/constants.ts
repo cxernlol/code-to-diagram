@@ -8,10 +8,10 @@ export const THEME_PRESETS: Record<
   { primaryColor: string; textColor: string; lineColor: string; canvasColor: string }
 > = {
   default: {
-    primaryColor: "#ffffff",
+    primaryColor: "#f3f7f5",
     textColor: "#1c3439",
     lineColor: "#315158",
-    canvasColor: "#f5f7f5",
+    canvasColor: "#eaf0ed",
   },
   dark: {
     primaryColor: "#1c2b30",

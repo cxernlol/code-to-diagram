@@ -218,7 +218,7 @@ function renderWithSequence(
 
       themeCSS: `
         svg, .nodeLabel, .label text, .label tspan, g.classGroup text, .entityLabel { font-family: ${safeFont} !important; }
-        .node > rect, .node > circle, .node > ellipse, .node > polygon, .node > path, .node .basic.label-container, g.classGroup rect, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
+        .node > rect, .node > circle, .node > ellipse, .node > polygon, .node > path, .node .basic.label-container, .rough-node .basic.label-container, g.classGroup rect, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
         ${
           isHandDrawn
             ? `.basic.label-container > path:first-child { fill: none; stroke: ${isDark ? "rgba(138, 180, 173, 0.2)" : "rgba(49, 81, 88, 0.14)"}; }

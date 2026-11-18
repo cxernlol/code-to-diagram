@@ -63,7 +63,7 @@ export function colorizeExportedNodes(svg: SVGSVGElement, settings?: StudioSetti
   const isDark = settings ? relativeLuminance(resolveDiagramPalette(settings).canvasColor) < 0.25 : false;
   const palette = isDark ? DARK_EXPORT_SWATCHES : LIGHT_EXPORT_SWATCHES;
   const nodes = svg.querySelectorAll<SVGGElement>(
-    "g.node, g.statediagram-state, g.entityBox, g.classGroup, g.mindmap-node, g.reqBox, g:has(> rect.actor), g:has(> rect.note), g:has(> rect.task)",
+    "g.node, g.rough-node, g.statediagram-state, g.entityBox, g.classGroup, g.mindmap-node, g.reqBox, g:has(> rect.actor), g:has(> rect.note), g:has(> rect.task)",
   );
   let cycleIndex = 0;
 
@@ -94,9 +94,16 @@ export function colorizeExportedNodes(svg: SVGSVGElement, settings?: StudioSetti
       cycleIndex += 1;
     }
 
+    const isHandDrawn = settings?.look === "handDrawn";
     shapes.forEach((shape) => {
-      shape.style.setProperty("fill", swatch.fill, "important");
-      shape.style.setProperty("stroke", swatch.stroke, "important");
+      if (isHandDrawn && shape.matches(".basic.label-container > path:first-child")) {
+        shape.style.setProperty("fill", "none", "important");
+        shape.style.setProperty("stroke", swatch.stroke, "important");
+        shape.style.setProperty("stroke-opacity", "0.35", "important");
+      } else {
+        shape.style.setProperty("fill", swatch.fill, "important");
+        shape.style.setProperty("stroke", swatch.stroke, "important");
+      }
     });
     node
       .querySelectorAll<SVGElement>(".row-rect-odd path, .row-rect-even path")
@@ -166,6 +173,8 @@ function prepareSvg(svg: SVGSVGElement, box: SvgBounds, settings?: StudioSetting
     "viewBox",
     `${box.x - padding} ${box.y - padding} ${width} ${height}`,
   );
+  svg.style.backgroundColor = "transparent";
+  svg.style.background = "transparent";
   if (settings?.colorizeBoxes) {
     colorizeExportedNodes(svg, settings);
   }
@@ -201,8 +210,7 @@ export async function exportPng(filename: string, settings: StudioSettings) {
   canvas.height = height * scale;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("This browser cannot create a PNG export.");
-  context.fillStyle = resolveDiagramPalette(settings).canvasColor;
-  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.clearRect(0, 0, canvas.width, canvas.height);
   context.scale(scale, scale);
 
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
