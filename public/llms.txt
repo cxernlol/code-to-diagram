@@ -1,6 +1,6 @@
 # CTD Studio (code-to-diagram)
 
-> Local-first browser diagram editor and MCP server (`ctd-mcp` v1.2.0) supporting Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io `mxGraphModel`, BPMN, generic XML).
+> Code-first diagrams you can still hand-tune: dragged node positions and 3-point connector handles are stored separately from source code by stable IDs, so manual layouts survive code edits. Local-first browser editor and MCP server (`ctd-mcp` v1.2.0) with full Mermaid (v12.3.0) runtime plus built-in translators for Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).
 
 ## Canonical Pages
 - Home: https://code-to-diagram.vercel.app/
