@@ -87,7 +87,7 @@ export function detectCodeFormat(source: string): CodeFormat {
 
 function parseDotAttrs(raw: string): Record<string, string> {
   const attrs: Record<string, string> = {};
-  const attrRe = /([A-Za-z_]\w*)\s*=\s*("(?:\\.|[^"])*"|[^\s,\]]+)/g;
+  const attrRe = /([A-Za-z_]\w*)\s*=\s*("(?:\\[\s\S]|[^\\"])*"|[^\s,\]]+)/g;
   for (const match of raw.matchAll(attrRe)) {
     const key = match[1]?.toLowerCase();
     const val = match[2];
@@ -491,7 +491,7 @@ function convertD2ToMermaid(source: string): string {
     }
 
     const edgeMatch = line.match(
-      /^([A-Za-z0-9_.-]+(?:\.[A-Za-z0-9_.-]+)*)\s*(->|<-|<->|--)\s*([A-Za-z0-9_.-]+(?:\.[A-Za-z0-9_.-]+)*)(?:\s*:\s*(.+))?$/,
+      /^([A-Za-z0-9_.-]+)\s*(->|<-|<->|--)\s*([A-Za-z0-9_.-]+)(?:\s*:\s*(.+))?$/,
     );
     if (edgeMatch) {
       const [, rawA, op, rawB, rawLabel] = edgeMatch;
