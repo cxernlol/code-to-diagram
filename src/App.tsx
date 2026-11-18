@@ -1799,7 +1799,7 @@ function App() {
         )}
         {(storageError || renderError) && (
           <section className="error-banner" role="alert">
-            <span>{storageError || renderError?.message}</span>
+            <span title={storageError || renderError?.message}>{storageError || renderError?.message}</span>
             {renderError?.line && (
               <button
                 type="button"

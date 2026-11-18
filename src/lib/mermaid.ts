@@ -358,7 +358,13 @@ function renderWithSequence(
       },
     });
 
-    const rendered = await mermaid.render(renderId, compiled);
+    let rendered;
+    try {
+      rendered = await mermaid.render(renderId, compiled);
+    } finally {
+      document.getElementById(`d${renderId}`)?.remove();
+      document.getElementById(renderId)?.remove();
+    }
     if (isStale()) throw new DOMException("Stale render.", "AbortError");
     return { svg: rendered.svg, type };
   });
@@ -390,4 +396,15 @@ export function getMermaidErrorLine(error: unknown): number | undefined {
   const message = error instanceof Error ? error.message : String(error);
   const match = message.match(/line\s+(\d+)/i);
   return match ? Number(match[1]) : undefined;
+}
+
+export function formatMermaidError(error: unknown): string {
+  const raw = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim();
+  const lineMatch = raw.match(/Parse error on line\s+(\d+):/i);
+  const gotMatch = raw.match(/\bgot\s+(['"`]?[A-Za-z0-9_-]+['"`]?)/i);
+  if (lineMatch && /\bExpecting\b/i.test(raw)) {
+    const linePart = `Parse error on line ${lineMatch[1]}`;
+    return gotMatch ? `${linePart}: unexpected ${gotMatch[1]}.` : `${linePart}: syntax error.`;
+  }
+  return raw;
 }

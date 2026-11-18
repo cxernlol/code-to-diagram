@@ -1126,6 +1126,47 @@ test("preserves prefix-like user node IDs without collisions and respects data-i
   await expect(page.locator('[data-sgs-node="Item"]')).toHaveCount(1);
 });
 
+test("preserves last valid diagram and diagram type on parse error, condenses error banner, and restores when anomaly is fixed", async ({ page }) => {
+  await page.goto("/#app");
+  await openTemplate(page, "Class");
+  await expect(page.locator(".diagram-kind")).toHaveText("class");
+  await expect(page.locator('[data-sgs-node="Animal"]')).toBeVisible();
+
+  const editor = page.locator(".cm-content");
+  await editor.click();
+  await page.keyboard.press("Control+A");
+  const validCode = "classDiagram\n  class Animal {\n    +String name\n  }\n  class Dog\n  Animal <|-- Dog";
+  await page.keyboard.insertText(`${validCode}classDiagram class Broken`);
+
+  const banner = page.locator(".error-banner");
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText(/Parse error on line/);
+  await expect(banner).not.toContainText("acc_title");
+  await expect(page.locator('[aria-roledescription="error"], [id^="dsgs-"]')).toHaveCount(0);
+  await expect(page.locator(".diagram-kind")).toHaveText("class");
+  await expect(page.locator('[data-sgs-node="Animal"]')).toBeVisible();
+
+  await editor.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText(validCode);
+
+  await expect(banner).toBeHidden();
+  await expect(page.locator(".diagram-kind")).toHaveText("class");
+  await expect(page.locator('[data-sgs-node="Dog"]')).toBeVisible();
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.locator(".mobile-pane-switch").getByRole("button", { name: "Code", exact: true }).click();
+  await editor.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText(`${validCode}classDiagram class Broken`);
+  await expect(banner).toBeVisible();
+  const bannerBox = await banner.boundingBox();
+  expect(bannerBox).not.toBeNull();
+  expect(bannerBox!.width).toBeLessThanOrEqual(375);
+  expect(bannerBox!.height).toBeLessThanOrEqual(46);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+});
+
 test("mobile layout has no horizontal overflow or toolbar overlap across all pages and settings", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
 

@@ -197,6 +197,7 @@ html[data-theme="dark"] .room-banner {
 
 .message-stack {
   display: grid;
+  min-inline-size: 0;
 }
 
 * {
@@ -1206,6 +1207,7 @@ html[data-theme="dark"] .diagram-graphic path[data-selected="true"] {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-inline-size: 0;
   min-block-size: 36px;
   padding: 5px 13px;
   color: #753829;
@@ -1256,11 +1258,16 @@ html[data-theme="dark"] .diagram-graphic path[data-selected="true"] {
 .conflict-banner span,
 .room-banner span {
   flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .error-banner button,
 .conflict-banner button,
 .room-banner button {
+  flex: 0 0 auto;
   min-block-size: 25px;
   padding-inline: 7px;
   border: 1px solid currentColor;
@@ -1269,6 +1276,7 @@ html[data-theme="dark"] .diagram-graphic path[data-selected="true"] {
   background: transparent;
   cursor: pointer;
   font-size: 10px;
+  white-space: nowrap;
 }
 
 .error-banner button {
@@ -2639,6 +2647,20 @@ html[data-theme="dark"] .explain-pop {
   .top-actions .icon-button {
     min-inline-size: 36px;
     min-block-size: 36px;
+  }
+
+  .error-banner,
+  .conflict-banner,
+  .room-banner {
+    gap: 8px;
+    padding: 5px 10px;
+  }
+
+  .error-banner button,
+  .conflict-banner button,
+  .room-banner button {
+    min-inline-size: 30px;
+    min-block-size: 30px;
   }
 
   .save-status {
