@@ -6,6 +6,7 @@ import type { DiagramDocument, Position, StudioSettings } from "./types";
 import { colorizeExportedNodes } from "./export";
 import {
   detectDiagramType,
+  formatMermaidError,
   MOVABLE_DIAGRAM_TYPES,
   getMermaidErrorLine,
   parseMermaidSvg,
@@ -1240,6 +1241,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const spaceDown = useRef(false);
   const toolModeRef = useRef<"move" | "hand">("move");
   const pendingFitRef = useRef(false);
+  const lastValidByDocRef = useRef(new Map<string, { svg: string; type: DiagramType }>());
   const [rendered, setRendered] = useState<{ id: string; svg: string }>({ id: "", svg: "" });
   const [rendering, setRendering] = useState(true);
   const [viewTransform, setViewTransform] = useState(zoomIdentity);
@@ -1677,11 +1679,14 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
 
   useEffect(() => {
     let active = true;
+    const detectedType = detectDiagramType(document.code);
+    onTypeChange(detectedType);
     setRendering(true);
     const timeout = window.setTimeout(() => {
       void renderMermaid(document.code, settings)
         .then((result) => {
           if (!active) return;
+          lastValidByDocRef.current.set(document.id, { svg: result.svg, type: result.type });
           setRendered({ id: document.id, svg: result.svg });
           onTypeChange(result.type);
           onRenderError(undefined);
@@ -1689,8 +1694,16 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         })
         .catch((error: unknown) => {
           if (!active || (error instanceof DOMException && error.name === "AbortError")) return;
+          const cached = lastValidByDocRef.current.get(document.id);
+          if (cached) {
+            setRendered({ id: document.id, svg: cached.svg });
+            onTypeChange(cached.type);
+          } else {
+            setRendered({ id: document.id, svg: "" });
+            onTypeChange(detectedType);
+          }
           onRenderError({
-            message: error instanceof Error ? error.message : String(error),
+            message: formatMermaidError(error),
             line: getMermaidErrorLine(error),
           });
           setRendering(false);
@@ -1716,7 +1729,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
 
   useEffect(() => {
     const graphic = graphicRef.current;
-    if (!graphic || !rendered.svg) return;
+    if (!graphic) return;
+    if (!rendered.svg) {
+      graphic.replaceChildren();
+      return;
+    }
     try {
       const svgEl = parseMermaidSvg(rendered.svg);
       if (settings.colorizeBoxes) {
@@ -1725,7 +1742,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       graphic.replaceChildren(svgEl);
     } catch (error) {
       onRenderError({
-        message: error instanceof Error ? error.message : String(error),
+        message: formatMermaidError(error),
       });
     }
   }, [rendered, onRenderError, settings.colorizeBoxes, settings.theme, settings.canvasColor, settings.primaryColor, settings.textColor, settings.lineColor]);
