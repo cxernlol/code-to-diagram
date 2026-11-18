@@ -88,7 +88,7 @@ import {
   translateCodeFormat,
   type CodeFormat,
 } from "./lib/formats";
-import { detectDiagramType, MOVABLE_DIAGRAM_TYPES, type DiagramType } from "./lib/mermaid";
+import { detectDiagramType, MOVABLE_DIAGRAM_TYPES, renderMermaidPreview, type DiagramType } from "./lib/mermaid";
 import type { GuestRoomSession, HostRoomSession } from "./lib/room";
 
 const MAX_ROOM_DEVICES = 5;
@@ -669,8 +669,8 @@ function App() {
     if (!newDiagramOpen || !data) return;
     let cancelled = false;
     setNewDiagramPreviewBusy(true);
-    void Promise.all([import("./lib/mermaid"), import("dompurify")])
-      .then(async ([{ renderMermaidPreview }, { default: DOMPurify }]) => {
+    void import("dompurify")
+      .then(async ({ default: DOMPurify }) => {
         const result = await renderMermaidPreview(newDiagramSelection.code, data.settings);
         if (cancelled) return;
         const host = newDiagramPreviewRef.current;
