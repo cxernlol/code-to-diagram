@@ -43,7 +43,7 @@ const PAGE_SEO: Record<SeoView, PageSeo> = {
     description:
       "Interactive local-first diagram workbench for Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML.",
     canonical: `${SITE_ORIGIN}/app`,
-    robots: "noindex, follow",
+    robots: "index, follow",
   },
   notFound: {
     title: "404: Page Not Found — CTD Studio",

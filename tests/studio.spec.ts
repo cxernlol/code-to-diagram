@@ -1149,7 +1149,7 @@ test("mobile layout has no horizontal overflow or toolbar overlap across all pag
 
   // 4. Studio topbar, pane toolbars, and settings dialog
   await page.goto("/#app");
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
 
   const brandBox = await page.locator(".brand-home-button").boundingBox();
   const topActionsBox = await page.locator(".top-actions").boundingBox();
