@@ -285,13 +285,13 @@ export const TEMPLATES: Record<string, string> = {
 
   "Requirement Diagram": `requirementDiagram
   requirement req_render {
-    id: REQ-01
-    text: Real-time debounced render within 250ms.
+    id: "REQ-01"
+    text: "Real-time debounced render within 250ms."
     risk: low
     verifymethod: test
   }
   element renderer {
-    type: module
+    type: "module"
   }
   renderer - satisfies -> req_render`,
 

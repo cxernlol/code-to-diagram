@@ -7,12 +7,23 @@ export type DiagramType =
   | "class"
   | "state"
   | "er"
+  | "requirement"
+  | "c4"
   | "sequence"
   | "gantt"
   | "mindmap"
   | "pie"
   | "journey"
   | "other";
+
+export const MOVABLE_DIAGRAM_TYPES: ReadonlySet<DiagramType> = new Set([
+  "flowchart",
+  "class",
+  "state",
+  "er",
+  "requirement",
+  "c4",
+]);
 
 export interface MermaidResult {
   svg: string;
@@ -128,6 +139,8 @@ export function detectDiagramType(source: string): DiagramType {
   if (/^classDiagram\b/i.test(firstLine)) return "class";
   if (/^stateDiagram(?:-v2)?\b/i.test(firstLine)) return "state";
   if (/^erDiagram\b/i.test(firstLine)) return "er";
+  if (/^requirementDiagram\b/i.test(firstLine)) return "requirement";
+  if (/^C4(?:Context|Container|Component|Dynamic|Deployment)\b/i.test(firstLine)) return "c4";
   if (/^sequenceDiagram\b/i.test(firstLine)) return "sequence";
   if (/^gantt\b/i.test(firstLine)) return "gantt";
   if (/^mindmap\b/i.test(firstLine)) return "mindmap";

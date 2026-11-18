@@ -6,6 +6,7 @@ import type { DiagramDocument, Position, StudioSettings } from "./types";
 import { colorizeExportedNodes } from "./export";
 import {
   detectDiagramType,
+  MOVABLE_DIAGRAM_TYPES,
   getMermaidErrorLine,
   parseMermaidSvg,
   renderMermaid,
@@ -534,9 +535,9 @@ export function getDiagramBounds(svg: SVGSVGElement): {
       .filter((box) => box.width > 0 && box.height > 0);
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine, path[marker-end]",
       ),
-    ).filter((path) => path.getTotalLength() > 0);
+    ).filter((path) => !path.closest(".node, .c4-shape, marker, defs") && path.getTotalLength() > 0);
     edgePaths.forEach((path) => {
       const box = boundsInRoot(svg, path);
       if (box.width > 0 || box.height > 0) boxes.push(box);
@@ -920,6 +921,7 @@ function routeEdge(
   manualOffset: Position = { x: 0, y: 0 },
   usedSegments: { a: Position; b: Position }[] = [],
   endOverride?: { point: Position; normal: Position },
+  startOverride?: { point: Position; normal: Position },
 ): {
   points: Position[];
   mid: Position;
@@ -932,11 +934,13 @@ function routeEdge(
   const targetBounds = boundsInRoot(svg, target);
   const sourceDiamond = isDiamondNode(source);
   const targetDiamond = isDiamondNode(target);
-  const { point: start, normal: startNormal } = portOnFace(
-    sourceBounds,
-    sourceFace,
-    sourceDiamond ? 0 : sourceOffset,
-  );
+  const { point: start, normal: startNormal } = startOverride
+    ? { point: { ...startOverride.point }, normal: { ...startOverride.normal } }
+    : portOnFace(
+        sourceBounds,
+        sourceFace,
+        sourceDiamond ? 0 : sourceOffset,
+      );
 
   const { point: rawEnd, normal: endNormal } = endOverride
     ? { point: { ...endOverride.point }, normal: { ...endOverride.normal } }
@@ -950,7 +954,7 @@ function routeEdge(
     y: rawEnd.y + endNormal.y * 1.5,
   };
 
-  if (!endOverride) {
+  if (!startOverride && !endOverride) {
     if (
       startNormal.y !== 0 &&
       endNormal.y !== 0 &&
@@ -1874,7 +1878,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
       });
     }
-    if (!["flowchart", "class", "state", "er"].includes(kind)) {
+    if (!MOVABLE_DIAGRAM_TYPES.has(kind)) {
       const nonMovableKey = `${rendered.id}::${kind}`;
       if (previousStructureKey !== nonMovableKey || pendingFitRef.current) {
         graphic.dataset.structureKey = nonMovableKey;
@@ -1916,9 +1920,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     });
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine, path[marker-end]",
       ),
-    ).filter((path) => path.getTotalLength() > 0);
+    ).filter((path) => !path.closest(".node, .c4-shape, marker, defs") && path.getTotalLength() > 0);
     const selfLoops: { wrapper: SVGGElement; node: (typeof nodes)[number] }[] = [];
     const rawEdges = edgePaths.flatMap((path) => {
       const length = path.getTotalLength();
@@ -1985,11 +1989,13 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const index = pairIndices.get(edge.path) ?? 0;
       const id = `edge::${edge.source.id}->${edge.target.id}::${index}`;
       const manualOffset: Position = { ...(document.layout[id] ?? { x: 0, y: 0 }) };
+      const savedStart = document.layout[`${id}::start`];
+      const startAnchor: Position | undefined = savedStart ? { ...savedStart } : undefined;
       const savedEnd = document.layout[`${id}::end`];
       const endAnchor: Position | undefined = savedEnd ? { ...savedEnd } : undefined;
       const control = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
       control.dataset.sgsEdge = id;
-      if (Math.hypot(manualOffset.x, manualOffset.y) > 0.5 || endAnchor) control.dataset.moved = "true";
+      if (Math.hypot(manualOffset.x, manualOffset.y) > 0.5 || startAnchor || endAnchor) control.dataset.moved = "true";
       control.setAttribute("tabindex", "0");
       control.setAttribute("role", "group");
       control.setAttribute(
@@ -2001,6 +2007,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       hitPath.setAttribute("fill", "none");
       hitPath.setAttribute("stroke", "transparent");
       hitPath.setAttribute("stroke-width", "14");
+      const startHandle = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "circle");
+      startHandle.setAttribute("class", "sgs-edge-handle sgs-edge-start-handle");
+      startHandle.setAttribute("r", "5");
       const handle = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "circle");
       handle.setAttribute("class", "sgs-edge-handle");
       handle.setAttribute("r", "4.5");
@@ -2008,6 +2017,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       endHandle.setAttribute("class", "sgs-edge-handle sgs-edge-end-handle");
       endHandle.setAttribute("r", "5");
       control.appendChild(hitPath);
+      control.appendChild(startHandle);
       control.appendChild(handle);
       control.appendChild(endHandle);
       edgeControlsGroup.appendChild(control);
@@ -2016,9 +2026,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         id,
         parallelOffset: (index - (count - 1) / 2) * 16,
         manualOffset,
+        startAnchor,
         endAnchor,
         control,
         hitPath,
+        startHandle,
         handle,
         endHandle,
       };
@@ -2176,7 +2188,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const usedSegments: { a: Position; b: Position }[] = [];
       edges.forEach((edge, idx) => {
         const { sourceFace, targetFace, sourceOffset, targetOffset } = edgeFaces[idx]!;
+        const sBox = nodeBounds.get(edge.source.id);
         const tBox = nodeBounds.get(edge.target.id);
+        const startOverride = edge.startAnchor && sBox ? resolveAnchorOnBox(sBox, edge.startAnchor) : undefined;
         const endOverride = edge.endAnchor && tBox ? resolveAnchorOnBox(tBox, edge.endAnchor) : undefined;
         const routed = routeEdge(
           svg,
@@ -2192,6 +2206,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           edge.manualOffset,
           usedSegments,
           endOverride,
+          startOverride,
         );
         routedByEdge.set(edge, routed);
         for (let i = 1; i < routed.points.length; i += 1) {
@@ -2202,13 +2217,16 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           "d",
           ctrlPoints.map((pt, i) => `${i ? "L" : "M"}${pt.x},${pt.y}`).join(" "),
         );
+        const ctrlStart = toLocalPoint(svg, edge.control, routed.start);
+        edge.startHandle.setAttribute("cx", String(ctrlStart.x));
+        edge.startHandle.setAttribute("cy", String(ctrlStart.y));
         const ctrlMid = toLocalPoint(svg, edge.control, routed.mid);
         edge.handle.setAttribute("cx", String(ctrlMid.x));
         edge.handle.setAttribute("cy", String(ctrlMid.y));
         const ctrlEnd = toLocalPoint(svg, edge.control, routed.end);
         edge.endHandle.setAttribute("cx", String(ctrlEnd.x));
         edge.endHandle.setAttribute("cy", String(ctrlEnd.y));
-        if (Math.hypot(edge.manualOffset.x, edge.manualOffset.y) > 0.5 || edge.endAnchor) {
+        if (Math.hypot(edge.manualOffset.x, edge.manualOffset.y) > 0.5 || edge.startAnchor || edge.endAnchor) {
           edge.control.dataset.moved = "true";
         } else {
           delete edge.control.dataset.moved;
@@ -2355,9 +2373,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           next[nodeId] = position;
         }
       });
-      edges.forEach(({ id: edgeId, manualOffset, endAnchor }) => {
+      edges.forEach(({ id: edgeId, manualOffset, startAnchor, endAnchor }) => {
         if (Math.abs(manualOffset.x) > 0.5 || Math.abs(manualOffset.y) > 0.5) {
           next[edgeId] = { ...manualOffset };
+        }
+        if (startAnchor) {
+          next[`${edgeId}::start`] = { ...startAnchor };
         }
         if (endAnchor) {
           next[`${edgeId}::end`] = { ...endAnchor };
@@ -2483,43 +2504,55 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       edge.control.addEventListener("dblclick", onDoubleClick);
       edge.control.addEventListener("keydown", onKeyDown);
 
-      let endDragId: number | undefined;
-      const onEndPointerDown = (event: PointerEvent) => {
-        if (readOnlyRef.current || event.button !== 0 || spaceDown.current || toolModeRef.current === "hand") return;
-        event.preventDefault();
-        event.stopPropagation();
-        endDragId = event.pointerId;
-        edge.endHandle.setPointerCapture(event.pointerId);
+      const attachEndpointDrag = (
+        handleEl: SVGCircleElement,
+        getBoxWrapper: () => SVGGElement,
+        onSetAnchor: (anchor: Position | undefined) => void,
+      ) => {
+        let dragId: number | undefined;
+        const onEndpointDown = (event: PointerEvent) => {
+          if (readOnlyRef.current || event.button !== 0 || spaceDown.current || toolModeRef.current === "hand") return;
+          event.preventDefault();
+          event.stopPropagation();
+          dragId = event.pointerId;
+          handleEl.setPointerCapture(event.pointerId);
+        };
+        const onEndpointMove = (event: PointerEvent) => {
+          if (dragId !== event.pointerId) return;
+          event.stopPropagation();
+          const box = boundsInRoot(svg, getBoxWrapper());
+          const rootPt = toRootPoint(svg, event.clientX, event.clientY);
+          onSetAnchor(projectToBoxAnchor(rootPt, box));
+          moved = true;
+          routeEdges();
+        };
+        const onEndpointUp = (event: PointerEvent) => {
+          if (dragId !== event.pointerId) return;
+          dragId = undefined;
+          if (handleEl.hasPointerCapture(event.pointerId)) {
+            handleEl.releasePointerCapture(event.pointerId);
+          }
+          finishDrag(edge.id);
+        };
+        const onEndpointDblClick = (event: MouseEvent) => {
+          event.stopPropagation();
+          onSetAnchor(undefined);
+          moved = true;
+          routeEdges();
+          finishDrag(edge.id);
+        };
+        handleEl.addEventListener("pointerdown", onEndpointDown);
+        handleEl.addEventListener("pointermove", onEndpointMove);
+        handleEl.addEventListener("pointerup", onEndpointUp);
+        handleEl.addEventListener("pointercancel", onEndpointUp);
+        handleEl.addEventListener("dblclick", onEndpointDblClick);
       };
-      const onEndPointerMove = (event: PointerEvent) => {
-        if (endDragId !== event.pointerId) return;
-        event.stopPropagation();
-        const tBox = boundsInRoot(svg, edge.target.wrapper);
-        const rootPt = toRootPoint(svg, event.clientX, event.clientY);
-        edge.endAnchor = projectToBoxAnchor(rootPt, tBox);
-        moved = true;
-        routeEdges();
-      };
-      const onEndPointerUp = (event: PointerEvent) => {
-        if (endDragId !== event.pointerId) return;
-        endDragId = undefined;
-        if (edge.endHandle.hasPointerCapture(event.pointerId)) {
-          edge.endHandle.releasePointerCapture(event.pointerId);
-        }
-        finishDrag(edge.id);
-      };
-      const onEndDoubleClick = (event: MouseEvent) => {
-        event.stopPropagation();
-        edge.endAnchor = undefined;
-        moved = true;
-        routeEdges();
-        finishDrag(edge.id);
-      };
-      edge.endHandle.addEventListener("pointerdown", onEndPointerDown);
-      edge.endHandle.addEventListener("pointermove", onEndPointerMove);
-      edge.endHandle.addEventListener("pointerup", onEndPointerUp);
-      edge.endHandle.addEventListener("pointercancel", onEndPointerUp);
-      edge.endHandle.addEventListener("dblclick", onEndDoubleClick);
+      attachEndpointDrag(edge.startHandle, () => edge.source.wrapper, (anchor) => {
+        edge.startAnchor = anchor;
+      });
+      attachEndpointDrag(edge.endHandle, () => edge.target.wrapper, (anchor) => {
+        edge.endAnchor = anchor;
+      });
     });
 
     const syncSelectionAttrs = () => {

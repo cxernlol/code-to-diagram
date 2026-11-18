@@ -88,7 +88,7 @@ import {
   translateCodeFormat,
   type CodeFormat,
 } from "./lib/formats";
-import { detectDiagramType, type DiagramType } from "./lib/mermaid";
+import { detectDiagramType, MOVABLE_DIAGRAM_TYPES, type DiagramType } from "./lib/mermaid";
 import type { GuestRoomSession, HostRoomSession } from "./lib/room";
 
 const MAX_ROOM_DEVICES = 5;
@@ -165,6 +165,8 @@ const SYNTAX_GUIDANCE: Record<DiagramType, string> = {
   class: "Use classDiagram, class blocks for members, and typed relationships such as A --> B.",
   state: "Use stateDiagram-v2 with explicit states and directed transitions.",
   er: "Use erDiagram, named entities, attributes, and cardinality markers such as ||--o{.",
+  requirement: "Use requirementDiagram with quoted id/text/type fields and typed relationships such as - satisfies ->.",
+  c4: "Use C4Context/C4Container with Person/System/Rel macros.",
   sequence: "Use sequenceDiagram with actor/participant declarations and message arrows.",
   gantt: "Use gantt with title, dateFormat, sections, and valid task durations.",
   mindmap: "Use mindmap with one root and consistently indented child branches.",
@@ -326,6 +328,7 @@ function App() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiMode, setAiMode] = useState<"refine" | "structured" | "explain">("refine");
   const [aiPanel, setAiPanel] = useState<AiPanel | null>(null);
+  const [explainPopups, setExplainPopups] = useState<Array<{ id: string; title: string; text: string }>>([]);
   const [aiStream, setAiStream] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState("");
@@ -1048,7 +1051,15 @@ function App() {
           signal: controller.signal,
           onText: setAiStream,
         });
-        setAiPanel({ kind: "explain", text });
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        setExplainPopups((prev) => [
+          ...prev.slice(-3),
+          { id, title: activeDocument.name || "Explanation", text },
+        ]);
+        window.setTimeout(() => {
+          setExplainPopups((prev) => prev.filter((item) => item.id !== id));
+        }, 6000);
+        setAiStream("");
         return;
       }
       for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -1323,7 +1334,7 @@ function App() {
     const move = (moveEvent: PointerEvent) => {
       const rect = splitRef.current?.getBoundingClientRect();
       if (!rect) return;
-      changeSettings({ splitPercent: Math.min(72, Math.max(28, ((moveEvent.clientX - rect.left) / rect.width) * 100)) });
+      changeSettings({ splitPercent: Math.min(50, Math.max(22, ((moveEvent.clientX - rect.left) / rect.width) * 100)) });
     };
     const end = () => {
       target.removeEventListener("pointermove", move);
@@ -1403,13 +1414,84 @@ function App() {
     return <main className="boot-screen" aria-live="polite">Loading saved diagrams…</main>;
   }
 
-  const supportedMovement = ["flowchart", "class", "state", "er"].includes(diagramType);
+  const supportedMovement = MOVABLE_DIAGRAM_TYPES.has(diagramType);
   const currentDirection = detectDirectionFromCode(activeDocument.code);
   const codeFormat = detectCodeFormat(activeDocument.code);
   const isReadOnlySnapshot = endedRoomDocIds.has(activeDocument.id);
 
+  const clampedSplitPercent = Math.min(50, Math.max(22, data.settings.splitPercent));
+  const aiFloatingBar = aiBarVisible ? (
+    <div className="ai-floating-wrap">
+      {aiMenuOpen && (
+        <div className="ai-actions-popover" role="menu">
+          <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("structured"); void runAi("structured"); }}>
+            <GitBranch aria-hidden="true" size={14} /> Structure
+          </button>
+          <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
+            Fix syntax
+          </button>
+          <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
+            Style it
+          </button>
+          <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
+            Tidy
+          </button>
+          <button type="button" role="menuitem" disabled={aiBusy} onClick={() => { setAiMenuOpen(false); setAiMode("explain"); void runAi("explain"); }}>
+            Explain
+          </button>
+        </div>
+      )}
+      <div className="ai-floating-pill">
+        <button
+          className="ai-pill-plus"
+          type="button"
+          title="AI actions"
+          aria-label="AI actions"
+          aria-expanded={aiMenuOpen}
+          onClick={() => {
+            const next = !aiMenuOpen;
+            closeAllMenus();
+            setAiMenuOpen(next);
+          }}
+        >
+          <Plus aria-hidden="true" size={16} />
+        </button>
+        <input
+          id="ai-request"
+          type="text"
+          value={aiPrompt}
+          onChange={(event) => setAiPrompt(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.key === "Enter" || ((event.ctrlKey || event.metaKey) && event.key === "Enter")) && !aiBusy && !isReadOnlySnapshot) {
+              event.preventDefault();
+              setAiMode("refine");
+              void runAi("refine");
+            }
+          }}
+          placeholder="Describe your idea or change..."
+          aria-label="Describe your idea or change"
+        />
+        {aiBusy ? (
+          <button className="button stop-button ai-pill-send" type="button" onClick={stopAi}>
+            <StopCircle aria-hidden="true" size={15} /> Stop
+          </button>
+        ) : (
+          <button
+            className="button primary ai-pill-send"
+            type="button"
+            disabled={isReadOnlySnapshot}
+            title="Refine with AI"
+            onClick={() => { setAiMode("refine"); void runAi("refine"); }}
+          >
+            <Wand2 aria-hidden="true" size={15} /> Refine
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   return (
-    <main className="studio" style={{ "--split": `${data.settings.splitPercent}%` } as CSSProperties}>
+    <main className="studio" style={{ "--split": `${clampedSplitPercent}%` } as CSSProperties}>
       <header className="topbar">
         <div className="brand-lockup">
           <button
@@ -1843,15 +1925,15 @@ function App() {
           role="separator"
           aria-label="Resize source and preview panes"
           aria-orientation="vertical"
-          aria-valuemin={28}
-          aria-valuemax={72}
-          aria-valuenow={Math.round(data.settings.splitPercent)}
+          aria-valuemin={22}
+          aria-valuemax={50}
+          aria-valuenow={Math.round(clampedSplitPercent)}
           tabIndex={0}
           onPointerDown={beginSplit}
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault();
-              changeSettings({ splitPercent: Math.min(72, Math.max(28, data.settings.splitPercent + (event.key === "ArrowRight" ? 2 : -2))) });
+              changeSettings({ splitPercent: Math.min(50, Math.max(22, clampedSplitPercent + (event.key === "ArrowRight" ? 2 : -2))) });
             }
           }}
         />
@@ -2026,12 +2108,13 @@ function App() {
               <button className="icon-button compact" type="button" aria-label="Fit diagram" title="Fit diagram (Shift+1)" onClick={() => canvasRef.current?.fit()}><Scan aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" type="button" aria-label="Reset pan and zoom" title="Reset pan and zoom" onClick={() => canvasRef.current?.reset()}><RotateCcw aria-hidden="true" size={15} /></button>
             </div>
+            {expandedPane !== "code" && aiFloatingBar}
           </div>
         </section>
       </section>
 
       <AnimatePresence>
-        {(aiPanel || aiError || (aiBusy && aiStream)) && (
+        {(aiPanel || aiError || (aiBusy && aiStream && aiMode !== "explain")) && (
           <motion.aside
             className="ai-result-panel"
             initial={reduceMotion ? false : { opacity: 0, x: 16 }}
@@ -2445,81 +2528,35 @@ function App() {
         );
       })()}
 
+      {explainPopups.length > 0 && (
+        <div className="explain-pop-stack" role="region" aria-label="Diagram explanations">
+          {explainPopups.map((popup) => (
+            <article key={popup.id} className="explain-pop" role="status">
+              <div className="explain-pop-head">
+                <span className="explain-pop-title">
+                  <Wand2 aria-hidden="true" size={14} />
+                  <span>{popup.title}</span>
+                </span>
+                <button
+                  type="button"
+                  aria-label="Dismiss explanation"
+                  onClick={() => setExplainPopups((prev) => prev.filter((item) => item.id !== popup.id))}
+                >
+                  <X aria-hidden="true" size={14} />
+                </button>
+              </div>
+              <div className="explain-pop-body">{popup.text}</div>
+            </article>
+          ))}
+        </div>
+      )}
       {notice && (
         <div className="toast" role="status">
           <Check aria-hidden="true" size={15} /> {notice}
           <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}><X aria-hidden="true" size={14} /></button>
         </div>
       )}
-      {aiBarVisible && (
-      <div className="ai-floating-wrap">
-        {aiMenuOpen && (
-          <div className="ai-actions-popover" role="menu">
-            <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("structured"); void runAi("structured"); }}>
-              <GitBranch aria-hidden="true" size={14} /> Structure
-            </button>
-            <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
-              Fix syntax
-            </button>
-            <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
-              Style it
-            </button>
-            <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
-              Tidy
-            </button>
-            <button type="button" role="menuitem" disabled={aiBusy} onClick={() => { setAiMenuOpen(false); setAiMode("explain"); void runAi("explain"); }}>
-              Explain
-            </button>
-          </div>
-        )}
-        <div className="ai-floating-pill">
-          <button
-            className="ai-pill-plus"
-            type="button"
-            title="AI actions"
-            aria-label="AI actions"
-            aria-expanded={aiMenuOpen}
-            onClick={() => {
-              const next = !aiMenuOpen;
-              closeAllMenus();
-              setAiMenuOpen(next);
-            }}
-          >
-            <Plus aria-hidden="true" size={16} />
-          </button>
-          <input
-            id="ai-request"
-            type="text"
-            value={aiPrompt}
-            onChange={(event) => setAiPrompt(event.target.value)}
-            onKeyDown={(event) => {
-              if ((event.key === "Enter" || ((event.ctrlKey || event.metaKey) && event.key === "Enter")) && !aiBusy && !isReadOnlySnapshot) {
-                event.preventDefault();
-                setAiMode("refine");
-                void runAi("refine");
-              }
-            }}
-            placeholder="Describe your idea or change..."
-            aria-label="Describe your idea or change"
-          />
-          {aiBusy ? (
-            <button className="button stop-button ai-pill-send" type="button" onClick={stopAi}>
-              <StopCircle aria-hidden="true" size={15} /> Stop
-            </button>
-          ) : (
-            <button
-              className="button primary ai-pill-send"
-              type="button"
-              disabled={isReadOnlySnapshot}
-              title="Refine with AI"
-              onClick={() => { setAiMode("refine"); void runAi("refine"); }}
-            >
-              <Wand2 aria-hidden="true" size={15} /> Refine
-            </button>
-          )}
-        </div>
-      </div>
-      )}
+      {expandedPane === "code" && aiFloatingBar}
 
       <dialog
         ref={newDiagramDialog}

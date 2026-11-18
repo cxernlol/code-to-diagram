@@ -598,6 +598,7 @@ summary:focus-visible,
 
 .editor-pane,
 .preview-pane {
+  position: relative;
   display: grid;
   min-inline-size: 0;
   min-block-size: 0;
@@ -949,6 +950,10 @@ summary:focus-visible,
   background-size: 20px 20px;
   cursor: default;
   isolation: isolate;
+}
+
+.diagram-viewport:has(.canvas-context-menu) {
+  z-index: 10;
 }
 
 .diagram-viewport[data-tool="hand"] {
@@ -1981,6 +1986,97 @@ html[data-theme="dark"] .toast {
   background: var(--surface);
 }
 
+.explain-pop-stack {
+  position: fixed;
+  z-index: 24;
+  inset-inline-start: 16px;
+  inset-block-end: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  inline-size: min(340px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.explain-pop {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #becdc7;
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgb(251 252 250 / 96%);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgb(16 34 37 / 14%);
+  pointer-events: auto;
+}
+
+html[data-theme="dark"] .explain-pop {
+  border-color: var(--border-strong);
+  background: rgb(18 28 31 / 96%);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 40%);
+}
+
+.explain-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.explain-pop-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.explain-pop-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explain-pop-title svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.explain-pop-head button {
+  display: grid;
+  place-items: center;
+  min-inline-size: 24px;
+  min-block-size: 24px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--ink-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.explain-pop-head button:hover {
+  color: var(--ink);
+  background: var(--surface-alt);
+}
+
+.explain-pop-body {
+  max-block-size: 160px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.48;
+  color: var(--ink-muted);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 1100px) {
+  .explain-pop-stack {
+    inset-block-end: calc(70px + env(safe-area-inset-bottom));
+  }
+}
+
 .boot-card {
   display: grid;
   justify-items: start;
@@ -2187,6 +2283,12 @@ html[data-theme="dark"] .toast {
   inline-size: min(500px, calc(100vw - 24px));
   transform: translateX(-50%);
   pointer-events: none;
+}
+
+.canvas-stage > .ai-floating-wrap {
+  position: absolute;
+  z-index: 6;
+  inline-size: min(500px, calc(100% - 24px));
 }
 
 .ai-floating-wrap > * {
