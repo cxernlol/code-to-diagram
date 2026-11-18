@@ -338,6 +338,21 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
         })),
         themes: Object.keys(THEME_PRESETS),
         templates: Object.keys(TEMPLATES),
+        directions: ["TD", "BT", "LR", "RL"],
+        looks: ["classic", "handDrawn"],
+        suppressionDirectives: {
+          hideNode: "%% sgs-hide: <NodeId>",
+          hideMember: "%% sgs-hidden-member: <memberLine>",
+        },
+        features: [
+          "dark-mode",
+          "multi-font-sizing",
+          "canva-style-suppression",
+          "node-member-editing",
+          "multi-direction-layout",
+          "live-rooms",
+          "svg-png-export",
+        ],
       };
       return {
         content: [
@@ -347,6 +362,108 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
           },
         ],
         structuredContent: info,
+      };
+    },
+  );
+
+  server.registerTool(
+    "configure_mermaid_diagram",
+    {
+      title: "Configure Mermaid Diagram",
+      description:
+        "Update a Mermaid diagram's layout direction (TD/BT/LR/RL), toggle Canva-style node suppression (%% sgs-hide: <id>), or add a member/field to a class or ER entity.",
+      inputSchema: {
+        code: z.string().min(1).describe("Mermaid diagram source code."),
+        direction: z.enum(["TD", "TB", "BT", "LR", "RL"]).optional().describe("Optional layout direction to apply."),
+        hideNodes: z.array(z.string().min(1)).optional().describe("Node IDs to hide via %% sgs-hide directives."),
+        showNodes: z.array(z.string().min(1)).optional().describe("Node IDs to unhide by removing %% sgs-hide directives."),
+        addMember: z
+          .object({
+            nodeId: z.string().min(1),
+            member: z.string().min(1),
+          })
+          .optional()
+          .describe("Optional member/field line to add inside a classDiagram class or erDiagram entity."),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({ code, direction, hideNodes, showNodes, addMember }) => {
+      const maxSourceBytes = 512 * 1024;
+      if (code.length > maxSourceBytes) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Source exceeds ${maxSourceBytes} byte limit.` }],
+        };
+      }
+      let next = code;
+      if (direction) {
+        const headerRe = /^(\s*(?:flowchart|graph)\s+)(TB|TD|BT|LR|RL)\b/im;
+        if (headerRe.test(next)) {
+          next = next.replace(headerRe, `$1${direction}`);
+        } else if (/^\s*direction\s+(TB|TD|BT|LR|RL)\b/im.test(next)) {
+          next = next.replace(/^(\s*direction\s+)(TB|TD|BT|LR|RL)\b/im, `$1${direction}`);
+        } else {
+          const lines = next.split(/\r?\n/);
+          if (lines.length > 0 && /^(?:classDiagram|stateDiagram(?:-v2)?|erDiagram)\b/i.test(lines[0]!.trim())) {
+            lines.splice(1, 0, `  direction ${direction}`);
+            next = lines.join("\n");
+          }
+        }
+      }
+      if (showNodes?.length) {
+        const showSet = new Set(showNodes.map((n) => n.trim()));
+        next = next
+          .split(/\r?\n/)
+          .filter((line) => {
+            const m = line.match(/^\s*%%\s*sgs-hide:\s*(.+)$/);
+            return !(m && showSet.has(m[1]!.trim()));
+          })
+          .join("\n");
+      }
+      if (hideNodes?.length) {
+        const existing = new Set<string>();
+        for (const line of next.split(/\r?\n/)) {
+          const m = line.match(/^\s*%%\s*sgs-hide:\s*(.+)$/);
+          if (m) existing.add(m[1]!.trim());
+        }
+        const additions = hideNodes
+          .map((n) => n.trim())
+          .filter((n) => n && !existing.has(n))
+          .map((n) => `  %% sgs-hide: ${n}`);
+        if (additions.length) next = `${next.trimEnd()}\n${additions.join("\n")}`;
+      }
+      if (addMember) {
+        const escaped = addMember.nodeId.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const member = addMember.member.replace(/[\r\n]+/g, " ").trim();
+        const lines = next.split(/\r?\n/);
+        const blockStart = lines.findIndex((line) =>
+          new RegExp(`^\\s*(?:class\\s+)?${escaped}(?:\\s*\\[[^\\]]*\\])?\\s*\\{`).test(line),
+        );
+        if (blockStart !== -1) {
+          let blockEnd = blockStart;
+          for (let i = blockStart + 1; i < lines.length; i += 1) {
+            if (lines[i]!.includes("}")) {
+              blockEnd = i;
+              break;
+            }
+          }
+          if (blockEnd > blockStart) {
+            lines.splice(blockEnd, 0, `    ${member}`);
+            next = lines.join("\n");
+          }
+        } else {
+          const isClass = /^\s*classDiagram\b/im.test(next);
+          next = isClass
+            ? `${next.trimEnd()}\n  class ${addMember.nodeId.trim()} {\n    ${member}\n  }`
+            : `${next.trimEnd()}\n  ${addMember.nodeId.trim()} {\n    ${member}\n  }`;
+        }
+      }
+      return {
+        content: [{ type: "text", text: next }],
+        structuredContent: { code: next },
       };
     },
   );

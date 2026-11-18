@@ -44,6 +44,7 @@ test("lists expected tools, resources, resource templates, and prompts", async (
   const tools = await client.listTools();
   const toolNames = tools.tools.map((t) => t.name).sort();
   assert.deepEqual(toolNames, [
+    "configure_mermaid_diagram",
     "detect_format",
     "emit_from_ir",
     "get_studio_info",
@@ -308,4 +309,21 @@ test("edge cases: invalid XML and empty input return errors without crashing ser
     arguments: {},
   });
   assert.equal(infoAfter.isError, undefined);
+});
+
+test("configure_mermaid_diagram updates direction, node suppression, and class members", async () => {
+  const res = await client.callTool({
+    name: "configure_mermaid_diagram",
+    arguments: {
+      code: "classDiagram\n  class Animal {\n    +int age\n  }\n  class Dog",
+      direction: "LR",
+      hideNodes: ["Dog"],
+      addMember: { nodeId: "Animal", member: "+speak() void" },
+    },
+  });
+  assert.notEqual(res.isError, true);
+  const updated = res.structuredContent.code;
+  assert.match(updated, /direction LR/);
+  assert.match(updated, /%% sgs-hide: Dog/);
+  assert.match(updated, /\+speak\(\) void/);
 });
