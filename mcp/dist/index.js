@@ -174,13 +174,13 @@ var TEMPLATES = {
   Rel(app, ai, "Requests completions")`,
 	"Requirement Diagram": `requirementDiagram
   requirement req_render {
-    id: REQ-01
-    text: Real-time debounced render within 250ms.
+    id: "REQ-01"
+    text: "Real-time debounced render within 250ms."
     risk: low
     verifymethod: test
   }
   element renderer {
-    type: module
+    type: "module"
   }
   renderer - satisfies -> req_render`,
 	"DOT Graph": `digraph ServiceFlow {
@@ -1261,6 +1261,8 @@ function detectDiagramType(source) {
 	if (/^classDiagram\b/i.test(firstLine)) return "class";
 	if (/^stateDiagram(?:-v2)?\b/i.test(firstLine)) return "state";
 	if (/^erDiagram\b/i.test(firstLine)) return "er";
+	if (/^requirementDiagram\b/i.test(firstLine)) return "requirement";
+	if (/^C4(?:Context|Container|Component|Dynamic|Deployment)\b/i.test(firstLine)) return "c4";
 	if (/^sequenceDiagram\b/i.test(firstLine)) return "sequence";
 	if (/^gantt\b/i.test(firstLine)) return "gantt";
 	if (/^mindmap\b/i.test(firstLine)) return "mindmap";
@@ -1422,11 +1424,11 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 	const server = new McpServer({
 		name: "ctd-mcp",
 		version
-	}, { instructions: "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, and translating diagrams across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML)." });
+	}, { instructions: ["CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, configuring, and translating diagrams across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).", "Recommended AI workflow: (1) Call detect_format when the input format or diagram type is unclear. (2) Call to_mermaid to convert any supported code/diagram into Mermaid, or translate_format to convert between any two supported formats. (3) Call configure_mermaid_diagram to change layout direction (TD/TB/BT/LR/RL), hide or show nodes (%% sgs-hide), or add class/ER members. (4) Call parse_diagram_ir to inspect nodes/edges/subgraphs, or list_templates and get_studio_info for starter templates and capabilities."].join(" ") });
 	server.registerTool("detect_format", {
 		title: "Detect Diagram / Code Format",
 		description: "Auto-detect the format of a diagram or code snippet (mermaid, dot, plantuml, d2, sql, typescript, xml) and its Mermaid diagram type.",
-		inputSchema: { source: z.string().trim().min(1, "Source must not be empty.") },
+		inputSchema: { source: z.string().trim().min(1, "Source must not be empty.").describe("Diagram or code snippet to inspect (Mermaid, DOT, PlantUML, D2, SQL DDL, TypeScript, or XML).") },
 		annotations: { readOnlyHint: true }
 	}, async ({ source }) => {
 		try {
@@ -1452,7 +1454,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 	server.registerTool("to_mermaid", {
 		title: "Convert Code/Diagram to Mermaid",
 		description: "Convert Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML (Draw.io mxGraphModel, BPMN, explicit diagram XML, or generic XML) into Mermaid syntax.",
-		inputSchema: { source: z.string().trim().min(1, "Source must not be empty.") },
+		inputSchema: { source: z.string().trim().min(1, "Source must not be empty.").describe("Diagram or code snippet to inspect (Mermaid, DOT, PlantUML, D2, SQL DDL, TypeScript, or XML).") },
 		annotations: { readOnlyHint: true }
 	}, async ({ source }) => {
 		try {
@@ -1478,8 +1480,8 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 		title: "Translate Between Diagram Formats",
 		description: "Translate diagram or code source between any two supported CTD Studio formats: mermaid, dot, plantuml, d2, sql, typescript, xml.",
 		inputSchema: {
-			source: z.string().trim().min(1, "Source must not be empty."),
-			targetFormat: FormatSchema
+			source: z.string().trim().min(1, "Source must not be empty.").describe("Input diagram or code snippet in any supported CTD Studio format."),
+			targetFormat: FormatSchema.describe("Target output format: mermaid, dot, plantuml, d2, sql, typescript, or xml.")
 		},
 		annotations: { readOnlyHint: true }
 	}, async ({ source, targetFormat }) => {
@@ -1505,7 +1507,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 	server.registerTool("parse_diagram_ir", {
 		title: "Parse Diagram to Intermediate Representation",
 		description: "Parse any supported diagram or code format into CTD Studio's structured DiagramIR (kind, direction, nodes, edges).",
-		inputSchema: { source: z.string().trim().min(1, "Source must not be empty.") },
+		inputSchema: { source: z.string().trim().min(1, "Source must not be empty.").describe("Diagram or code snippet to inspect (Mermaid, DOT, PlantUML, D2, SQL DDL, TypeScript, or XML).") },
 		annotations: { readOnlyHint: true }
 	}, async ({ source }) => {
 		try {
@@ -1525,8 +1527,8 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 		title: "Emit Diagram from Intermediate Representation",
 		description: "Generate diagram or code in any target format (mermaid, dot, plantuml, d2, sql, typescript, xml) from a structured DiagramIR object.",
 		inputSchema: {
-			ir: DiagramIRSchema,
-			targetFormat: FormatSchema
+			ir: DiagramIRSchema.describe("Structured DiagramIR object (typically returned by parse_diagram_ir)."),
+			targetFormat: FormatSchema.describe("Target output format: mermaid, dot, plantuml, d2, sql, typescript, or xml.")
 		},
 		annotations: { readOnlyHint: true }
 	}, async ({ ir, targetFormat }) => {
@@ -1549,7 +1551,7 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 	server.registerTool("list_templates", {
 		title: "List CTD Studio Diagram Templates",
 		description: "List built-in CTD Studio diagram templates or retrieve a specific template by name.",
-		inputSchema: { name: z.string().optional() },
+		inputSchema: { name: z.string().optional().describe("Optional template name (case-insensitive). Omit to list all built-in templates.") },
 		annotations: { readOnlyHint: true }
 	}, async ({ name }) => {
 		if (name) {
@@ -1767,6 +1769,43 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 			type: "text",
 			text: [
 				`Use CTD Studio MCP tools (\`detect_format\`, \`to_mermaid\`, \`translate_format\`, \`parse_diagram_ir\`) to convert the following input into a clean ${targetFormat ?? "mermaid"} diagram:`,
+				"",
+				"```",
+				source,
+				"```"
+			].join("\n")
+		}
+	}] }));
+	server.registerPrompt("configure_diagram", {
+		title: "Configure Mermaid Diagram",
+		description: "Adjust layout direction, hide/show nodes with %% sgs-hide directives, or add class/ER members using configure_mermaid_diagram.",
+		argsSchema: {
+			code: z.string().describe("Existing Mermaid diagram source code"),
+			changes: z.string().describe("Requested layout direction, node visibility, or member changes")
+		}
+	}, ({ code, changes }) => ({ messages: [{
+		role: "user",
+		content: {
+			type: "text",
+			text: [
+				`Use the \`configure_mermaid_diagram\` MCP tool to apply these changes: ${changes}`,
+				"",
+				"```mermaid",
+				code,
+				"```"
+			].join("\n")
+		}
+	}] }));
+	server.registerPrompt("explain_diagram", {
+		title: "Explain Diagram Structure",
+		description: "Parse a diagram or code snippet with parse_diagram_ir and explain its nodes, edges, and flow concisely.",
+		argsSchema: { source: z.string().describe("Diagram or code snippet to analyze") }
+	}, ({ source }) => ({ messages: [{
+		role: "user",
+		content: {
+			type: "text",
+			text: [
+				"Call `detect_format` and `parse_diagram_ir` on the input below, then summarize its structure, key components, and relationships concisely:",
 				"",
 				"```",
 				source,
