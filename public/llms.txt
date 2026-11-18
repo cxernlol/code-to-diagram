@@ -1,0 +1,17 @@
+# CTD Studio (code-to-diagram)
+
+> Local-first browser diagram editor and MCP server (`ctd-mcp` v1.2.0) supporting Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io `mxGraphModel`, BPMN, generic XML).
+
+## Canonical Pages
+- Home: https://code-to-diagram.vercel.app/
+- Interactive Studio Workbench: https://code-to-diagram.vercel.app/app
+- Syntax & Template Docs: https://code-to-diagram.vercel.app/docs
+- Privacy & Cookies: https://code-to-diagram.vercel.app/privacy
+- Terms of Use (Elastic License 2.0): https://code-to-diagram.vercel.app/terms
+- Repository: https://github.com/cxernlol/code-to-diagram
+
+## Key Capabilities
+- **7 Input Formats:** Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).
+- **Interactive Canvas:** Drag boxes, adjust 3-point connector handles (start, middle, end/arrow), snap to grid, switch themes/looks (`classic` / `handDrawn`), and export SVG or PNG.
+- **Local-First Privacy:** Zero cookies, IndexedDB local storage (`sgs-studio`), and optional client-side BYOK AI refinement.
+- **MCP Server (`ctd-mcp` v1.2.0):** Run via `npx -y ctd-mcp` for Claude Desktop, Cursor, Windsurf, VS Code, and Antigravity (`detect_format`, `to_mermaid`, `translate_format`, `parse_diagram_ir`, `emit_from_ir`, `list_templates`, `get_studio_info`, `configure_mermaid_diagram`).
