@@ -1787,6 +1787,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const isHandDrawn = settingsRef.current.look === "handDrawn";
     if (kind === "class") {
       svg.querySelectorAll<SVGGElement>("g.node, g.rough-node, g.classGroup").forEach((nodeEl) => {
+        if (nodeEl.dataset.sgsCompacted === "true") return;
+        nodeEl.dataset.sgsCompacted = "true";
         const membersGroup = nodeEl.querySelector<SVGGElement>(".members-group");
         const methodsGroup = nodeEl.querySelector<SVGGElement>(".methods-group");
         const labelGroup = nodeEl.querySelector<SVGGElement>(".label-group");
@@ -1804,17 +1806,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
             try {
               const d0 = dividers[0]!.getBBox();
               const d1 = dividers[1]!.getBBox();
-              const d0Ctm = dividers[0]!.getCTM();
-              const d1Ctm = dividers[1]!.getCTM();
-              const mCtm = methodsGroup.getCTM();
-              const nodeCtm = nodeEl.getCTM();
-              const d0Y = (d0Ctm && nodeCtm ? d0Ctm.f - nodeCtm.f : 0) + d0.y;
-              const d1Y = (d1Ctm && nodeCtm ? d1Ctm.f - nodeCtm.f : 0) + d1.y;
+              const d0Y = readTranslation(dividers[0]!.getAttribute("transform")).y + d0.y;
+              const d1Y = readTranslation(dividers[1]!.getAttribute("transform")).y + d1.y;
               const shift = Math.max(0, d1Y - d0Y);
               if (shift > 4) {
                 const mBase = readTranslation(methodsGroup.getAttribute("transform"));
-                const mY = mCtm && nodeCtm ? mCtm.f - nodeCtm.f : mBase.y;
-                methodsGroup.setAttribute("transform", `translate(${mBase.x} ${mY - shift})`);
+                methodsGroup.setAttribute("transform", `translate(${mBase.x} ${mBase.y - shift})`);
                 boxShapes.forEach((boxShape) => {
                   if (boxShape instanceof SVGRectElement) {
                     const curH = boxShape.height.baseVal.value;
@@ -1856,9 +1853,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         if (!boxShapes.length) return;
         try {
           const lastBox = lastVisible.getBBox();
-          const ctm = lastVisible.getCTM();
-          const nodeCtm = nodeEl.getCTM();
-          const offsetY = ctm && nodeCtm ? ctm.f - nodeCtm.f : 0;
+          const offsetY = readTranslation(lastVisible.getAttribute("transform")).y;
           const desiredBottom = offsetY + lastBox.y + lastBox.height + 12;
           boxShapes.forEach((boxShape) => {
             if (boxShape instanceof SVGRectElement) {
