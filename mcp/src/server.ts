@@ -82,8 +82,10 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
       version,
     },
     {
-      instructions:
-        "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, and translating diagrams across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML).",
+      instructions: [
+        "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, styling, and translating diagrams across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).",
+        "Recommended AI workflow: (1) Use detect_format if the input format or diagram type is unclear. (2) Use to_mermaid to convert code/diagrams into Mermaid, or translate_format to convert between supported formats. (3) Use configure_mermaid_diagram to set Mermaid frontmatter options (look: 'classic' | 'handDrawn', theme, direction, title). (4) Use parse_diagram_ir to inspect extracted nodes/edges/subgraphs, or list_templates and get_template for starter syntax.",
+      ].join(" "),
     },
   );
 
