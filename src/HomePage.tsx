@@ -413,10 +413,6 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
                 Start
                 <ArrowRight aria-hidden="true" size={16} />
               </button>
-              <button className="button secondary home-cta-github" type="button" onClick={onDocs}>
-                <BookOpen aria-hidden="true" size={15} />
-                <span>Syntax Docs</span>
-              </button>
               <a
                 className="button secondary home-cta-github"
                 href={GITHUB_URL}
@@ -447,17 +443,6 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
                       ? "Copy failed"
                       : "Copy install command"}
                 </span>
-              </button>
-              <button
-                type="button"
-                className="home-hero-mcp-more"
-                onClick={() =>
-                  document
-                    .getElementById("home-mcp-section")
-                    ?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" })
-                }
-              >
-                Client configs ↓
               </button>
             </div>
             <ul className="home-trust-strip" aria-label="Highlights">
@@ -710,9 +695,6 @@ CREATE TABLE diagrams (id INT PRIMARY KEY, user_id INT REFERENCES users(id), tit
           <button type="button" className="home-footer-btn" onClick={() => onLegal("terms")}>
             Terms
           </button>
-          <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-            github.com/cxernlol/code-to-diagram
-          </a>
         </div>
       </footer>
 

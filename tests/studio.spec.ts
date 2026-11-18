@@ -1,4 +1,11 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function openTemplate(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "New diagram" }).click();
+  const dialog = page.locator(".new-diagram-dialog");
+  await dialog.getByRole("button", { name, exact: true }).first().click();
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+}
 
 async function expectEdgeEndsAtNodes(edge: Locator): Promise<void> {
   const endpoints = await edge.evaluate((element) => {
@@ -56,6 +63,11 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   await expect(page.getByText("A -.-> B", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Graphviz DOT" }).click();
   await expect(page.locator(".docs-guide-split .docs-guide-code")).toContainText("digraph Architecture");
+  await page.getByRole("button", { name: /MCP API/i }).click();
+  await expect(page.getByText("parse_diagram_ir", { exact: true })).toBeVisible();
+  await page.getByLabel("Filter documentation").fill("to_mermaid");
+  await expect(page.getByText("to_mermaid", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Clear filter" }).click();
   await page.getByRole("button", { name: "Home" }).click();
   await page.getByRole("button", { name: "Got it" }).click();
   await expect(page.getByRole("complementary", { name: "Storage notice" })).toBeHidden();
@@ -106,7 +118,7 @@ test("moves one flowchart node and keeps its connectors attached", async ({ page
 
 test("class relationships follow a snapped class move", async ({ page }) => {
   await page.goto("/#app");
-  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(page, "Class" );
   const node = page.locator('[data-sgs-node="Dog"]');
   const edge = page.locator(".diagram-graphic .edgePaths path.relation").first();
   await expect(node).toBeVisible();
@@ -326,7 +338,8 @@ test("creates structured tabs only after every Mermaid block validates", async (
     });
   });
   await page.goto("/#app");
-  await page.getByRole("button", { name: "Structure" }).click();
+  await page.getByRole("button", { name: "AI actions" }).click();
+  await page.getByRole("menuitem", { name: "Structure" }).click();
   await expect(page.getByRole("heading", { name: "Structured diagrams" })).toBeVisible();
   await expect(page.getByText("Checkout", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Apply" }).click();
@@ -338,7 +351,7 @@ test("supports a narrow Code/Preview switch and disables node movement for seque
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#app");
   await expect(page.getByRole("button", { name: "Code", exact: false })).toBeVisible();
-  await page.getByLabel("Start from a template").selectOption({ label: "Sequence" });
+  await openTemplate(page, "Sequence" );
   await expect(page.getByText(/sequence diagrams use automatic layout/i)).toBeVisible();
   await expect(page.locator("[data-sgs-node]")).toHaveCount(0);
   await page.getByRole("button", { name: "Code", exact: false }).click();
@@ -354,13 +367,14 @@ test("pans when dragging empty canvas space and preserves mindmap foreignObject 
   const beforePan = await graphic.getAttribute("style");
   const box = await viewport.boundingBox();
   if (!box) throw new Error("The viewport has no visible bounds.");
+  await page.getByRole("button", { name: "Hand pan tool (H)" }).click();
   await page.mouse.move(box.x + 16, box.y + 16);
   await page.mouse.down();
   await page.mouse.move(box.x + 76, box.y + 56, { steps: 4 });
   await page.mouse.up();
   await expect.poll(() => graphic.getAttribute("style")).not.toBe(beforePan);
 
-  await page.getByLabel("Start from a template").selectOption({ label: "Mindmap" });
+  await openTemplate(page, "Mindmap" );
   await expect(page.locator(".diagram-graphic")).toContainText("Planning");
 });
 
@@ -396,12 +410,17 @@ test("restores both Mermaid source and manual node layout from a share link", as
 
 test("arranges nodes into a grid with one click and undo restores the original layout", async ({ page }) => {
   await page.goto("/#app");
-  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(page, "Class" );
   const dog = page.locator('[data-sgs-node="Dog"]');
   await expect(dog).toBeVisible();
   const initialTransform = await dog.getAttribute("transform");
 
-  await page.getByRole("button", { name: "Arrange nodes in grid" }).click();
+  const dogBox = await dog.boundingBox();
+  if (!dogBox) throw new Error("Dog node has no bounds.");
+  await page.mouse.move(dogBox.x + dogBox.width / 2, dogBox.y + dogBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dogBox.x + dogBox.width / 2 + 80, dogBox.y + dogBox.height / 2 + 40, { steps: 4 });
+  await page.mouse.up();
   await expect.poll(() => dog.getAttribute("transform")).not.toBe(initialTransform);
 
   await page.getByRole("button", { name: "Undo" }).click();
@@ -423,7 +442,7 @@ test("selecting a theme preset updates primary, text, connector, and canvas colo
 
 test("expands preview pane, auto-focuses on grid layout, and enforces readable class diagram colors", async ({ page }) => {
   await page.goto("/#app");
-  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(page, "Class" );
   const animal = page.locator('[data-sgs-node="Animal"]');
   await expect(animal).toBeVisible();
 
@@ -435,7 +454,7 @@ test("expands preview pane, auto-focuses on grid layout, and enforces readable c
       textFill: text ? getComputedStyle(text).fill : "",
     };
   });
-  expect(colors.fill).toBe("rgb(255, 255, 255)");
+  expect(colors.fill).toBe("rgb(243, 247, 245)");
   expect(colors.textFill).toBe("rgb(28, 52, 57)");
 
   const expandBtn = page.getByRole("button", { name: "Expand preview" });
@@ -452,7 +471,7 @@ test("expands preview pane, auto-focuses on grid layout, and enforces readable c
   await page.mouse.move(vpBox.x + 320, vpBox.y + 260, { steps: 4 });
   await page.mouse.up();
 
-  await page.getByRole("button", { name: "Arrange nodes in grid" }).click();
+  await page.getByRole("button", { name: "Fit diagram" }).click();
   const dogBox = await page.locator('[data-sgs-node="Dog"]').boundingBox();
   if (!dogBox) throw new Error("Dog node has no bounds.");
   expect(dogBox.x).toBeGreaterThanOrEqual(vpBox.x);
@@ -581,7 +600,6 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   });
   await expect(page.locator('[data-sgs-node="Product"]')).toBeVisible();
 
-  await page.getByRole("button", { name: "Arrange nodes in grid" }).click();
   const routingCheck = await page.evaluate(() => {
     const svg = document.querySelector<SVGSVGElement>(".diagram-graphic svg")!;
     const paths = Array.from(svg.querySelectorAll<SVGPathElement>("path.relation"));
@@ -633,7 +651,8 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(exportedSvg).toContain("Product");
   expect(exportedSvg).not.toContain("rgb(234, 241, 248)");
 
-  await page.getByRole("button", { name: "Colorize boxes on export" }).click();
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  await page.getByRole("switch", { name: /Colorized export/i }).click();
   const colorSvgPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export SVG" }).click();
   const colorSvgDownload = await colorSvgPromise;
@@ -655,7 +674,7 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(pngWidth).toBeGreaterThan(1000);
   expect(pngHeight).toBeGreaterThan(1000);
 
-  await page.getByLabel("Start from a template").selectOption({ label: "Sequence" });
+  await openTemplate(page, "Sequence" );
   await expect(page.locator(".diagram-graphic svg")).toContainText("DB");
   const seqSvgPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export SVG" }).click();
@@ -688,7 +707,7 @@ test("renders DOT, PlantUML, D2, SQL DDL, TypeScript, and XML code and translate
   ];
 
   for (const item of cases) {
-    await page.getByLabel("Start from a template").selectOption({ label: item.template });
+    await openTemplate(page, item.template );
     await expect(page.locator(".language-chip")).toHaveText(item.chip);
     await expect(page.locator(".diagram-graphic")).toContainText(item.text);
     if (item.node) {
@@ -730,12 +749,12 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(sixthDevice.getByText(/Room is full \(maximum 5 devices\)/)).toBeVisible();
   await sixthDevice.close();
 
-  await host.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(host, "Class" );
   await expect(guests[0]!.locator('[data-sgs-node="Animal"]')).toBeVisible({ timeout: 10000 });
 
   await host.close();
   await expect(guests[0]!.getByText(/Host closed the browser or ended the room/i)).toBeVisible();
-  await expect(guests[0]!.getByRole("button", { name: "Arrange nodes in grid" })).toBeDisabled();
+  await expect(guests[0]!.getByRole("button", { name: "Diagram direction" })).toBeDisabled();
   await expect(guests[0]!.getByLabel("Convert code format")).toBeDisabled();
   await expect(guests[0]!.getByRole("button", { name: "Export SVG" })).toBeEnabled();
   await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
@@ -800,15 +819,14 @@ test("colorize boxes toggle applies live palette preview and restores on toggle 
   const initialInlineFill = await nodeShape.evaluate((el) => (el as SVGElement).style.fill);
   expect(initialInlineFill).toBe("");
 
-  const colorizeBtn = page.getByRole("button", { name: "Colorize boxes on export" });
-  await colorizeBtn.click();
-  await expect(colorizeBtn).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  const colorSwitch = page.getByRole("switch", { name: /Colorized export/i });
+  await colorSwitch.click();
   await expect
     .poll(async () => nodeShape.evaluate((el) => (el as SVGElement).style.fill))
     .not.toBe("");
 
-  await colorizeBtn.click();
-  await expect(colorizeBtn).toHaveAttribute("aria-pressed", "false");
+  await colorSwitch.click();
   await expect
     .poll(async () => nodeShape.evaluate((el) => (el as SVGElement).style.fill))
     .toBe("");
@@ -851,7 +869,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(node1.locator("polygon")).toBeVisible();
 
   // Class diagram node label edit & Add class
-  await page.getByLabel("Start from a template").selectOption({ label: "Class" });
+  await openTemplate(page, "Class" );
   const animalNode = page.locator('[data-sgs-node="Animal"]');
   await expect(animalNode).toBeVisible({ timeout: 10000 });
   await animalNode.click({ button: "right" });
@@ -880,7 +898,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(page.locator('[data-sgs-node="Class1"]')).toBeVisible();
 
   // State diagram node/edge label edit & Add state
-  await page.getByLabel("Start from a template").selectOption({ label: "State" });
+  await openTemplate(page, "State" );
   const idleNode = page.locator('[data-sgs-node="Idle"]');
   await expect(idleNode).toBeVisible({ timeout: 10000 });
   await idleNode.click({ button: "right" });
@@ -902,7 +920,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(page.locator('[data-sgs-node="State1"]')).toBeVisible();
 
   // ER diagram node/edge label edit & Add entity
-  await page.getByLabel("Start from a template").selectOption({ label: "ER" });
+  await openTemplate(page, "ER" );
   const userNode = page.locator('[data-sgs-node="USER"]');
   await expect(userNode).toBeVisible({ timeout: 10000 });
   await userNode.click({ button: "right" });
@@ -1106,4 +1124,274 @@ test("preserves prefix-like user node IDs without collisions and respects data-i
   await page.goto(`/#d=${encodeURIComponent(erDiagram)}`);
   await expect(page.locator('[data-sgs-node="entity-Item"]')).toHaveCount(1);
   await expect(page.locator('[data-sgs-node="Item"]')).toHaveCount(1);
+});
+
+test("mobile layout has no horizontal overflow or toolbar overlap across all pages and settings", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+
+  // 1. Home page
+  await page.goto("/");
+  await expect(page.locator(".home-hero")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://code-to-diagram.vercel.app/");
+
+  // 2. Docs page (direct path route + SEO metadata)
+  await page.goto("/docs");
+  await expect(page.getByRole("heading", { name: /Syntax & Template Docs/i })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://code-to-diagram.vercel.app/docs");
+
+  // 3. Legal pages
+  await page.goto("/privacy");
+  await expect(page.getByRole("heading", { name: /Privacy Policy \(No Cookies\)/i })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://code-to-diagram.vercel.app/privacy");
+
+  // 4. Studio topbar, pane toolbars, and settings dialog
+  await page.goto("/#app");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+
+  const brandBox = await page.locator(".brand-home-button").boundingBox();
+  const topActionsBox = await page.locator(".top-actions").boundingBox();
+  expect(brandBox).not.toBeNull();
+  expect(topActionsBox).not.toBeNull();
+  expect(brandBox!.x + brandBox!.width).toBeLessThanOrEqual(topActionsBox!.x + 1);
+
+  await page.locator(".mobile-pane-switch").getByRole("button", { name: "Preview", exact: true }).click();
+  const previewTitleBox = await page.locator(".preview-toolbar .pane-title").boundingBox();
+  const previewActionsBox = await page.locator(".preview-toolbar .preview-actions").boundingBox();
+  const verticalDockBox = await page.locator(".canvas-stage .canvas-vertical-dock").boundingBox();
+  expect(previewTitleBox).not.toBeNull();
+  expect(previewActionsBox).not.toBeNull();
+  expect(verticalDockBox).not.toBeNull();
+  expect(previewTitleBox!.x + previewTitleBox!.width).toBeLessThanOrEqual(previewActionsBox!.x + 1);
+  expect(verticalDockBox!.x + verticalDockBox!.width).toBeLessThanOrEqual(375);
+
+  await page.locator(".mobile-pane-switch").getByRole("button", { name: "Code", exact: true }).click();
+  const editorTitleBox = await page.locator(".editor-toolbar .pane-title").boundingBox();
+  const editorActionsBox = await page.locator(".editor-toolbar .pane-actions").boundingBox();
+  expect(editorTitleBox).not.toBeNull();
+  expect(editorActionsBox).not.toBeNull();
+  expect(editorTitleBox!.x + editorActionsBox!.width).toBeLessThanOrEqual(editorActionsBox!.x + 1);
+
+  await page.getByRole("button", { name: "Open settings" }).click();
+  const settingsDialog = page.locator(".settings-dialog");
+  await expect(settingsDialog).toBeVisible();
+  const dialogBox = await settingsDialog.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(dialogBox!.width).toBeLessThanOrEqual(375);
+  await expect(page.locator(".settings-dialog .dialog-footer")).toBeVisible();
+});
+
+test("deleting a diagram tab opens a centered confirmation dialog with Delete and Cancel", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "New diagram" }).click();
+  const picker = page.locator(".new-diagram-dialog");
+  await expect(picker).toBeVisible();
+  await expect(picker.getByRole("button", { name: "Decision {Check}" })).toBeVisible();
+  await picker.getByRole("button", { name: "Flowchart", exact: true }).click();
+  await picker.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page.locator(".document-tab")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Close Flowchart" }).first().click();
+  const dialog = page.locator(".confirm-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(/Delete .*Flowchart.*\?/);
+  await expect(dialog).toContainText("Once deleted, it cannot be restored.");
+
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(".document-tab")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Close Flowchart" }).first().click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Delete" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(".document-tab")).toHaveCount(1);
+});
+
+test("unknown routes render custom 404 page with noindex and working navigation", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/missing-route-404");
+
+  await expect(page.getByRole("heading", { name: /This diagram node isn't connected\./i })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+  await page.getByRole("button", { name: "Back to home" }).click();
+  await expect(page.locator(".home-hero")).toBeVisible();
+});
+
+test("studio buttons show styled hover tooltip and dismiss on Escape", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "Open settings" }).hover();
+  const tooltip = page.locator(".app-tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("Settings");
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toBeHidden();
+});
+
+test("grid size input clamps values between 0 and 100", async ({ page }) => {
+  await page.goto("/#app");
+  await page.locator('summary[aria-label="Pan and zoom settings"]').click();
+  const gridInput = page.getByLabel("Grid size");
+  await gridInput.fill("9999999");
+  await expect(gridInput).toHaveValue("100");
+  await gridInput.fill("-5");
+  await expect(gridInput).toHaveValue("0");
+});
+
+test("diagram actions menu duplicates and renames, and direction menu updates flowchart flow", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "Diagram actions" }).click();
+  await page.getByRole("menuitem", { name: "Duplicate" }).click();
+  await expect(page.getByRole("tab", { name: "Flowchart copy" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Diagram actions" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const renameInput = page.getByLabel("Diagram name");
+  await renameInput.fill("Checkout Flow");
+  await renameInput.press("Enter");
+  await expect(page.getByRole("tab", { name: "Checkout Flow" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Diagram direction" }).click();
+  await page.getByRole("menuitem", { name: "Left to right" }).click();
+  await expect(page.locator(".cm-content")).toContainText("flowchart LR");
+});
+
+test("node context menu toggles visibility of multiple class members like Canva", async ({ page }) => {
+  await page.goto("/#app");
+  await openTemplate(page, "Class");
+  const animalNode = page.locator('[data-sgs-node="Animal"]');
+  await expect(animalNode).toBeVisible();
+
+  await animalNode.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Visibility / members…" }).click();
+
+  await page.getByRole("menuitemcheckbox", { name: /\+String name/ }).click();
+  await page.getByRole("menuitemcheckbox", { name: /\+int age/ }).click();
+
+  await expect(page.locator(".cm-content")).toContainText("%% sgs-hidden-member: +String name");
+  await expect(page.locator(".cm-content")).toContainText("%% sgs-hidden-member: +int age");
+
+  await page.getByRole("button", { name: "Hide all" }).click();
+  await expect(page.locator(".cm-content")).toContainText("%% sgs-hidden-member: +speak() void");
+
+  await page.getByRole("button", { name: "Show all" }).click();
+  await expect(page.locator(".cm-content")).not.toContainText("sgs-hidden-member");
+});
+
+test("deletes nodes via right-click menu and Delete key", async ({ page }) => {
+  await page.goto("/#app");
+  await openTemplate(page, "Class");
+  const dogNode = page.locator('[data-sgs-node="Dog"]');
+  await expect(dogNode).toBeVisible();
+
+  await dogNode.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete class" }).click();
+  await expect(dogNode).toHaveCount(0);
+
+  const catNode = page.locator('[data-sgs-node="Cat"]');
+  await expect(catNode).toBeVisible();
+  await catNode.focus();
+  await page.keyboard.press("Delete");
+  await expect(catNode).toHaveCount(0);
+});
+
+test("dragging arrowhead handle repositions arrow along target node perimeter while staying attached", async ({ page }) => {
+  await page.goto("/#app");
+  const endHandle = page.locator(".sgs-edge-end-handle").first();
+  const edgePath = page.locator("g.edgePaths path[data-sgs-source]").first();
+  const control = page.locator("[data-sgs-edge]").first();
+  const box = await endHandle.boundingBox();
+  expect(box).not.toBeNull();
+
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 + 45, box!.y + box!.height / 2 + 12, { steps: 5 });
+  await page.mouse.up();
+
+  await expect(control).toHaveAttribute("data-moved", "true");
+  await expectEdgeEndsAtNodes(edgePath);
+});
+
+test("dark mode toggle switches 60-30-10 dark palette and syncs with settings", async ({ page }) => {
+  await page.goto("/#app");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  const darkSwitch = page.getByRole("switch", { name: /Dark mode/i });
+  await darkSwitch.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(darkSwitch).toHaveAttribute("aria-checked", "true");
+
+  await darkSwitch.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(darkSwitch).toHaveAttribute("aria-checked", "false");
+});
+
+test("vertical canvas dock sits on right inside graph, stays outside SVG, and V mode moves nodes and pans canvas", async ({ page }) => {
+  await page.goto("/#app");
+  const stage = page.locator(".canvas-stage");
+  const dock = stage.locator(".canvas-vertical-dock");
+  await expect(dock).toBeVisible();
+
+  const stageBox = await stage.boundingBox();
+  const dockBox = await dock.boundingBox();
+  expect(stageBox).not.toBeNull();
+  expect(dockBox).not.toBeNull();
+  expect(dockBox!.x).toBeGreaterThan(stageBox!.x + stageBox!.width * 0.7);
+  expect(dockBox!.x + dockBox!.width).toBeLessThanOrEqual(stageBox!.x + stageBox!.width);
+  expect(await page.locator(".diagram-graphic svg .canvas-vertical-dock").count()).toBe(0);
+
+  await expect(page.locator(".diagram-viewport")).toHaveAttribute("data-tool", "move");
+  const graphic = page.locator(".diagram-graphic");
+  const beforeTransform = await graphic.evaluate((el) => getComputedStyle(el).transform);
+  await page.mouse.move(stageBox!.x + 24, stageBox!.y + 24);
+  await page.mouse.down();
+  await page.mouse.move(stageBox!.x + 84, stageBox!.y + 64, { steps: 5 });
+  await expect(page.locator(".sgs-marquee")).toBeVisible();
+  await page.mouse.up();
+  expect(await graphic.evaluate((el) => getComputedStyle(el).transform)).toBe(beforeTransform);
+
+  await page.getByRole("button", { name: "Hand pan tool (H)" }).click();
+  await page.mouse.move(stageBox!.x + 24, stageBox!.y + 24);
+  await page.mouse.down();
+  await page.mouse.move(stageBox!.x + 84, stageBox!.y + 64, { steps: 5 });
+  await page.mouse.up();
+  expect(await graphic.evaluate((el) => getComputedStyle(el).transform)).not.toBe(beforeTransform);
+});
+
+test("new diagram picker previews templates before Apply and right-clicking a tab opens tab actions", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "New diagram" }).click();
+  const dialog = page.locator(".new-diagram-dialog");
+  await dialog.getByRole("button", { name: "Sequence", exact: true }).click();
+  await expect(dialog.locator(".new-diagram-preview-header strong")).toHaveText("Sequence");
+  await expect(dialog.locator(".new-diagram-preview-svg svg")).toBeVisible();
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Sequence" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Sequence" }).click({ button: "right" });
+  const tabMenu = page.locator(".tab-context-menu");
+  await expect(tabMenu).toBeVisible();
+  await expect(tabMenu.getByRole("menuitem", { name: "New diagram" })).toHaveCount(0);
+  await expect(tabMenu.getByRole("menuitem", { name: "Rename" })).toBeVisible();
+  await expect(tabMenu.getByRole("menuitem", { name: "Duplicate" })).toBeVisible();
+  await expect(tabMenu.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+  await tabMenu.getByRole("menuitem", { name: "Duplicate" }).click();
+  await expect(page.getByRole("tab", { name: "Sequence copy" })).toBeVisible();
+});
+
+test("class node context menu adds member/field into code and collapses empty class compartments", async ({ page }) => {
+  await page.goto("/#app");
+  await openTemplate(page, "Class");
+  const firstClass = page.locator("[data-sgs-node]").first();
+  await expect(firstClass).toBeVisible();
+  await firstClass.click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Add member/i }).click();
+  await page.getByLabel("New member or field").fill("+String color");
+  await page.locator(".canvas-context-form").getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.locator(".cm-content")).toContainText("+String color");
 });

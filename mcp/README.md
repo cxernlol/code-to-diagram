@@ -56,6 +56,7 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, or `mc
 | `emit_from_ir` | Emit diagram/code in any target format from a structured `DiagramIR` object. |
 | `list_templates` | List built-in CTD Studio templates or fetch one by name. |
 | `get_studio_info` | Return supported formats, extensions, themes, and app metadata. |
+| `configure_mermaid_diagram` | Update layout direction (`TD`/`TB`/`BT`/`LR`/`RL`), toggle node suppression (`%% sgs-hide`), or add class/ER members. |
 
 ## Resources & Prompts
 
@@ -63,6 +64,8 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, or `mc
 - `ctd://themes` — Built-in theme presets (`default`, `dark`, `forest`, `neutral`)
 - `ctd://templates/{name}` — Built-in diagram templates
 - `code_to_diagram` — Prompt template for converting code/schemas into diagrams
+- `configure_diagram` — Prompt template for adjusting layout direction, node visibility, or class/ER members
+- `explain_diagram` — Prompt template for parsing and summarizing a diagram's structure
 
 ## Development (in this repo)
 

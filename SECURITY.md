@@ -21,7 +21,7 @@ Include reproduction steps, the affected input or URL/MCP payload, and impact.
 - **CSP:** Vercel serves `script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
 - **Parser & XML limits:** All 7 formats enforce a `512 KB` input cap (`toMermaidSource`, `translateCodeFormat`). `parseXmlToIR` additionally rejects `<!DOCTYPE>` and `<!ENTITY>` declarations, nesting deeper than `64` levels, and documents with more than `1,500` elements.
 - **BYOK API keys:** New keys are stored in browser `IndexedDB` (`sgs-studio`), never included in share URLs, and sent directly from your browser to the configured endpoint.
-- **`ctd-mcp`:** Runs locally over stdio and does not use filesystem or network APIs (pure format detection, parsing, and conversion).
+- **`ctd-mcp`:** Runs locally over stdio and does not use filesystem or network APIs (pure format detection, parsing, conversion, and Mermaid configuration within the 512 KB source limit).
 
 ## Out of Scope
 

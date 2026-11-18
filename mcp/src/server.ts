@@ -82,8 +82,10 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
       version,
     },
     {
-      instructions:
-        "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, and translating diagrams across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, and generic XML).",
+      instructions: [
+        "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, configuring, and translating diagrams across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).",
+        "Recommended AI workflow: (1) Call detect_format when the input format or diagram type is unclear. (2) Call to_mermaid to convert any supported code/diagram into Mermaid, or translate_format to convert between any two supported formats. (3) Call configure_mermaid_diagram to change layout direction (TD/TB/BT/LR/RL), hide or show nodes (%% sgs-hide), or add class/ER members. (4) Call parse_diagram_ir to inspect nodes/edges/subgraphs, or list_templates and get_studio_info for starter templates and capabilities.",
+      ].join(" "),
     },
   );
 
@@ -94,7 +96,11 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
       description:
         "Auto-detect the format of a diagram or code snippet (mermaid, dot, plantuml, d2, sql, typescript, xml) and its Mermaid diagram type.",
       inputSchema: {
-        source: z.string().trim().min(1, "Source must not be empty."),
+        source: z
+          .string()
+          .trim()
+          .min(1, "Source must not be empty.")
+          .describe("Diagram or code snippet to inspect (Mermaid, DOT, PlantUML, D2, SQL DDL, TypeScript, or XML)."),
       },
       annotations: {
         readOnlyHint: true,
@@ -132,7 +138,11 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
       description:
         "Convert Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, or XML (Draw.io mxGraphModel, BPMN, explicit diagram XML, or generic XML) into Mermaid syntax.",
       inputSchema: {
-        source: z.string().trim().min(1, "Source must not be empty."),
+        source: z
+          .string()
+          .trim()
+          .min(1, "Source must not be empty.")
+          .describe("Diagram or code snippet to inspect (Mermaid, DOT, PlantUML, D2, SQL DDL, TypeScript, or XML)."),
       },
       annotations: {
         readOnlyHint: true,
@@ -169,8 +179,14 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
       description:
         "Translate diagram or code source between any two supported CTD Studio formats: mermaid, dot, plantuml, d2, sql, typescript, xml.",
       inputSchema: {
-        source: z.string().trim().min(1, "Source must not be empty."),
-        targetFormat: FormatSchema,
+        source: z
+          .string()
+          .trim()
+          .min(1, "Source must not be empty.")
+          .describe("Input diagram or code snippet in any supported CTD Studio format."),
+        targetFormat: FormatSchema.describe(
+          "Target output format: mermaid, dot, plantuml, d2, sql, typescript, or xml.",
+        ),
       },
       annotations: {
         readOnlyHint: true,
@@ -207,7 +223,11 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
       description:
         "Parse any supported diagram or code format into CTD Studio's structured DiagramIR (kind, direction, nodes, edges).",
       inputSchema: {
-        source: z.string().trim().min(1, "Source must not be empty."),
+        source: z
+          .string()
+          .trim()
+          .min(1, "Source must not be empty.")
+          .describe("Diagram or code snippet to inspect (Mermaid, DOT, PlantUML, D2, SQL DDL, TypeScript, or XML)."),
       },
       annotations: {
         readOnlyHint: true,
@@ -238,8 +258,10 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
       description:
         "Generate diagram or code in any target format (mermaid, dot, plantuml, d2, sql, typescript, xml) from a structured DiagramIR object.",
       inputSchema: {
-        ir: DiagramIRSchema,
-        targetFormat: FormatSchema,
+        ir: DiagramIRSchema.describe("Structured DiagramIR object (typically returned by parse_diagram_ir)."),
+        targetFormat: FormatSchema.describe(
+          "Target output format: mermaid, dot, plantuml, d2, sql, typescript, or xml.",
+        ),
       },
       annotations: {
         readOnlyHint: true,
@@ -273,7 +295,10 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
       description:
         "List built-in CTD Studio diagram templates or retrieve a specific template by name.",
       inputSchema: {
-        name: z.string().optional(),
+        name: z
+          .string()
+          .optional()
+          .describe("Optional template name (case-insensitive). Omit to list all built-in templates."),
       },
       annotations: {
         readOnlyHint: true,
@@ -338,6 +363,21 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
         })),
         themes: Object.keys(THEME_PRESETS),
         templates: Object.keys(TEMPLATES),
+        directions: ["TD", "BT", "LR", "RL"],
+        looks: ["classic", "handDrawn"],
+        suppressionDirectives: {
+          hideNode: "%% sgs-hide: <NodeId>",
+          hideMember: "%% sgs-hidden-member: <memberLine>",
+        },
+        features: [
+          "dark-mode",
+          "multi-font-sizing",
+          "canva-style-suppression",
+          "node-member-editing",
+          "multi-direction-layout",
+          "live-rooms",
+          "svg-png-export",
+        ],
       };
       return {
         content: [
@@ -347,6 +387,108 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
           },
         ],
         structuredContent: info,
+      };
+    },
+  );
+
+  server.registerTool(
+    "configure_mermaid_diagram",
+    {
+      title: "Configure Mermaid Diagram",
+      description:
+        "Update a Mermaid diagram's layout direction (TD/BT/LR/RL), toggle Canva-style node suppression (%% sgs-hide: <id>), or add a member/field to a class or ER entity.",
+      inputSchema: {
+        code: z.string().min(1).describe("Mermaid diagram source code."),
+        direction: z.enum(["TD", "TB", "BT", "LR", "RL"]).optional().describe("Optional layout direction to apply."),
+        hideNodes: z.array(z.string().min(1)).optional().describe("Node IDs to hide via %% sgs-hide directives."),
+        showNodes: z.array(z.string().min(1)).optional().describe("Node IDs to unhide by removing %% sgs-hide directives."),
+        addMember: z
+          .object({
+            nodeId: z.string().min(1),
+            member: z.string().min(1),
+          })
+          .optional()
+          .describe("Optional member/field line to add inside a classDiagram class or erDiagram entity."),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({ code, direction, hideNodes, showNodes, addMember }) => {
+      const maxSourceBytes = 512 * 1024;
+      if (code.length > maxSourceBytes) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Source exceeds ${maxSourceBytes} byte limit.` }],
+        };
+      }
+      let next = code;
+      if (direction) {
+        const headerRe = /^(\s*(?:flowchart|graph)\s+)(TB|TD|BT|LR|RL)\b/im;
+        if (headerRe.test(next)) {
+          next = next.replace(headerRe, `$1${direction}`);
+        } else if (/^\s*direction\s+(TB|TD|BT|LR|RL)\b/im.test(next)) {
+          next = next.replace(/^(\s*direction\s+)(TB|TD|BT|LR|RL)\b/im, `$1${direction}`);
+        } else {
+          const lines = next.split(/\r?\n/);
+          if (lines.length > 0 && /^(?:classDiagram|stateDiagram(?:-v2)?|erDiagram)\b/i.test(lines[0]!.trim())) {
+            lines.splice(1, 0, `  direction ${direction}`);
+            next = lines.join("\n");
+          }
+        }
+      }
+      if (showNodes?.length) {
+        const showSet = new Set(showNodes.map((n) => n.trim()));
+        next = next
+          .split(/\r?\n/)
+          .filter((line) => {
+            const m = line.match(/^\s*%%\s*sgs-hide:\s*(.+)$/);
+            return !(m && showSet.has(m[1]!.trim()));
+          })
+          .join("\n");
+      }
+      if (hideNodes?.length) {
+        const existing = new Set<string>();
+        for (const line of next.split(/\r?\n/)) {
+          const m = line.match(/^\s*%%\s*sgs-hide:\s*(.+)$/);
+          if (m) existing.add(m[1]!.trim());
+        }
+        const additions = hideNodes
+          .map((n) => n.trim())
+          .filter((n) => n && !existing.has(n))
+          .map((n) => `  %% sgs-hide: ${n}`);
+        if (additions.length) next = `${next.trimEnd()}\n${additions.join("\n")}`;
+      }
+      if (addMember) {
+        const escaped = addMember.nodeId.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const member = addMember.member.replace(/[\r\n]+/g, " ").trim();
+        const lines = next.split(/\r?\n/);
+        const blockStart = lines.findIndex((line) =>
+          new RegExp(`^\\s*(?:class\\s+)?${escaped}(?:\\s*\\[[^\\]]*\\])?\\s*\\{`).test(line),
+        );
+        if (blockStart !== -1) {
+          let blockEnd = blockStart;
+          for (let i = blockStart + 1; i < lines.length; i += 1) {
+            if (lines[i]!.includes("}")) {
+              blockEnd = i;
+              break;
+            }
+          }
+          if (blockEnd > blockStart) {
+            lines.splice(blockEnd, 0, `    ${member}`);
+            next = lines.join("\n");
+          }
+        } else {
+          const isClass = /^\s*classDiagram\b/im.test(next);
+          next = isClass
+            ? `${next.trimEnd()}\n  class ${addMember.nodeId.trim()} {\n    ${member}\n  }`
+            : `${next.trimEnd()}\n  ${addMember.nodeId.trim()} {\n    ${member}\n  }`;
+        }
+      }
+      return {
+        content: [{ type: "text", text: next }],
+        structuredContent: { code: next },
       };
     },
   );
@@ -454,6 +596,65 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
             type: "text",
             text: [
               `Use CTD Studio MCP tools (\`detect_format\`, \`to_mermaid\`, \`translate_format\`, \`parse_diagram_ir\`) to convert the following input into a clean ${targetFormat ?? "mermaid"} diagram:`,
+              "",
+              "```",
+              source,
+              "```",
+            ].join("\n"),
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    "configure_diagram",
+    {
+      title: "Configure Mermaid Diagram",
+      description:
+        "Adjust layout direction, hide/show nodes with %% sgs-hide directives, or add class/ER members using configure_mermaid_diagram.",
+      argsSchema: {
+        code: z.string().describe("Existing Mermaid diagram source code"),
+        changes: z.string().describe("Requested layout direction, node visibility, or member changes"),
+      },
+    },
+    ({ code, changes }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: [
+              `Use the \`configure_mermaid_diagram\` MCP tool to apply these changes: ${changes}`,
+              "",
+              "```mermaid",
+              code,
+              "```",
+            ].join("\n"),
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    "explain_diagram",
+    {
+      title: "Explain Diagram Structure",
+      description:
+        "Parse a diagram or code snippet with parse_diagram_ir and explain its nodes, edges, and flow concisely.",
+      argsSchema: {
+        source: z.string().describe("Diagram or code snippet to analyze"),
+      },
+    },
+    ({ source }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: [
+              "Call `detect_format` and `parse_diagram_ir` on the input below, then summarize its structure, key components, and relationships concisely:",
               "",
               "```",
               source,

@@ -7,12 +7,23 @@ export type DiagramType =
   | "class"
   | "state"
   | "er"
+  | "requirement"
+  | "c4"
   | "sequence"
   | "gantt"
   | "mindmap"
   | "pie"
   | "journey"
   | "other";
+
+export const MOVABLE_DIAGRAM_TYPES: ReadonlySet<DiagramType> = new Set([
+  "flowchart",
+  "class",
+  "state",
+  "er",
+  "requirement",
+  "c4",
+]);
 
 export interface MermaidResult {
   svg: string;
@@ -128,6 +139,8 @@ export function detectDiagramType(source: string): DiagramType {
   if (/^classDiagram\b/i.test(firstLine)) return "class";
   if (/^stateDiagram(?:-v2)?\b/i.test(firstLine)) return "state";
   if (/^erDiagram\b/i.test(firstLine)) return "er";
+  if (/^requirementDiagram\b/i.test(firstLine)) return "requirement";
+  if (/^C4(?:Context|Container|Component|Dynamic|Deployment)\b/i.test(firstLine)) return "c4";
   if (/^sequenceDiagram\b/i.test(firstLine)) return "sequence";
   if (/^gantt\b/i.test(firstLine)) return "gantt";
   if (/^mindmap\b/i.test(firstLine)) return "mindmap";
@@ -186,18 +199,30 @@ export function resolveDiagramPalette(
   return { primaryColor, textColor, lineColor, canvasColor };
 }
 
-export function renderMermaid(source: string, settings: StudioSettings): Promise<MermaidResult> {
-  const sequence = ++renderSequence;
+let previewSequence = 0;
+
+function renderWithSequence(
+  source: string,
+  settings: StudioSettings,
+  renderId: string,
+  isStale: () => boolean,
+): Promise<MermaidResult> {
   const result = renderQueue.then(async () => {
-    if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
+    if (isStale()) throw new DOMException("Stale render.", "AbortError");
     const compiled = toMermaidSource(source).mermaid;
     const type = detectDiagramType(compiled);
     const { primaryColor, textColor, lineColor, canvasColor } = resolveDiagramPalette(settings);
+    const isDark = relativeLuminance(canvasColor) < 0.25;
+    const safeFont = settings.font.replace(/[;{}<>]/g, "");
+    const isHandDrawn = settings.look === "handDrawn";
+    const seriesColors = isDark
+      ? ["#2c6b78", "#c26427", "#3b7a57", "#6b5ca5", "#b5822b", "#3f6d9e", "#a64d68", "#4b7c74"]
+      : ["#2f6f7d", "#c26427", "#3f825e", "#6f61a8", "#b8832c", "#4473a3", "#a9526c", "#4e8078"];
     const mermaid = await ensureMermaid();
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
-      look: settings.look === "handDrawn" ? "handDrawn" : "classic",
+      look: isHandDrawn ? "handDrawn" : "classic",
       theme: "base",
       htmlLabels: false,
       flowchart: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68, padding: 16 },
@@ -205,17 +230,26 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
       state: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68 },
 
       themeCSS: `
-        .node > rect, .node > circle, .node > ellipse, .node > polygon, .node > path, .node .basic.label-container, g.classGroup rect, .basic.label-container > path:first-child, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
-        .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }
+        svg, .nodeLabel, .label text, .label tspan, g.classGroup text, .entityLabel { font-family: ${safeFont} !important; }
+        .node > rect, .node > circle, .node > ellipse, .node > polygon, .node > path, .node .basic.label-container, .rough-node .basic.label-container, g.classGroup rect, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
+        ${
+          isHandDrawn
+            ? `.basic.label-container > path:first-child { fill: none; stroke: ${isDark ? "rgba(138, 180, 173, 0.2)" : "rgba(49, 81, 88, 0.14)"}; }
+        .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }`
+            : `.basic.label-container > path:first-child { fill: ${primaryColor}; stroke: ${lineColor}; }
+        .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }`
+        }
         .nodeLabel, .label text, .label tspan, .label span, .label div, g.classGroup text, .classTitleText, .node text, .entityLabel, .edgeTerminals text, .edgeTerminals span { fill: ${textColor} !important; color: ${textColor} !important; }
         .edgePath .path, .flowchart-link, path.relation, .transition, .er.relationshipLine { stroke: ${lineColor}; }
         .edgeLabel, .edgeLabel rect, .edgeLabel span, .labelBkg { background-color: ${canvasColor}; fill: ${canvasColor}; color: ${textColor}; }
         .edgeLabel p, .edgeTerminals p { margin: 0; padding: 0; }
+        .pieTitleText, .legend text, .messageText, .loopText, .noteText, .sectionTitle, .grid .tick text, .commit-label, .titleText { fill: ${textColor} !important; }
+        .slice { fill: #ffffff !important; font-weight: 600; }
         foreignObject { overflow: visible; }
       `,
 
       themeVariables: {
-        darkMode: relativeLuminance(canvasColor) < 0.25,
+        darkMode: isDark,
         primaryColor,
         mainBkg: primaryColor,
         nodeBkg: primaryColor,
@@ -232,16 +266,114 @@ export function renderMermaid(source: string, settings: StudioSettings): Promise
         nodeBorder: lineColor,
         lineColor,
         background: canvasColor,
-        fontFamily: settings.font.replace(/[;{}<>]/g, ""),
+        fontFamily: safeFont,
+        pie1: seriesColors[0],
+        pie2: seriesColors[1],
+        pie3: seriesColors[2],
+        pie4: seriesColors[3],
+        pie5: seriesColors[4],
+        pie6: seriesColors[5],
+        pie7: seriesColors[6],
+        pie8: seriesColors[7],
+        pieTitleTextColor: textColor,
+        pieLegendTextColor: textColor,
+        pieSectionTextColor: "#ffffff",
+        pieStrokeColor: canvasColor,
+        pieOuterStrokeColor: lineColor,
+        actorBkg: primaryColor,
+        actorBorder: lineColor,
+        actorTextColor: textColor,
+        actorLineColor: lineColor,
+        signalColor: lineColor,
+        signalTextColor: textColor,
+        labelBoxBkgColor: primaryColor,
+        labelBoxBorderColor: lineColor,
+        labelTextColor: textColor,
+        loopTextColor: textColor,
+        noteBkgColor: isDark ? "#23343a" : "#faf4ed",
+        noteBorderColor: lineColor,
+        noteTextColor: textColor,
+        activationBkgColor: isDark ? "#253940" : "#e3ecea",
+        activationBorderColor: lineColor,
+        taskBkgColor: seriesColors[0],
+        taskBorderColor: lineColor,
+        taskTextColor: "#ffffff",
+        taskTextOutsideColor: textColor,
+        activeTaskBkgColor: seriesColors[1],
+        activeTaskBorderColor: isDark ? "#f1a878" : "#8f4518",
+        doneTaskBkgColor: isDark ? "#2f474e" : "#5e7a76",
+        doneTaskBorderColor: lineColor,
+        critBkgColor: "#b43c2c",
+        critBorderColor: isDark ? "#f28b7d" : "#7e251a",
+        sectionBkgColor: isDark ? "#152328" : "#ebf1ef",
+        altSectionBkgColor: isDark ? "#111c20" : "#f5f8f7",
+        sectionBkgColor2: isDark ? "#152328" : "#ebf1ef",
+        gridColor: isDark ? "#2c4046" : "#cdd8d5",
+        todayLineColor: seriesColors[1],
+        git0: seriesColors[0],
+        git1: seriesColors[1],
+        git2: seriesColors[2],
+        git3: seriesColors[3],
+        git4: seriesColors[4],
+        git5: seriesColors[5],
+        git6: seriesColors[6],
+        git7: seriesColors[7],
+        gitBranchLabel0: "#ffffff",
+        gitBranchLabel1: "#ffffff",
+        gitBranchLabel2: "#ffffff",
+        gitBranchLabel3: "#ffffff",
+        gitBranchLabel4: "#ffffff",
+        gitBranchLabel5: "#ffffff",
+        gitBranchLabel6: "#ffffff",
+        gitBranchLabel7: "#ffffff",
+        commitLabelColor: textColor,
+        commitLabelBackground: primaryColor,
+        tagLabelColor: textColor,
+        tagLabelBackground: primaryColor,
+        tagLabelBorder: lineColor,
+        cScale0: seriesColors[0],
+        cScale1: seriesColors[1],
+        cScale2: seriesColors[2],
+        cScale3: seriesColors[3],
+        cScale4: seriesColors[4],
+        cScale5: seriesColors[5],
+        cScale6: seriesColors[6],
+        cScale7: seriesColors[7],
+        cScaleLabel0: "#ffffff",
+        cScaleLabel1: "#ffffff",
+        cScaleLabel2: "#ffffff",
+        cScaleLabel3: "#ffffff",
+        cScaleLabel4: "#ffffff",
+        cScaleLabel5: "#ffffff",
+        cScaleLabel6: "#ffffff",
+        cScaleLabel7: "#ffffff",
+        fillType0: seriesColors[0],
+        fillType1: seriesColors[1],
+        fillType2: seriesColors[2],
+        fillType3: seriesColors[3],
+        fillType4: seriesColors[4],
+        fillType5: seriesColors[5],
+        fillType6: seriesColors[6],
+        fillType7: seriesColors[7],
       },
     });
 
-    const rendered = await mermaid.render(`sgs-${sequence}`, compiled);
-    if (sequence !== renderSequence) throw new DOMException("Stale render.", "AbortError");
+    const rendered = await mermaid.render(renderId, compiled);
+    if (isStale()) throw new DOMException("Stale render.", "AbortError");
     return { svg: rendered.svg, type };
   });
   renderQueue = result.then(() => undefined, () => undefined);
   return result;
+}
+
+export function renderMermaid(source: string, settings: StudioSettings): Promise<MermaidResult> {
+  const sequence = ++renderSequence;
+  return renderWithSequence(source, settings, `sgs-${sequence}`, () => sequence !== renderSequence);
+}
+
+export function renderMermaidPreview(source: string, settings: StudioSettings): Promise<MermaidResult> {
+  const sequence = ++previewSequence;
+  return renderWithSequence(source, settings, `sgs-prev-${sequence}`, () => sequence !== previewSequence);
 }
 
 export function parseMermaid(source: string): Promise<void> {

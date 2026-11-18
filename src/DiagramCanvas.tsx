@@ -1,10 +1,12 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Code2, Eye, EyeOff, Pencil, Plus, RotateCcw, Scan, Shapes, Trash2 } from "lucide-react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import type { DiagramDocument, Position, StudioSettings } from "./types";
 import { colorizeExportedNodes } from "./export";
 import {
   detectDiagramType,
+  MOVABLE_DIAGRAM_TYPES,
   getMermaidErrorLine,
   parseMermaidSvg,
   renderMermaid,
@@ -105,6 +107,117 @@ function normalizeMemberText(text: string): string {
   return text.replace(/\s*:\s*/g, " ").replace(/\s+/g, " ").trim();
 }
 
+interface NodeMemberEntry {
+  lineIndex: number;
+  text: string;
+  hidden: boolean;
+}
+
+function findNodeBlockRange(lines: string[], code: string, nodeId: string): { start: number; end: number } | null {
+  const kind = detectDiagramType(code);
+  if (kind !== "class" && kind !== "er") return null;
+  const escapedId = escapeRegex(nodeId);
+  const startRe =
+    kind === "class"
+      ? new RegExp(`^\\s*class\\s+${escapedId}(?:\\s*\\[[^\\]]*\\])?\\s*\\{`)
+      : new RegExp(`^\\s*${escapedId}(?:\\s*\\[[^\\]]*\\])?\\s*\\{`);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (!startRe.test(line) || line.includes("}")) continue;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      if (lines[j]!.includes("}")) return { start: i, end: j };
+    }
+    return null;
+  }
+  return null;
+}
+
+function listNodeMembersInCode(code: string, nodeId: string): NodeMemberEntry[] {
+  const lines = code.split(/\r?\n/);
+  const range = findNodeBlockRange(lines, code, nodeId);
+  if (!range) return [];
+  const members: NodeMemberEntry[] = [];
+  for (let i = range.start + 1; i < range.end; i += 1) {
+    const line = lines[i]!;
+    const hiddenMatch = line.match(/^\s*%%\s*sgs-hidden-member:\s*(.+)$/);
+    if (hiddenMatch) {
+      members.push({ lineIndex: i, text: hiddenMatch[1]!.trim(), hidden: true });
+      continue;
+    }
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("%%")) continue;
+    members.push({ lineIndex: i, text: trimmed, hidden: false });
+  }
+  return members;
+}
+
+function toggleNodeMemberInCode(code: string, nodeId: string, lineIndex: number): string | null {
+  const lines = code.split(/\r?\n/);
+  const range = findNodeBlockRange(lines, code, nodeId);
+  if (!range || lineIndex <= range.start || lineIndex >= range.end) return null;
+  const line = lines[lineIndex];
+  if (line === undefined) return null;
+  const hiddenMatch = line.match(/^(\s*)%%\s*sgs-hidden-member:\s*(.+)$/);
+  if (hiddenMatch) {
+    lines[lineIndex] = `${hiddenMatch[1]}${hiddenMatch[2]}`;
+    return lines.join("\n");
+  }
+  const indent = line.match(/^\s*/)?.[0] ?? "  ";
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("%%")) return null;
+  lines[lineIndex] = `${indent}%% sgs-hidden-member: ${trimmed}`;
+  return lines.join("\n");
+}
+
+function setAllNodeMembersHiddenInCode(code: string, nodeId: string, hide: boolean): string | null {
+  const lines = code.split(/\r?\n/);
+  const range = findNodeBlockRange(lines, code, nodeId);
+  if (!range) return null;
+  let changed = false;
+  for (let i = range.start + 1; i < range.end; i += 1) {
+    const line = lines[i]!;
+    const hiddenMatch = line.match(/^(\s*)%%\s*sgs-hidden-member:\s*(.+)$/);
+    if (hide && !hiddenMatch) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith("%%")) {
+        const indent = line.match(/^\s*/)?.[0] ?? "  ";
+        lines[i] = `${indent}%% sgs-hidden-member: ${trimmed}`;
+        changed = true;
+      }
+    } else if (!hide && hiddenMatch) {
+      lines[i] = `${hiddenMatch[1]}${hiddenMatch[2]}`;
+      changed = true;
+    }
+  }
+  return changed ? lines.join("\n") : null;
+}
+
+function addNodeMemberInCode(code: string, nodeId: string, memberLine: string): string | null {
+  const kind = detectDiagramType(code);
+  if (kind !== "class" && kind !== "er") return null;
+  const trimmedMember = memberLine.replace(/[\r\n]+/g, " ").trim();
+  if (!trimmedMember) return null;
+  const lines = code.split(/\r?\n/);
+  const range = findNodeBlockRange(lines, code, nodeId);
+  if (range) {
+    const sampleIndent = lines[range.start + 1]?.match(/^\s*/)?.[0] ?? `${lines[range.start]?.match(/^\s*/)?.[0] ?? "  "}  `;
+    lines.splice(range.end, 0, `${sampleIndent}${trimmedMember}`);
+    return lines.join("\n");
+  }
+  const escapedId = escapeRegex(nodeId);
+  if (kind === "class") {
+    const bareIdx = lines.findIndex((line) => new RegExp(`^\\s*class\\s+${escapedId}(?:\\s*\\[[^\\]]*\\])?\\s*$`).test(line));
+    if (bareIdx !== -1) {
+      const baseLine = lines[bareIdx]!;
+      const indent = baseLine.match(/^\s*/)?.[0] ?? "  ";
+      lines.splice(bareIdx, 1, `${baseLine} {`, `${indent}  ${trimmedMember}`, `${indent}}`);
+      return lines.join("\n");
+    }
+    return `${code.trimEnd()}\n  class ${nodeId} {\n    ${trimmedMember}\n  }`;
+  }
+  return `${code.trimEnd()}\n  ${nodeId} {\n    ${trimmedMember}\n  }`;
+}
+
 function hideClassMemberInCode(code: string, nodeId: string, memberText: string): string | null {
   if (detectDiagramType(code) !== "class") return null;
   const targetNorm = normalizeMemberText(memberText);
@@ -136,6 +249,40 @@ function showHiddenNodesInCode(code: string): string | null {
     .filter((line) => !/^\s*%%\s*sgs-hide:\s*.+$/.test(line))
     .map((line) => line.replace(/^(\s*)%%\s*sgs-hidden-member:\s*(.+)$/, "$1$2"))
     .join("\n");
+  return next !== code ? next : null;
+}
+
+function deleteNodesInCode(code: string, nodeIds: string[]): string | null {
+  const targets = Array.from(new Set(nodeIds.map((id) => id.trim()).filter(Boolean)));
+  if (!targets.length) return null;
+  let lines = code.split(/\r?\n/);
+  const kind = detectDiagramType(code);
+
+  for (const nodeId of targets) {
+    const range = findNodeBlockRange(lines, lines.join("\n"), nodeId);
+    if (range) {
+      lines.splice(range.start, range.end - range.start + 1);
+    }
+    const escaped = escapeRegex(nodeId);
+    const idTokenRe = new RegExp(`(?:^|[\\s|>])${escaped}(?:$|[\\s\\[\\(\\{<:\\-.=])`);
+    const declRe =
+      kind === "class"
+        ? new RegExp(`^\\s*class\\s+${escaped}(?:\\s*\\[[^\\]]*\\])?\\s*$`)
+        : kind === "state"
+          ? new RegExp(`^\\s*state\\s+(?:"[^"]*"\\s+as\\s+)?${escaped}\\s*$`)
+          : new RegExp(`^\\s*${escaped}\\s*(?:\\[|\\(|\\{|$)`);
+
+    lines = lines.filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("%%")) return true;
+      if (declRe.test(line)) return false;
+      const isEdgeLine = /(?:-->|---|==>|-\.->|--x|--o|<\|--|--\|>|\*--|o--|\.\.|--)/.test(trimmed);
+      if (isEdgeLine && idTokenRe.test(trimmed)) return false;
+      return true;
+    });
+  }
+
+  const next = lines.join("\n");
   return next !== code ? next : null;
 }
 
@@ -388,9 +535,9 @@ export function getDiagramBounds(svg: SVGSVGElement): {
       .filter((box) => box.width > 0 && box.height > 0);
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine, path[marker-end]",
       ),
-    ).filter((path) => path.getTotalLength() > 0);
+    ).filter((path) => !path.closest(".node, .c4-shape, marker, defs") && path.getTotalLength() > 0);
     edgePaths.forEach((path) => {
       const box = boundsInRoot(svg, path);
       if (box.width > 0 || box.height > 0) boxes.push(box);
@@ -719,6 +866,47 @@ function toLocalPoint(
   return { x: local.x, y: local.y };
 }
 
+function toRootPoint(svg: SVGSVGElement, clientX: number, clientY: number): Position {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return { x: clientX, y: clientY };
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const root = pt.matrixTransform(ctm.inverse());
+  return { x: root.x, y: root.y };
+}
+
+function projectToBoxAnchor(
+  point: Position,
+  box: { x: number; y: number; width: number; height: number },
+): Position {
+  const w = Math.max(1, box.width);
+  const h = Math.max(1, box.height);
+  const rx = Math.min(0.92, Math.max(0.08, (point.x - box.x) / w));
+  const ry = Math.min(0.92, Math.max(0.08, (point.y - box.y) / h));
+  const dTop = Math.abs(point.y - box.y);
+  const dBottom = Math.abs(point.y - (box.y + h));
+  const dLeft = Math.abs(point.x - box.x);
+  const dRight = Math.abs(point.x - (box.x + w));
+  const best = Math.min(dTop, dBottom, dLeft, dRight);
+  if (best === dTop) return { x: rx, y: 0 };
+  if (best === dBottom) return { x: rx, y: 1 };
+  if (best === dLeft) return { x: 0, y: ry };
+  return { x: 1, y: ry };
+}
+
+function resolveAnchorOnBox(
+  box: { x: number; y: number; width: number; height: number },
+  anchor: Position,
+): { point: Position; normal: Position } {
+  const rx = Math.min(0.92, Math.max(0.08, anchor.x));
+  const ry = Math.min(0.92, Math.max(0.08, anchor.y));
+  if (anchor.y <= 0.001) return { point: { x: box.x + box.width * rx, y: box.y }, normal: { x: 0, y: -1 } };
+  if (anchor.y >= 0.999) return { point: { x: box.x + box.width * rx, y: box.y + box.height }, normal: { x: 0, y: 1 } };
+  if (anchor.x <= 0.001) return { point: { x: box.x, y: box.y + box.height * ry }, normal: { x: -1, y: 0 } };
+  return { point: { x: box.x + box.width, y: box.y + box.height * ry }, normal: { x: 1, y: 0 } };
+}
+
 function routeEdge(
   svg: SVGSVGElement,
   path: SVGPathElement,
@@ -732,6 +920,8 @@ function routeEdge(
   channelOffset = 0,
   manualOffset: Position = { x: 0, y: 0 },
   usedSegments: { a: Position; b: Position }[] = [],
+  endOverride?: { point: Position; normal: Position },
+  startOverride?: { point: Position; normal: Position },
 ): {
   points: Position[];
   mid: Position;
@@ -744,38 +934,48 @@ function routeEdge(
   const targetBounds = boundsInRoot(svg, target);
   const sourceDiamond = isDiamondNode(source);
   const targetDiamond = isDiamondNode(target);
-  const { point: start, normal: startNormal } = portOnFace(
-    sourceBounds,
-    sourceFace,
-    sourceDiamond ? 0 : sourceOffset,
-  );
+  const { point: start, normal: startNormal } = startOverride
+    ? { point: { ...startOverride.point }, normal: { ...startOverride.normal } }
+    : portOnFace(
+        sourceBounds,
+        sourceFace,
+        sourceDiamond ? 0 : sourceOffset,
+      );
 
-  const { point: end, normal: endNormal } = portOnFace(
-    targetBounds,
-    targetFace,
-    targetDiamond ? 0 : targetOffset,
-  );
+  const { point: rawEnd, normal: endNormal } = endOverride
+    ? { point: { ...endOverride.point }, normal: { ...endOverride.normal } }
+    : portOnFace(
+        targetBounds,
+        targetFace,
+        targetDiamond ? 0 : targetOffset,
+      );
+  const end = {
+    x: rawEnd.x + endNormal.x * 1.5,
+    y: rawEnd.y + endNormal.y * 1.5,
+  };
 
-  if (
-    startNormal.y !== 0 &&
-    endNormal.y !== 0 &&
-    Math.abs(sourceOffset) < 0.1 &&
-    Math.abs(targetOffset) < 0.1 &&
-    Math.abs(start.x - end.x) <= 16
-  ) {
-    if (sourceDiamond && !targetDiamond) end.x = start.x;
-    else if (targetDiamond && !sourceDiamond) start.x = end.x;
-    else end.x = start.x;
-  } else if (
-    startNormal.x !== 0 &&
-    endNormal.x !== 0 &&
-    Math.abs(sourceOffset) < 0.1 &&
-    Math.abs(targetOffset) < 0.1 &&
-    Math.abs(start.y - end.y) <= 16
-  ) {
-    if (sourceDiamond && !targetDiamond) end.y = start.y;
-    else if (targetDiamond && !sourceDiamond) start.y = end.y;
-    else end.y = start.y;
+  if (!startOverride && !endOverride) {
+    if (
+      startNormal.y !== 0 &&
+      endNormal.y !== 0 &&
+      Math.abs(sourceOffset) < 0.1 &&
+      Math.abs(targetOffset) < 0.1 &&
+      Math.abs(start.x - end.x) <= 16
+    ) {
+      if (sourceDiamond && !targetDiamond) end.x = start.x;
+      else if (targetDiamond && !sourceDiamond) start.x = end.x;
+      else end.x = start.x;
+    } else if (
+      startNormal.x !== 0 &&
+      endNormal.x !== 0 &&
+      Math.abs(sourceOffset) < 0.1 &&
+      Math.abs(targetOffset) < 0.1 &&
+      Math.abs(start.y - end.y) <= 16
+    ) {
+      if (sourceDiamond && !targetDiamond) end.y = start.y;
+      else if (targetDiamond && !sourceDiamond) start.y = end.y;
+      else end.y = start.y;
+    }
   }
 
   const rawGap =
@@ -807,10 +1007,12 @@ function routeEdge(
     midX + 18,
     midX - 36,
     midX + 36,
+    midX - 54,
+    midX + 54,
     startStub.x,
     endStub.x,
-    ...obstacles.flatMap((box) => [box.x - 24, box.x + box.width + 24]),
-    ...endpointBoxes.flatMap((box) => [box.x - 24, box.x + box.width + 24]),
+    ...obstacles.flatMap((box) => [box.x - 24, box.x - 40, box.x + box.width + 24, box.x + box.width + 40]),
+    ...endpointBoxes.flatMap((box) => [box.x - 24, box.x - 40, box.x + box.width + 24, box.x + box.width + 40]),
   ]);
 
   const yCandidates = new Set([
@@ -819,10 +1021,12 @@ function routeEdge(
     midY + 18,
     midY - 36,
     midY + 36,
+    midY - 54,
+    midY + 54,
     startStub.y,
     endStub.y,
-    ...obstacles.flatMap((box) => [box.y - 24, box.y + box.height + 24]),
-    ...endpointBoxes.flatMap((box) => [box.y - 24, box.y + box.height + 24]),
+    ...obstacles.flatMap((box) => [box.y - 24, box.y - 40, box.y + box.height + 24, box.y + box.height + 40]),
+    ...endpointBoxes.flatMap((box) => [box.y - 24, box.y - 40, box.y + box.height + 24, box.y + box.height + 40]),
   ]);
 
   const candidates = [
@@ -1029,6 +1233,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const onLayoutChangeRef = useRef(onLayoutChange);
   const onNodeMovedRef = useRef(onNodeMoved);
   const onNodeSelectRef = useRef(onNodeSelect);
+  const documentRef = useRef(document);
+  const onCodeChangeRef = useRef(onCodeChange);
+  documentRef.current = document;
+  onCodeChangeRef.current = onCodeChange;
   const spaceDown = useRef(false);
   const toolModeRef = useRef<"move" | "hand">("move");
   const pendingFitRef = useRef(false);
@@ -1041,7 +1249,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
   const [editingLabel, setEditingLabel] = useState(false);
   const [pickingShape, setPickingShape] = useState(false);
+  const [pickingMembers, setPickingMembers] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
+  const [memberDraft, setMemberDraft] = useState("");
 
   settingsRef.current = settings;
   readOnlyRef.current = readOnly;
@@ -1287,31 +1498,57 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     for (let rIdx = 1; rIdx < rows.length; rIdx += 1) {
       sortRow(rows[rIdx]!, rIdx, true);
     }
-    const gapX = 88;
-    const gapY = 80;
-    const maxW = Math.max(...items.map((item) => item.width), 140);
-    const stepX = snapVal(maxW + gapX);
-    const totalCols = Math.max(...rows.map((r) => r.length), 1);
-    const totalSpanW = (totalCols - 1) * stepX + maxW;
+    const gapX = 120;
+    const gapY = 108;
+    const dirHeader = document.code.match(/^\s*(?:flowchart|graph)\s+(TB|TD|BT|LR|RL)\b/im)?.[1]?.toUpperCase();
+    const dirDirective = document.code.match(/^\s*direction\s+(TB|TD|BT|LR|RL)\b/im)?.[1]?.toUpperCase();
+    const layoutDir = dirDirective || dirHeader || "TD";
+    const isHorizontal = layoutDir === "LR" || layoutDir === "RL";
+    const orderedRows = layoutDir === "BT" || layoutDir === "RL" ? [...rows].reverse() : rows;
     const next: Record<string, Position> = {};
-    let cursorY = 0;
-    rows.forEach((row) => {
-      const rowH = Math.max(...row.map((item) => item.height), 72);
-      const centerY = snapVal(cursorY + rowH / 2);
-      const rowSpanW = (row.length - 1) * stepX + maxW;
-      const startX = (totalSpanW - rowSpanW) / 2 + maxW / 2;
-      row.forEach((item, col) => {
-        next[item.id] = {
-          x: snapVal(startX + col * stepX),
-          y: centerY,
-        };
+    if (isHorizontal) {
+      const maxH = Math.max(...items.map((item) => item.height), 72);
+      const stepY = snapVal(maxH + gapY);
+      const totalRows = Math.max(...orderedRows.map((r) => r.length), 1);
+      const totalSpanH = (totalRows - 1) * stepY + maxH;
+      let cursorX = 0;
+      orderedRows.forEach((colBucket) => {
+        const colW = Math.max(...colBucket.map((item) => item.width), 140);
+        const centerX = snapVal(cursorX + colW / 2);
+        const colSpanH = (colBucket.length - 1) * stepY + maxH;
+        const startY = (totalSpanH - colSpanH) / 2 + maxH / 2;
+        colBucket.forEach((item, rowIdx) => {
+          next[item.id] = {
+            x: centerX,
+            y: snapVal(startY + rowIdx * stepY),
+          };
+        });
+        cursorX += snapVal(colW + gapX);
       });
-      cursorY += snapVal(rowH + gapY);
-    });
+    } else {
+      const maxW = Math.max(...items.map((item) => item.width), 140);
+      const stepX = snapVal(maxW + gapX);
+      const totalCols = Math.max(...orderedRows.map((r) => r.length), 1);
+      const totalSpanW = (totalCols - 1) * stepX + maxW;
+      let cursorY = 0;
+      orderedRows.forEach((row) => {
+        const rowH = Math.max(...row.map((item) => item.height), 72);
+        const centerY = snapVal(cursorY + rowH / 2);
+        const rowSpanW = (row.length - 1) * stepX + maxW;
+        const startX = (totalSpanW - rowSpanW) / 2 + maxW / 2;
+        row.forEach((item, col) => {
+          next[item.id] = {
+            x: snapVal(startX + col * stepX),
+            y: centerY,
+          };
+        });
+        cursorY += snapVal(rowH + gapY);
+      });
+    }
     pendingFitRef.current = true;
     onLayoutChange(next);
     requestAnimationFrame(() => fit());
-  }, [fit, onLayoutChange]);
+  }, [document.code, fit, onLayoutChange]);
 
   useImperativeHandle(
     ref,
@@ -1325,23 +1562,13 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const behavior = zoom<HTMLDivElement, unknown>()
       .scaleExtent([0.1, 5])
       .filter((event) => {
-        const target = event.target instanceof Element ? event.target : null;
         if (event.type === "wheel") return false;
         if (event.type === "mousedown") {
           const button = (event as MouseEvent).button;
-          return (
-            button === 1 ||
-            spaceDown.current ||
-            toolModeRef.current === "hand" ||
-            (button === 0 && !(event as MouseEvent).shiftKey && !target?.closest("[data-sgs-node], [data-sgs-edge]"))
-          );
+          return button === 1 || spaceDown.current || toolModeRef.current === "hand";
         }
         if (event.type === "touchstart") {
-          return (
-            (event as TouchEvent).touches.length > 1 ||
-            toolModeRef.current === "hand" ||
-            !target?.closest("[data-sgs-node], [data-sgs-edge]")
-          );
+          return (event as TouchEvent).touches.length > 1 || toolModeRef.current === "hand";
         }
         return false;
       })
@@ -1370,8 +1597,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      const element = event.target instanceof HTMLElement ? event.target : undefined;
-      const editing = element?.isContentEditable ||
+      const element = event.target instanceof Element ? event.target : undefined;
+      const editing =
+        (element instanceof HTMLElement && element.isContentEditable) ||
         Boolean(element?.closest("input, textarea, select, [contenteditable='true']"));
       if (event.code === "Space") {
         if (!editing && !element?.closest("button, a, summary")) {
@@ -1405,6 +1633,22 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       } else if (event.key === "-" || event.code === "NumpadSubtract") {
         event.preventDefault();
         zoomBy(1 / 1.15);
+      } else if ((event.key === "Delete" || event.key === "Backspace") && !readOnlyRef.current && onCodeChangeRef.current) {
+        const focusedNodeId = element?.closest<SVGGElement>("[data-sgs-node]")?.dataset.sgsNode;
+        const targets = selectedIdsRef.current.size > 0
+          ? Array.from(selectedIdsRef.current)
+          : focusedNodeId
+            ? [focusedNodeId]
+            : [];
+        if (!targets.length) return;
+        const updated = deleteNodesInCode(documentRef.current.code, targets);
+        if (!updated) return;
+        event.preventDefault();
+        selectedIdsRef.current.clear();
+        const nextLayout = { ...documentRef.current.layout };
+        for (const id of targets) delete nextLayout[id];
+        onLayoutChangeRef.current(nextLayout);
+        onCodeChangeRef.current(updated);
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -1484,7 +1728,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [rendered, onRenderError, settings.colorizeBoxes]);
+  }, [rendered, onRenderError, settings.colorizeBoxes, settings.theme, settings.canvasColor, settings.primaryColor, settings.textColor, settings.lineColor]);
 
   useEffect(() => {
     const graphic = graphicRef.current;
@@ -1523,7 +1767,118 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const palette = resolveDiagramPalette(settingsRef.current);
     normalizeMarkers(svg, palette.canvasColor);
     const kind = detectDiagramType(document.code);
-    if (!["flowchart", "class", "state", "er"].includes(kind)) {
+    const isHandDrawn = settingsRef.current.look === "handDrawn";
+    if (kind === "class") {
+      svg.querySelectorAll<SVGGElement>("g.node, g.rough-node, g.classGroup").forEach((nodeEl) => {
+        const membersGroup = nodeEl.querySelector<SVGGElement>(".members-group");
+        const methodsGroup = nodeEl.querySelector<SVGGElement>(".methods-group");
+        const labelGroup = nodeEl.querySelector<SVGGElement>(".label-group");
+        const dividers = Array.from(nodeEl.querySelectorAll<SVGGElement>("g.divider"));
+        const hasMembers = Boolean(membersGroup?.textContent?.trim());
+        const hasMethods = Boolean(methodsGroup?.textContent?.trim());
+        if (hasMembers && hasMethods) return;
+        const boxShapes = Array.from(
+          nodeEl.querySelectorAll<SVGGeometryElement>("g.basic.label-container > path, g.basic.label-container > rect, :scope > rect"),
+        );
+        if (!hasMembers && hasMethods) {
+          if (membersGroup) membersGroup.style.display = "none";
+          if (dividers.length >= 2) dividers[1]!.style.display = "none";
+          if (methodsGroup && dividers.length >= 2) {
+            try {
+              const d0 = dividers[0]!.getBBox();
+              const d1 = dividers[1]!.getBBox();
+              const d0Ctm = dividers[0]!.getCTM();
+              const d1Ctm = dividers[1]!.getCTM();
+              const mCtm = methodsGroup.getCTM();
+              const nodeCtm = nodeEl.getCTM();
+              const d0Y = (d0Ctm && nodeCtm ? d0Ctm.f - nodeCtm.f : 0) + d0.y;
+              const d1Y = (d1Ctm && nodeCtm ? d1Ctm.f - nodeCtm.f : 0) + d1.y;
+              const shift = Math.max(0, d1Y - d0Y);
+              if (shift > 4) {
+                const mBase = readTranslation(methodsGroup.getAttribute("transform"));
+                const mY = mCtm && nodeCtm ? mCtm.f - nodeCtm.f : mBase.y;
+                methodsGroup.setAttribute("transform", `translate(${mBase.x} ${mY - shift})`);
+                boxShapes.forEach((boxShape) => {
+                  if (boxShape instanceof SVGRectElement) {
+                    const curH = boxShape.height.baseVal.value;
+                    if (curH - shift > 24) boxShape.setAttribute("height", String(Number((curH - shift).toFixed(2))));
+                  } else if (boxShape instanceof SVGPathElement) {
+                    const curBox = boxShape.getBBox();
+                    const nextBottom = curBox.y + curBox.height - shift;
+                    if (nextBottom > curBox.y + 24) {
+                      if (isHandDrawn) {
+                        const scaleY = (nextBottom - curBox.y) / curBox.height;
+                        boxShape.setAttribute(
+                          "transform",
+                          `translate(0 ${(curBox.y * (1 - scaleY)).toFixed(2)}) scale(1 ${scaleY.toFixed(4)})`,
+                        );
+                      } else {
+                        boxShape.setAttribute(
+                          "d",
+                          `M${curBox.x.toFixed(2)} ${curBox.y.toFixed(2)} L${(curBox.x + curBox.width).toFixed(2)} ${curBox.y.toFixed(2)} L${(curBox.x + curBox.width).toFixed(2)} ${nextBottom.toFixed(2)} L${curBox.x.toFixed(2)} ${nextBottom.toFixed(2)} Z`,
+                        );
+                      }
+                    }
+                  }
+                });
+              }
+            } catch {
+              // Ignore unmeasurable geometry.
+            }
+          }
+          return;
+        }
+        if (methodsGroup) methodsGroup.style.display = "none";
+        if (dividers.length >= 2) dividers[1]!.style.display = "none";
+        if (!hasMembers) {
+          if (membersGroup) membersGroup.style.display = "none";
+          if (dividers.length >= 1) dividers[0]!.style.display = "none";
+        }
+        const lastVisible = hasMembers ? membersGroup : labelGroup;
+        if (!lastVisible) return;
+        if (!boxShapes.length) return;
+        try {
+          const lastBox = lastVisible.getBBox();
+          const ctm = lastVisible.getCTM();
+          const nodeCtm = nodeEl.getCTM();
+          const offsetY = ctm && nodeCtm ? ctm.f - nodeCtm.f : 0;
+          const desiredBottom = offsetY + lastBox.y + lastBox.height + 12;
+          boxShapes.forEach((boxShape) => {
+            if (boxShape instanceof SVGRectElement) {
+              const y = boxShape.y.baseVal.value;
+              const curH = boxShape.height.baseVal.value;
+              const nextH = desiredBottom - y;
+              if (nextH > 20 && nextH < curH - 4) {
+                boxShape.setAttribute("height", String(Number(nextH.toFixed(2))));
+              }
+            } else if (boxShape instanceof SVGPathElement) {
+              const curBox = boxShape.getBBox();
+              const minX = curBox.x;
+              const maxX = curBox.x + curBox.width;
+              const minY = curBox.y;
+              const curMaxY = curBox.y + curBox.height;
+              if (desiredBottom > minY + 20 && desiredBottom < curMaxY - 4) {
+                if (isHandDrawn) {
+                  const scaleY = (desiredBottom - minY) / curBox.height;
+                  boxShape.setAttribute(
+                    "transform",
+                    `translate(0 ${(minY * (1 - scaleY)).toFixed(2)}) scale(1 ${scaleY.toFixed(4)})`,
+                  );
+                } else {
+                  boxShape.setAttribute(
+                    "d",
+                    `M${minX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${desiredBottom.toFixed(2)} L${minX.toFixed(2)} ${desiredBottom.toFixed(2)} Z`,
+                  );
+                }
+              }
+            }
+          });
+        } catch {
+          // Ignore nodes without measurable geometry.
+        }
+      });
+    }
+    if (!MOVABLE_DIAGRAM_TYPES.has(kind)) {
       const nonMovableKey = `${rendered.id}::${kind}`;
       if (previousStructureKey !== nonMovableKey || pendingFitRef.current) {
         graphic.dataset.structureKey = nonMovableKey;
@@ -1534,11 +1889,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     }
     const candidates = Array.from(
       svg.querySelectorAll<SVGGElement>(
-        "g.node, g.statediagram-state, g.entityBox, g.classGroup",
+        "g.node, g.rough-node, g.statediagram-state, g.entityBox, g.classGroup",
       ),
     ).filter((element) => {
       const hasNodeAncestor = element.parentElement?.closest(
-        "g.node, g.statediagram-state, g.entityBox, g.classGroup",
+        "g.node, g.rough-node, g.statediagram-state, g.entityBox, g.classGroup",
       );
       return !hasNodeAncestor && Boolean(element.id || element.dataset.id);
     });
@@ -1565,9 +1920,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     });
     const edgePaths = Array.from(
       svg.querySelectorAll<SVGPathElement>(
-        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine",
+        "g.edgePath path.path, g.edgePath path, g.relation path, g.edge path, path.flowchart-link, path.relation, path.transition, path.relationshipLine, path[marker-end]",
       ),
-    ).filter((path) => path.getTotalLength() > 0);
+    ).filter((path) => !path.closest(".node, .c4-shape, marker, defs") && path.getTotalLength() > 0);
     const selfLoops: { wrapper: SVGGElement; node: (typeof nodes)[number] }[] = [];
     const rawEdges = edgePaths.flatMap((path) => {
       const length = path.getTotalLength();
@@ -1624,7 +1979,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     edgeControlsGroup.setAttribute("class", "sgs-edge-controls");
     const firstNodeParent = nodes[0]?.wrapper.parentNode;
     if (firstNodeParent) {
-      firstNodeParent.insertBefore(edgeControlsGroup, nodes[0]!.wrapper);
+      firstNodeParent.appendChild(edgeControlsGroup);
     } else {
       svg.appendChild(edgeControlsGroup);
     }
@@ -1634,9 +1989,13 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const index = pairIndices.get(edge.path) ?? 0;
       const id = `edge::${edge.source.id}->${edge.target.id}::${index}`;
       const manualOffset: Position = { ...(document.layout[id] ?? { x: 0, y: 0 }) };
+      const savedStart = document.layout[`${id}::start`];
+      const startAnchor: Position | undefined = savedStart ? { ...savedStart } : undefined;
+      const savedEnd = document.layout[`${id}::end`];
+      const endAnchor: Position | undefined = savedEnd ? { ...savedEnd } : undefined;
       const control = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
       control.dataset.sgsEdge = id;
-      if (Math.hypot(manualOffset.x, manualOffset.y) > 0.5) control.dataset.moved = "true";
+      if (Math.hypot(manualOffset.x, manualOffset.y) > 0.5 || startAnchor || endAnchor) control.dataset.moved = "true";
       control.setAttribute("tabindex", "0");
       control.setAttribute("role", "group");
       control.setAttribute(
@@ -1648,20 +2007,32 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       hitPath.setAttribute("fill", "none");
       hitPath.setAttribute("stroke", "transparent");
       hitPath.setAttribute("stroke-width", "14");
+      const startHandle = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "circle");
+      startHandle.setAttribute("class", "sgs-edge-handle sgs-edge-start-handle");
+      startHandle.setAttribute("r", "5");
       const handle = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "circle");
       handle.setAttribute("class", "sgs-edge-handle");
       handle.setAttribute("r", "4.5");
+      const endHandle = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "circle");
+      endHandle.setAttribute("class", "sgs-edge-handle sgs-edge-end-handle");
+      endHandle.setAttribute("r", "5");
       control.appendChild(hitPath);
+      control.appendChild(startHandle);
       control.appendChild(handle);
+      control.appendChild(endHandle);
       edgeControlsGroup.appendChild(control);
       return {
         ...edge,
         id,
         parallelOffset: (index - (count - 1) / 2) * 16,
         manualOffset,
+        startAnchor,
+        endAnchor,
         control,
         hitPath,
+        startHandle,
         handle,
+        endHandle,
       };
     });
     const usedEdgesForLabels = new Set<(typeof edges)[number]>();
@@ -1817,6 +2188,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const usedSegments: { a: Position; b: Position }[] = [];
       edges.forEach((edge, idx) => {
         const { sourceFace, targetFace, sourceOffset, targetOffset } = edgeFaces[idx]!;
+        const sBox = nodeBounds.get(edge.source.id);
+        const tBox = nodeBounds.get(edge.target.id);
+        const startOverride = edge.startAnchor && sBox ? resolveAnchorOnBox(sBox, edge.startAnchor) : undefined;
+        const endOverride = edge.endAnchor && tBox ? resolveAnchorOnBox(tBox, edge.endAnchor) : undefined;
         const routed = routeEdge(
           svg,
           edge.path,
@@ -1830,6 +2205,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           edge.parallelOffset,
           edge.manualOffset,
           usedSegments,
+          endOverride,
+          startOverride,
         );
         routedByEdge.set(edge, routed);
         for (let i = 1; i < routed.points.length; i += 1) {
@@ -1840,10 +2217,16 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           "d",
           ctrlPoints.map((pt, i) => `${i ? "L" : "M"}${pt.x},${pt.y}`).join(" "),
         );
+        const ctrlStart = toLocalPoint(svg, edge.control, routed.start);
+        edge.startHandle.setAttribute("cx", String(ctrlStart.x));
+        edge.startHandle.setAttribute("cy", String(ctrlStart.y));
         const ctrlMid = toLocalPoint(svg, edge.control, routed.mid);
         edge.handle.setAttribute("cx", String(ctrlMid.x));
         edge.handle.setAttribute("cy", String(ctrlMid.y));
-        if (Math.hypot(edge.manualOffset.x, edge.manualOffset.y) > 0.5) {
+        const ctrlEnd = toLocalPoint(svg, edge.control, routed.end);
+        edge.endHandle.setAttribute("cx", String(ctrlEnd.x));
+        edge.endHandle.setAttribute("cy", String(ctrlEnd.y));
+        if (Math.hypot(edge.manualOffset.x, edge.manualOffset.y) > 0.5 || edge.startAnchor || edge.endAnchor) {
           edge.control.dataset.moved = "true";
         } else {
           delete edge.control.dataset.moved;
@@ -1973,6 +2356,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const validLayoutKeys = new Set([
       ...nodes.map((node) => node.id),
       ...edges.map((edge) => edge.id),
+      ...edges.map((edge) => `${edge.id}::end`),
     ]);
     const trimmedLayout = Object.fromEntries(
       Object.entries(document.layout).filter(([id]) => validLayoutKeys.has(id)),
@@ -1989,9 +2373,15 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           next[nodeId] = position;
         }
       });
-      edges.forEach(({ id: edgeId, manualOffset }) => {
+      edges.forEach(({ id: edgeId, manualOffset, startAnchor, endAnchor }) => {
         if (Math.abs(manualOffset.x) > 0.5 || Math.abs(manualOffset.y) > 0.5) {
           next[edgeId] = { ...manualOffset };
+        }
+        if (startAnchor) {
+          next[`${edgeId}::start`] = { ...startAnchor };
+        }
+        if (endAnchor) {
+          next[`${edgeId}::end`] = { ...endAnchor };
         }
       });
       onLayoutChangeRef.current(next);
@@ -2028,12 +2418,23 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       });
     };
 
+    const clearEdgeSelection = () => {
+      svg.querySelectorAll<SVGElement>("[data-sgs-edge][data-selected], path[data-selected]").forEach((el) => {
+        delete el.dataset.selected;
+      });
+    };
+
     edges.forEach((edge) => {
       let pointerStart: { id: number; x: number; y: number; offset: Position } | undefined;
       const onPointerDown = (event: PointerEvent) => {
         if (readOnlyRef.current || event.button !== 0 || spaceDown.current || toolModeRef.current === "hand") return;
         event.preventDefault();
         event.stopPropagation();
+        selectedIdsRef.current.clear();
+        syncSelectionAttrs();
+        clearEdgeSelection();
+        edge.control.dataset.selected = "true";
+        edge.path.dataset.selected = "true";
         pointerStart = {
           id: event.pointerId,
           x: event.clientX,
@@ -2102,6 +2503,56 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       edge.control.addEventListener("pointercancel", onPointerUp);
       edge.control.addEventListener("dblclick", onDoubleClick);
       edge.control.addEventListener("keydown", onKeyDown);
+
+      const attachEndpointDrag = (
+        handleEl: SVGCircleElement,
+        getBoxWrapper: () => SVGGElement,
+        onSetAnchor: (anchor: Position | undefined) => void,
+      ) => {
+        let dragId: number | undefined;
+        const onEndpointDown = (event: PointerEvent) => {
+          if (readOnlyRef.current || event.button !== 0 || spaceDown.current || toolModeRef.current === "hand") return;
+          event.preventDefault();
+          event.stopPropagation();
+          dragId = event.pointerId;
+          handleEl.setPointerCapture(event.pointerId);
+        };
+        const onEndpointMove = (event: PointerEvent) => {
+          if (dragId !== event.pointerId) return;
+          event.stopPropagation();
+          const box = boundsInRoot(svg, getBoxWrapper());
+          const rootPt = toRootPoint(svg, event.clientX, event.clientY);
+          onSetAnchor(projectToBoxAnchor(rootPt, box));
+          moved = true;
+          routeEdges();
+        };
+        const onEndpointUp = (event: PointerEvent) => {
+          if (dragId !== event.pointerId) return;
+          dragId = undefined;
+          if (handleEl.hasPointerCapture(event.pointerId)) {
+            handleEl.releasePointerCapture(event.pointerId);
+          }
+          finishDrag(edge.id);
+        };
+        const onEndpointDblClick = (event: MouseEvent) => {
+          event.stopPropagation();
+          onSetAnchor(undefined);
+          moved = true;
+          routeEdges();
+          finishDrag(edge.id);
+        };
+        handleEl.addEventListener("pointerdown", onEndpointDown);
+        handleEl.addEventListener("pointermove", onEndpointMove);
+        handleEl.addEventListener("pointerup", onEndpointUp);
+        handleEl.addEventListener("pointercancel", onEndpointUp);
+        handleEl.addEventListener("dblclick", onEndpointDblClick);
+      };
+      attachEndpointDrag(edge.startHandle, () => edge.source.wrapper, (anchor) => {
+        edge.startAnchor = anchor;
+      });
+      attachEndpointDrag(edge.endHandle, () => edge.target.wrapper, (anchor) => {
+        edge.endAnchor = anchor;
+      });
     });
 
     const syncSelectionAttrs = () => {
@@ -2131,12 +2582,14 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         ) return;
         event.preventDefault();
         event.stopPropagation();
+        clearEdgeSelection();
         if (event.shiftKey) {
           if (selectedIdsRef.current.has(node.id)) selectedIdsRef.current.delete(node.id);
           else selectedIdsRef.current.add(node.id);
           syncSelectionAttrs();
         } else if (!selectedIdsRef.current.has(node.id)) {
           selectedIdsRef.current.clear();
+          selectedIdsRef.current.add(node.id);
           syncSelectionAttrs();
         }
         const activeGroup = selectedIdsRef.current.has(node.id) && selectedIdsRef.current.size > 1
@@ -2269,7 +2722,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     };
   }, [rendered, document.id, document.code, document.layout, fit, settings.colorizeBoxes]);
 
-  const gridSize = Math.max(4, settings.snapSize) * viewTransform.k;
+  const gridSize = settings.snapSize > 0 ? Math.min(100, settings.snapSize) * viewTransform.k : 0;
   const resolvedPalette = resolveDiagramPalette(settings);
 
   const handleViewportPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -2278,11 +2731,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     if (!event.shiftKey) {
       if (selectedIdsRef.current.size > 0) {
         selectedIdsRef.current.clear();
-        graphicRef.current?.querySelectorAll<SVGGElement>("[data-sgs-node]").forEach((el) => {
+      }
+      graphicRef.current
+        ?.querySelectorAll<SVGElement>("[data-sgs-node][data-selected], [data-sgs-edge][data-selected], path[data-selected]")
+        .forEach((el) => {
           delete el.dataset.selected;
         });
-      }
-      return;
     }
     if (readOnlyRef.current || toolModeRef.current === "hand" || spaceDown.current) return;
     const viewport = viewportRef.current;
@@ -2343,6 +2797,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const edgeEl = target?.closest<SVGGElement>("[data-sgs-edge], [data-sgs-edge-id]");
     setEditingLabel(false);
     setPickingShape(false);
+    setPickingMembers(false);
+    setAddingMember(false);
+    setMemberDraft("");
     const edgeId = edgeEl?.dataset.sgsEdge || edgeEl?.dataset.sgsEdgeId;
     if (nodeEl?.dataset.sgsNode) {
       const id = nodeEl.dataset.sgsNode;
@@ -2389,8 +2846,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       onContextMenu={handleContextMenu}
       style={{
         backgroundColor: resolvedPalette.canvasColor,
-        backgroundSize: `${gridSize}px ${gridSize}px`,
-        backgroundPosition: `${viewTransform.x % gridSize}px ${viewTransform.y % gridSize}px`,
+        backgroundImage: gridSize > 0 ? undefined : "none",
+        backgroundSize: gridSize > 0 ? `${gridSize}px ${gridSize}px` : undefined,
+        backgroundPosition: gridSize > 0 ? `${viewTransform.x % gridSize}px ${viewTransform.y % gridSize}px` : undefined,
       }}
       role="group"
       aria-describedby="node-movement-help"
@@ -2442,6 +2900,69 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   />
                   <button className="button primary compact" type="submit">Apply</button>
                 </form>
+              ) : addingMember && onCodeChange ? (
+                <form
+                  className="canvas-context-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const updated = addNodeMemberInCode(document.code, contextMenu.id, memberDraft);
+                    if (updated) onCodeChange(updated);
+                    setContextMenu(null);
+                  }}
+                >
+                  <input
+                    autoFocus
+                    aria-label="New member or field"
+                    placeholder={detectDiagramType(document.code) === "er" ? "string name" : "+String name"}
+                    value={memberDraft}
+                    onChange={(event) => setMemberDraft(event.target.value)}
+                  />
+                  <button className="button primary compact" type="submit">Add</button>
+                </form>
+              ) : pickingMembers && onCodeChange ? (
+                <>
+                  {(() => {
+                    const members = listNodeMembersInCode(document.code, contextMenu.id);
+                    const allHidden = members.length > 0 && members.every((m) => m.hidden);
+                    return (
+                      <>
+                        <div className="context-members-head">
+                          <button type="button" className="context-back-btn" onClick={() => setPickingMembers(false)}>
+                            ← Back
+                          </button>
+                          <button
+                            type="button"
+                            className="context-toggle-all-btn"
+                            onClick={() => {
+                              const updated = setAllNodeMembersHiddenInCode(document.code, contextMenu.id, !allHidden);
+                              if (updated) onCodeChange(updated);
+                            }}
+                          >
+                            {allHidden ? "Show all" : "Hide all"}
+                          </button>
+                        </div>
+                        {members.map((member) => (
+                          <button
+                            key={member.lineIndex}
+                            type="button"
+                            role="menuitemcheckbox"
+                            aria-checked={!member.hidden}
+                            className={`context-member-row${member.hidden ? " is-hidden" : ""}`}
+                            onClick={() => {
+                              const updated = toggleNodeMemberInCode(document.code, contextMenu.id, member.lineIndex);
+                              if (updated) onCodeChange(updated);
+                            }}
+                          >
+                            <span className="context-member-check" aria-hidden="true">
+                              {member.hidden ? "☐" : "☑"}
+                            </span>
+                            <span className="context-member-text">{member.text}</span>
+                          </button>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </>
               ) : pickingShape && onCodeChange ? (
                 <>
                   {FLOWCHART_SHAPES.map((shape) => (
@@ -2469,12 +2990,14 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 <>
                   {onCodeChange && !readOnly && updateNodeLabelInCode(document.code, contextMenu.id, contextMenu.label) && (
                     <button type="button" role="menuitem" onClick={() => setEditingLabel(true)}>
-                      Edit label…
+                      <Pencil aria-hidden="true" size={14} />
+                      <span>Edit label…</span>
                     </button>
                   )}
                   {onCodeChange && !readOnly && detectDiagramType(document.code) === "flowchart" && (
                     <button type="button" role="menuitem" onClick={() => setPickingShape(true)}>
-                      Change shape…
+                      <Shapes aria-hidden="true" size={14} />
+                      <span>Change shape…</span>
                     </button>
                   )}
                   {onCodeChange && !readOnly && (() => {
@@ -2488,10 +3011,23 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                           setContextMenu(null);
                         }}
                       >
-                        {addition.label}
+                        <Plus aria-hidden="true" size={14} />
+                        <span>{addition.label}</span>
                       </button>
                     ) : null;
                   })()}
+                  {onCodeChange && !readOnly && (detectDiagramType(document.code) === "class" || detectDiagramType(document.code) === "er") && (
+                    <button type="button" role="menuitem" onClick={() => setAddingMember(true)}>
+                      <Plus aria-hidden="true" size={14} />
+                      <span>Add member / field…</span>
+                    </button>
+                  )}
+                  {onCodeChange && !readOnly && listNodeMembersInCode(document.code, contextMenu.id).length > 0 && (
+                    <button type="button" role="menuitem" onClick={() => setPickingMembers(true)}>
+                      <Eye aria-hidden="true" size={14} />
+                      <span>Visibility / members…</span>
+                    </button>
+                  )}
                   {onCodeChange && !readOnly && contextMenu.member && hideClassMemberInCode(document.code, contextMenu.id, contextMenu.member) && (
                     <button
                       type="button"
@@ -2502,7 +3038,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                         setContextMenu(null);
                       }}
                     >
-                      Hide "{contextMenu.member}" (suppress)
+                      <EyeOff aria-hidden="true" size={14} />
+                      <span>Hide "{contextMenu.member}" (suppress)</span>
                     </button>
                   )}
                   {onCodeChange && !readOnly && hideNodeInCode(document.code, contextMenu.id) && (
@@ -2515,7 +3052,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                         setContextMenu(null);
                       }}
                     >
-                      {detectDiagramType(document.code) === "class" ? "Hide class (suppress)" : "Hide node (suppress)"}
+                      <EyeOff aria-hidden="true" size={14} />
+                      <span>{detectDiagramType(document.code) === "class" ? "Hide class (suppress)" : "Hide node (suppress)"}</span>
                     </button>
                   )}
                   <button
@@ -2526,21 +3064,45 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       setContextMenu(null);
                     }}
                   >
-                    Jump to code
+                    <Code2 aria-hidden="true" size={14} />
+                    <span>Jump to code</span>
                   </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={readOnly || !(contextMenu.id in document.layout)}
-                    onClick={() => {
-                      const next = { ...document.layout };
-                      delete next[contextMenu.id];
-                      onLayoutChange(next);
-                      setContextMenu(null);
-                    }}
-                  >
-                    Reset node position
-                  </button>
+                  {!readOnly && (contextMenu.id in document.layout || `${contextMenu.id}::end` in document.layout) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        const next = { ...document.layout };
+                        delete next[contextMenu.id];
+                        delete next[`${contextMenu.id}::end`];
+                        onLayoutChange(next);
+                        setContextMenu(null);
+                      }}
+                    >
+                      <RotateCcw aria-hidden="true" size={14} />
+                      <span>Reset node position</span>
+                    </button>
+                  )}
+                  {onCodeChange && !readOnly && deleteNodesInCode(document.code, [contextMenu.id]) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="danger-item"
+                      onClick={() => {
+                        const updated = deleteNodesInCode(document.code, [contextMenu.id]);
+                        if (updated) {
+                          const nextLayout = { ...document.layout };
+                          delete nextLayout[contextMenu.id];
+                          onLayoutChange(nextLayout);
+                          onCodeChange(updated);
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" size={14} />
+                      <span>{detectDiagramType(document.code) === "class" ? "Delete class" : "Delete node"}</span>
+                    </button>
+                  )}
                 </>
               )}
             </>
@@ -2569,21 +3131,24 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 <>
                   {onCodeChange && !readOnly && updateEdgeLabelInCode(document.code, contextMenu.id, contextMenu.label || "label") && (
                     <button type="button" role="menuitem" onClick={() => setEditingLabel(true)}>
-                      Edit label…
+                      <Pencil aria-hidden="true" size={14} />
+                      <span>Edit label…</span>
                     </button>
                   )}
                   <button
                     type="button"
                     role="menuitem"
-                    disabled={readOnly || !(contextMenu.id in document.layout)}
+                    disabled={readOnly || (!(contextMenu.id in document.layout) && !(`${contextMenu.id}::end` in document.layout))}
                     onClick={() => {
                       const next = { ...document.layout };
                       delete next[contextMenu.id];
+                      delete next[`${contextMenu.id}::end`];
                       onLayoutChange(next);
                       setContextMenu(null);
                     }}
                   >
-                    Reset line offset
+                    <RotateCcw aria-hidden="true" size={14} />
+                    <span>Reset line offset</span>
                   </button>
                 </>
               )}
@@ -2602,21 +3167,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       setContextMenu(null);
                     }}
                   >
-                    {addition.label}
+                    <Plus aria-hidden="true" size={14} />
+                    <span>{addition.label}</span>
                   </button>
                 ) : null;
               })()}
-              <button
-                type="button"
-                role="menuitem"
-                disabled={readOnly}
-                onClick={() => {
-                  arrangeGrid();
-                  setContextMenu(null);
-                }}
-              >
-                Auto-arrange (grid)
-              </button>
               <button
                 type="button"
                 role="menuitem"
@@ -2625,7 +3180,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   setContextMenu(null);
                 }}
               >
-                Fit to view
+                <Scan aria-hidden="true" size={14} />
+                <span>Fit to view</span>
               </button>
               <button
                 type="button"
@@ -2635,18 +3191,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   setContextMenu(null);
                 }}
               >
-                Reset zoom (100%)
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={readOnly || Object.keys(document.layout).length === 0}
-                onClick={() => {
-                  onLayoutChange({});
-                  setContextMenu(null);
-                }}
-              >
-                Reset all positions
+                <RotateCcw aria-hidden="true" size={14} />
+                <span>Reset zoom (100%)</span>
               </button>
               {onCodeChange && !readOnly && showHiddenNodesInCode(document.code) && (
                 <button
@@ -2658,7 +3204,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                     setContextMenu(null);
                   }}
                 >
-                  Show hidden nodes
+                  <Eye aria-hidden="true" size={14} />
+                  <span>Show hidden nodes</span>
                 </button>
               )}
             </>

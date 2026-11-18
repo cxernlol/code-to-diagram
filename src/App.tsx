@@ -1,8 +1,14 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AppTooltip } from "./AppTooltip";
+import { applyPageSeo } from "./lib/seo";
+import { NotFoundPage } from "./NotFoundPage";
 import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
   BookOpen,
   Check,
-  ChevronDown,
   Code2,
   Copy,
   Download,
@@ -15,9 +21,13 @@ import {
   History,
   ImageDown,
   LayoutGrid,
+  Menu,
+  Moon,
+  MoreVertical,
   MousePointer,
   Palette,
   PanelRight,
+  Pencil,
   Plus,
   Redo2,
   RefreshCcw,
@@ -26,6 +36,8 @@ import {
   Settings,
   Settings2,
   StopCircle,
+  Sun,
+  Trash2,
   Undo2,
   Users,
   Wand2,
@@ -76,7 +88,7 @@ import {
   translateCodeFormat,
   type CodeFormat,
 } from "./lib/formats";
-import { detectDiagramType, type DiagramType } from "./lib/mermaid";
+import { detectDiagramType, MOVABLE_DIAGRAM_TYPES, type DiagramType } from "./lib/mermaid";
 import type { GuestRoomSession, HostRoomSession } from "./lib/room";
 
 const MAX_ROOM_DEVICES = 5;
@@ -142,7 +154,7 @@ type AiPanel =
   | { kind: "explain"; text: string };
 
 const SYSTEM_MERMAID =
-  "You edit Mermaid diagrams. Return only valid Mermaid source, without markdown fences or explanation. Preserve the user's intent, use clear stable node IDs, and keep diagrams readable.";
+  "You edit Mermaid diagrams. Return only valid Mermaid source, without markdown fences or explanation. Preserve the user's intent, use clear stable node IDs, keep diagrams readable, and preserve existing %% sgs-hide: and %% sgs-hidden-member: comment directives unless asked to remove them.";
 const SYSTEM_STRUCTURED =
   'Return one valid JSON object only: {"overview":"<Mermaid source>","diagrams":[{"name":"<short descriptive name>","code":"<Mermaid source>"}]}. Include an Overview and at least one named detail diagram. Keep each diagram focused and professional. Do not wrap the JSON in markdown.';
 const SYSTEM_EXPLAIN =
@@ -153,6 +165,8 @@ const SYNTAX_GUIDANCE: Record<DiagramType, string> = {
   class: "Use classDiagram, class blocks for members, and typed relationships such as A --> B.",
   state: "Use stateDiagram-v2 with explicit states and directed transitions.",
   er: "Use erDiagram, named entities, attributes, and cardinality markers such as ||--o{.",
+  requirement: "Use requirementDiagram with quoted id/text/type fields and typed relationships such as - satisfies ->.",
+  c4: "Use C4Context/C4Container with Person/System/Rel macros.",
   sequence: "Use sequenceDiagram with actor/participant declarations and message arrows.",
   gantt: "Use gantt with title, dateFormat, sections, and valid task durations.",
   mindmap: "Use mindmap with one root and consistently indented child branches.",
@@ -193,23 +207,68 @@ function errorText(error: unknown): string {
     : message;
 }
 
-type AppView = "home" | "studio" | "docs" | "privacy" | "terms";
+type AppView = "home" | "studio" | "docs" | "privacy" | "terms" | "notFound";
 
 function isStudioHash(hash: string): boolean {
   return hash === "#app" || hash.startsWith("#d=") || hash.startsWith("#room=");
 }
 
-function viewFromHash(hash: string): AppView {
+function detectDirectionFromCode(source: string): "TD" | "BT" | "LR" | "RL" {
+  const lines = source.split(/\r?\n/);
+  const first = lines[0]?.trim() ?? "";
+  const headerMatch = first.match(/^(?:flowchart|graph)\s+(TD|TB|BT|LR|RL)\b/i);
+  if (headerMatch) {
+    const dir = headerMatch[1]!.toUpperCase();
+    return dir === "TB" ? "TD" : (dir as "TD" | "BT" | "LR" | "RL");
+  }
+  for (let i = 1; i < lines.length; i += 1) {
+    const dirMatch = lines[i]?.match(/^\s*direction\s+(TD|TB|BT|LR|RL)\b/i);
+    if (dirMatch) {
+      const dir = dirMatch[1]!.toUpperCase();
+      return dir === "TB" ? "TD" : (dir as "TD" | "BT" | "LR" | "RL");
+    }
+  }
+  return "TD";
+}
+
+function applyDiagramDirection(source: string, dir: "TD" | "BT" | "LR" | "RL"): string {
+  const lines = source.split(/\r?\n/);
+  const first = lines[0]?.trim() ?? "";
+  if (/^(flowchart|graph)\b/i.test(first)) {
+    lines[0] = lines[0]!.replace(/^(flowchart|graph)(?:\s+(?:TD|TB|BT|LR|RL))?\b/i, `$1 ${dir}`);
+    return lines.join("\n");
+  }
+  if (/^(classDiagram|stateDiagram(?:-v2)?)\b/i.test(first)) {
+    const dirIdx = lines.findIndex((line, i) => i > 0 && /^\s*direction\s+(?:TD|TB|BT|LR|RL)\b/i.test(line));
+    if (dirIdx >= 0) {
+      lines[dirIdx] = `  direction ${dir}`;
+    } else {
+      lines.splice(1, 0, `  direction ${dir}`);
+    }
+    return lines.join("\n");
+  }
+  return source;
+}
+
+function viewFromLocation(pathname: string, hash: string): AppView {
   if (isStudioHash(hash)) return "studio";
   if (hash === "#docs") return "docs";
   if (hash === "#privacy") return "privacy";
   if (hash === "#terms") return "terms";
-  return "home";
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+  if (normalizedPath === "/") return "home";
+  if (normalizedPath === "/app") return "studio";
+  if (normalizedPath === "/docs") return "docs";
+  if (normalizedPath === "/privacy") return "privacy";
+  if (normalizedPath === "/terms") return "terms";
+  return "notFound";
 }
 
 function App() {
   const reduceMotion = useReducedMotion();
-  const [view, setView] = useState<AppView>(() => viewFromHash(window.location.hash));
+  const [view, setView] = useState<AppView>(() =>
+    viewFromLocation(window.location.pathname, window.location.hash),
+  );
   const [data, setData] = useState<StudioData | null>(null);
   const dataRef = useRef<StudioData | null>(null);
   const historyRef = useRef(new Map<string, EditStack>());
@@ -219,6 +278,8 @@ function App() {
   const editorRef = useRef<CodeEditorHandle>(null);
   const canvasRef = useRef<DiagramCanvasHandle>(null);
   const settingsDialog = useRef<HTMLDialogElement>(null);
+  const deleteDialog = useRef<HTMLDialogElement>(null);
+  const newDiagramDialog = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const splitRef = useRef<HTMLDivElement>(null);
   const [bootError, setBootError] = useState<unknown>();
@@ -236,6 +297,30 @@ function App() {
   const [mobilePane, setMobilePane] = useState<"code" | "preview">("preview");
   const [expandedPane, setExpandedPane] = useState<"none" | "code" | "preview">("none");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newDiagramOpen, setNewDiagramOpen] = useState(false);
+  const [newDiagramSelection, setNewDiagramSelection] = useState<{
+    kind: "template" | "starter";
+    label: string;
+    title: string;
+    code: string;
+  }>(() => ({
+    kind: "template",
+    label: "Flowchart",
+    title: "Flowchart",
+    code: TEMPLATES.Flowchart,
+  }));
+  const [newDiagramPreviewBusy, setNewDiagramPreviewBusy] = useState(false);
+  const newDiagramPreviewRef = useRef<HTMLDivElement>(null);
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
+  const [aiBarVisible, setAiBarVisible] = useState(true);
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    docId: string | null;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [studioMenuOpen, setStudioMenuOpen] = useState(false);
+  const [directionMenuOpen, setDirectionMenuOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"appearance" | "ai">("appearance");
   const [renameId, setRenameId] = useState("");
   const [renameValue, setRenameValue] = useState("");
@@ -243,6 +328,7 @@ function App() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiMode, setAiMode] = useState<"refine" | "structured" | "explain">("refine");
   const [aiPanel, setAiPanel] = useState<AiPanel | null>(null);
+  const [explainPopups, setExplainPopups] = useState<Array<{ id: string; title: string; text: string }>>([]);
   const [aiStream, setAiStream] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState("");
@@ -515,42 +601,148 @@ function App() {
   }, [boot]);
 
   useEffect(() => {
-    if (view === "home") {
-      document.title = "CTD Studio: Code to Diagram Editor for Mermaid, DOT & SQL";
-    } else if (view === "docs") {
-      document.title = "Syntax & Template Docs — CTD Studio";
-    } else if (view === "privacy") {
-      document.title = "Privacy & Cookies — CTD Studio";
-    } else if (view === "terms") {
-      document.title = "Terms of Use — CTD Studio";
-    } else if (activeDocument) {
-      document.title = `${activeDocument.name} — CTD Studio`;
-    }
+    const customTitle = view === "studio" && activeDocument ? `${activeDocument.name} — CTD Studio` : undefined;
+    applyPageSeo(view, customTitle);
   }, [view, activeDocument?.name]);
 
   useEffect(() => {
-    const onHashChange = () => {
-      setView(viewFromHash(window.location.hash));
+    document.documentElement.dataset.theme =
+      view === "studio" && data?.settings.theme === "dark" ? "dark" : "light";
+  }, [view, data?.settings.theme]);
+
+  useEffect(() => {
+    if (!roomNotice) return;
+    const timer = window.setTimeout(() => setRoomNotice(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [roomNotice]);
+
+  useEffect(() => {
+    if (!aiError) return;
+    const timer = window.setTimeout(() => setAiError(""), 4500);
+    return () => window.clearTimeout(timer);
+  }, [aiError]);
+
+  useEffect(() => {
+    if (!testStatus) return;
+    const timer = window.setTimeout(() => setTestStatus(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [testStatus]);
+
+  const closeAllMenus = useCallback((keepDetails?: HTMLDetailsElement | null) => {
+    setStudioMenuOpen(false);
+    setTabMenuOpen(false);
+    setTabContextMenu(null);
+    setDirectionMenuOpen(false);
+    setAiMenuOpen(false);
+    document.querySelectorAll("details.history-menu[open], details.sensitivity-menu[open]").forEach((el) => {
+      if (keepDetails && el === keepDetails) return;
+      el.removeAttribute("open");
+    });
+  }, []);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (studioMenuOpen && !target?.closest(".studio-menu-wrap")) setStudioMenuOpen(false);
+      if (tabMenuOpen && !target?.closest(".tab-actions-wrap")) setTabMenuOpen(false);
+      if (tabContextMenu && !target?.closest(".tab-context-menu")) setTabContextMenu(null);
+      if (directionMenuOpen && !target?.closest(".direction-menu-wrap")) setDirectionMenuOpen(false);
+      if (aiMenuOpen && !target?.closest(".ai-floating-wrap")) setAiMenuOpen(false);
+      document.querySelectorAll("details.history-menu[open], details.sensitivity-menu[open]").forEach((el) => {
+        if (!target?.closest("details.history-menu, details.sensitivity-menu") || !el.contains(target)) {
+          el.removeAttribute("open");
+        }
+      });
     };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeAllMenus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [studioMenuOpen, tabMenuOpen, tabContextMenu, directionMenuOpen, aiMenuOpen, closeAllMenus]);
+
+  useEffect(() => {
+    if (!newDiagramOpen || !data) return;
+    let cancelled = false;
+    setNewDiagramPreviewBusy(true);
+    void Promise.all([import("./lib/mermaid"), import("dompurify")])
+      .then(async ([{ renderMermaidPreview }, { default: DOMPurify }]) => {
+        const result = await renderMermaidPreview(newDiagramSelection.code, data.settings);
+        if (cancelled) return;
+        const host = newDiagramPreviewRef.current;
+        if (!host) return;
+        const clean = DOMPurify.sanitize(result.svg, {
+          USE_PROFILES: { svg: true, svgFilters: true, html: true },
+          ADD_TAGS: ["foreignObject"],
+          FORBID_TAGS: ["script", "iframe", "object", "embed"],
+        });
+        const parsed = new DOMParser().parseFromString(clean, "image/svg+xml");
+        const svgEl = parsed.documentElement;
+        if (svgEl.tagName.toLowerCase() === "svg") {
+          svgEl.removeAttribute("width");
+          svgEl.removeAttribute("height");
+          host.replaceChildren(window.document.importNode(svgEl, true));
+        } else {
+          host.replaceChildren();
+        }
+      })
+      .catch(() => {
+        if (!cancelled && newDiagramPreviewRef.current) {
+          newDiagramPreviewRef.current.replaceChildren();
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setNewDiagramPreviewBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    newDiagramOpen,
+    newDiagramSelection,
+    data?.settings.theme,
+    data?.settings.look,
+    data?.settings.primaryColor,
+    data?.settings.textColor,
+    data?.settings.lineColor,
+    data?.settings.canvasColor,
+    data?.settings.font,
+  ]);
+
+  useEffect(() => {
+    const onRouteChange = () => {
+      setView(viewFromLocation(window.location.pathname, window.location.hash));
+    };
+    window.addEventListener("hashchange", onRouteChange);
+    window.addEventListener("popstate", onRouteChange);
+    return () => {
+      window.removeEventListener("hashchange", onRouteChange);
+      window.removeEventListener("popstate", onRouteChange);
+    };
   }, []);
 
   const openLegal = useCallback((tab: LegalTab) => {
     setView(tab);
     window.location.hash = `#${tab}`;
+    window.scrollTo(0, 0);
   }, []);
 
   const openDocs = useCallback(() => {
     setView("docs");
     window.location.hash = "#docs";
+    window.scrollTo(0, 0);
   }, []);
 
   const openHome = useCallback(() => {
     setView("home");
-    if (window.location.hash) {
-      history.pushState(null, "", window.location.pathname + window.location.search);
+    if (window.location.hash || window.location.pathname !== "/") {
+      history.pushState(null, "", `/${window.location.search}`);
     }
+    window.scrollTo(0, 0);
   }, []);
 
   useEffect(() => {
@@ -654,6 +846,26 @@ function App() {
     }
   }, [settingsOpen]);
 
+  useEffect(() => {
+    const dialog = deleteDialog.current;
+    if (!dialog) return;
+    if (pendingDeleteId && !dialog.open) {
+      dialog.showModal();
+    } else if (!pendingDeleteId && dialog.open) {
+      dialog.close();
+    }
+  }, [pendingDeleteId]);
+
+  useEffect(() => {
+    const dialog = newDiagramDialog.current;
+    if (!dialog) return;
+    if (newDiagramOpen && !dialog.open) {
+      dialog.showModal();
+    } else if (!newDiagramOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [newDiagramOpen]);
+
   const createTab = useCallback(
     (name = "Flowchart", code = TEMPLATES.Flowchart) => {
       const current = dataRef.current;
@@ -750,6 +962,32 @@ function App() {
     setNotice(`Restored “${version.reason}”.`);
   };
 
+  useEffect(() => {
+    if (!activeDocument || endedRoomDocIds.has(activeDocument.id)) return;
+    const latestCode = activeDocument.history[0]?.code;
+    if (latestCode === activeDocument.code) return;
+    const docId = activeDocument.id;
+    const snapshotCode = activeDocument.code;
+    const timer = window.setTimeout(() => {
+      updateDocument(docId, (doc) => {
+        if (doc.code !== snapshotCode || doc.history[0]?.code === snapshotCode) return doc;
+        return {
+          ...doc,
+          history: [
+            {
+              id: crypto.randomUUID(),
+              createdAt: Date.now(),
+              reason: doc.history.length === 0 ? "Initial snapshot" : "Edited diagram",
+              code: snapshotCode,
+            },
+            ...doc.history,
+          ].slice(0, 30),
+        };
+      });
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [activeDocument?.id, activeDocument?.code, activeDocument?.history, endedRoomDocIds, updateDocument]);
+
   const acceptAiResult = () => {
     if (!aiPanel || !activeDocument) return;
     if (aiPanel.kind === "refine") {
@@ -813,7 +1051,15 @@ function App() {
           signal: controller.signal,
           onText: setAiStream,
         });
-        setAiPanel({ kind: "explain", text });
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        setExplainPopups((prev) => [
+          ...prev.slice(-3),
+          { id, title: activeDocument.name || "Explanation", text },
+        ]);
+        window.setTimeout(() => {
+          setExplainPopups((prev) => prev.filter((item) => item.id !== id));
+        }, 6000);
+        setAiStream("");
         return;
       }
       for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -1088,7 +1334,7 @@ function App() {
     const move = (moveEvent: PointerEvent) => {
       const rect = splitRef.current?.getBoundingClientRect();
       if (!rect) return;
-      changeSettings({ splitPercent: Math.min(72, Math.max(28, ((moveEvent.clientX - rect.left) / rect.width) * 100)) });
+      changeSettings({ splitPercent: Math.min(50, Math.max(22, ((moveEvent.clientX - rect.left) / rect.width) * 100)) });
     };
     const end = () => {
       target.removeEventListener("pointermove", move);
@@ -1132,6 +1378,17 @@ function App() {
     return <HomePage onStart={openStudio} onDocs={openDocs} onLegal={openLegal} />;
   }
 
+  if (view === "notFound") {
+    return (
+      <NotFoundPage
+        path={window.location.pathname}
+        onHome={openHome}
+        onStart={() => openStudio()}
+        onDocs={openDocs}
+      />
+    );
+  }
+
   if (view === "docs") {
     return (
       <DocsPage
@@ -1157,12 +1414,84 @@ function App() {
     return <main className="boot-screen" aria-live="polite">Loading saved diagrams…</main>;
   }
 
-  const supportedMovement = ["flowchart", "class", "state", "er"].includes(diagramType);
+  const supportedMovement = MOVABLE_DIAGRAM_TYPES.has(diagramType);
+  const currentDirection = detectDirectionFromCode(activeDocument.code);
   const codeFormat = detectCodeFormat(activeDocument.code);
   const isReadOnlySnapshot = endedRoomDocIds.has(activeDocument.id);
 
+  const clampedSplitPercent = Math.min(50, Math.max(22, data.settings.splitPercent));
+  const aiFloatingBar = aiBarVisible ? (
+    <div className="ai-floating-wrap">
+      {aiMenuOpen && (
+        <div className="ai-actions-popover" role="menu">
+          <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("structured"); void runAi("structured"); }}>
+            <GitBranch aria-hidden="true" size={14} /> Structure
+          </button>
+          <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
+            Fix syntax
+          </button>
+          <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
+            Style it
+          </button>
+          <button type="button" role="menuitem" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMenuOpen(false); setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
+            Tidy
+          </button>
+          <button type="button" role="menuitem" disabled={aiBusy} onClick={() => { setAiMenuOpen(false); setAiMode("explain"); void runAi("explain"); }}>
+            Explain
+          </button>
+        </div>
+      )}
+      <div className="ai-floating-pill">
+        <button
+          className="ai-pill-plus"
+          type="button"
+          title="AI actions"
+          aria-label="AI actions"
+          aria-expanded={aiMenuOpen}
+          onClick={() => {
+            const next = !aiMenuOpen;
+            closeAllMenus();
+            setAiMenuOpen(next);
+          }}
+        >
+          <Plus aria-hidden="true" size={16} />
+        </button>
+        <input
+          id="ai-request"
+          type="text"
+          value={aiPrompt}
+          onChange={(event) => setAiPrompt(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.key === "Enter" || ((event.ctrlKey || event.metaKey) && event.key === "Enter")) && !aiBusy && !isReadOnlySnapshot) {
+              event.preventDefault();
+              setAiMode("refine");
+              void runAi("refine");
+            }
+          }}
+          placeholder="Describe your idea or change..."
+          aria-label="Describe your idea or change"
+        />
+        {aiBusy ? (
+          <button className="button stop-button ai-pill-send" type="button" onClick={stopAi}>
+            <StopCircle aria-hidden="true" size={15} /> Stop
+          </button>
+        ) : (
+          <button
+            className="button primary ai-pill-send"
+            type="button"
+            disabled={isReadOnlySnapshot}
+            title="Refine with AI"
+            onClick={() => { setAiMode("refine"); void runAi("refine"); }}
+          >
+            <Wand2 aria-hidden="true" size={15} /> Refine
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   return (
-    <main className="studio" style={{ "--split": `${data.settings.splitPercent}%` } as CSSProperties}>
+    <main className="studio" style={{ "--split": `${clampedSplitPercent}%` } as CSSProperties}>
       <header className="topbar">
         <div className="brand-lockup">
           <button
@@ -1182,13 +1511,7 @@ function App() {
           <span className={`save-status ${saveState}`} role="status">
             {saveState === "saving" ? "Saving" : saveState === "error" ? "Not saved" : `Saved ${timeLabel(lastSavedAt)}`}
           </span>
-          <button className="icon-button" title="Open Mermaid or Markdown file" aria-label="Open Mermaid or Markdown file" onClick={() => fileInput.current?.click()}>
-            <FolderOpen aria-hidden="true" size={17} />
-          </button>
           <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,text/plain,text/markdown,application/xml" onChange={(event) => void importFile(event)} />
-          <button className="icon-button" title="Copy source" aria-label="Copy Mermaid source" onClick={() => void copyCode()}>
-            <Copy aria-hidden="true" size={17} />
-          </button>
           <button
             className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
             type="button"
@@ -1199,35 +1522,118 @@ function App() {
             <Users aria-hidden="true" size={15} />
             <span>{roomMode === "none" ? "Share live" : `Live ${roomDevices}/${MAX_ROOM_DEVICES}`}</span>
           </button>
-          <button
-            className={`icon-button${data.settings.colorizeBoxes ? " active-tool" : ""}`}
-            type="button"
-            title={data.settings.colorizeBoxes ? "Colored export boxes: on" : "Colored export boxes: off"}
-            aria-label="Colorize boxes on export"
-            aria-pressed={Boolean(data.settings.colorizeBoxes)}
-            onClick={() => changeSettings({ colorizeBoxes: !data.settings.colorizeBoxes })}
-          >
-            <Palette aria-hidden="true" size={17} />
-          </button>
           <button className="icon-button" title="Export SVG" aria-label="Export SVG" onClick={saveSvg}>
             <FileCode2 aria-hidden="true" size={17} />
           </button>
           <button className="icon-button" title="Export PNG" aria-label="Export PNG" disabled={saveBusy} onClick={() => void savePng()}>
             <ImageDown aria-hidden="true" size={17} />
           </button>
-          <button className="icon-button" title="Syntax & template docs" aria-label="Open docs" onClick={openDocs}>
-            <BookOpen aria-hidden="true" size={17} />
-          </button>
           <button className="icon-button settings-trigger" title="Settings" aria-label="Open settings" onClick={() => setSettingsOpen(true)}>
             <Settings aria-hidden="true" size={17} />
           </button>
+          <div className="studio-menu-wrap">
+            <button
+              className="icon-button"
+              type="button"
+              title="Menu"
+              aria-label="Studio menu"
+              aria-expanded={studioMenuOpen}
+              onClick={() => {
+                const next = !studioMenuOpen;
+                closeAllMenus();
+                setStudioMenuOpen(next);
+              }}
+            >
+              <Menu aria-hidden="true" size={17} />
+            </button>
+            {studioMenuOpen && (
+              <div className="studio-menu-popover" role="menu">
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); fileInput.current?.click(); }}>
+                  <FolderOpen aria-hidden="true" size={15} /> Open file…
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); void copyCode(); }}>
+                  <Copy aria-hidden="true" size={15} /> Copy source
+                </button>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(data.settings.colorizeBoxes)}
+                  className="theme-switch-row"
+                  onClick={() => changeSettings({ colorizeBoxes: !data.settings.colorizeBoxes })}
+                >
+                  <span className="theme-switch-label">
+                    <Palette aria-hidden="true" size={15} />
+                    <span>Colorized export</span>
+                  </span>
+                  <span className={`theme-switch-track${data.settings.colorizeBoxes ? " is-on" : ""}`} aria-hidden="true">
+                    <span className="theme-switch-thumb">
+                      <Palette size={11} />
+                    </span>
+                  </span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); openDocs(); }}>
+                  <BookOpen aria-hidden="true" size={15} /> Syntax &amp; Template Docs
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); openHome(); }}>
+                  <GitBranch aria-hidden="true" size={15} /> Back to home
+                </button>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={data.settings.theme === "dark"}
+                  className="theme-switch-row"
+                  onClick={() => {
+                    const nextTheme = data.settings.theme === "dark" ? "default" : "dark";
+                    changeSettings({ theme: nextTheme, ...THEME_PRESETS[nextTheme] });
+                  }}
+                >
+                  <span className="theme-switch-label">
+                    {data.settings.theme === "dark" ? <Moon aria-hidden="true" size={15} /> : <Sun aria-hidden="true" size={15} />}
+                    <span>Dark mode</span>
+                  </span>
+                  <span className={`theme-switch-track${data.settings.theme === "dark" ? " is-on" : ""}`} aria-hidden="true">
+                    <span className="theme-switch-thumb">
+                      {data.settings.theme === "dark" ? <Moon size={11} /> : <Sun size={11} />}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      <section className="document-strip" aria-label="Diagrams">
+      <section
+        className="document-strip"
+        aria-label="Diagrams"
+        onContextMenu={(event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          if (target?.closest(".document-tab")) return;
+          event.preventDefault();
+          closeAllMenus();
+          setTabContextMenu({
+            docId: null,
+            x: Math.min(window.innerWidth - 180, Math.max(8, event.clientX)),
+            y: Math.min(window.innerHeight - 120, Math.max(8, event.clientY)),
+          });
+        }}
+      >
         <div className="document-tabs" role="tablist" aria-label="Open diagrams">
           {data.documents.map((document, index) => (
-            <div className="document-tab" role="presentation" key={document.id}>
+            <div
+              className="document-tab"
+              role="presentation"
+              key={document.id}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                closeAllMenus();
+                setTabContextMenu({
+                  docId: document.id,
+                  x: Math.min(window.innerWidth - 180, Math.max(8, event.clientX)),
+                  y: Math.min(window.innerHeight - 170, Math.max(8, event.clientY)),
+                });
+              }}
+            >
               {renameId === document.id ? (
                 <input
                   className="rename-input"
@@ -1258,42 +1664,84 @@ function App() {
                   <span>{document.name}</span>
                 </button>
               )}
-              {pendingDeleteId === document.id ? (
-                <span className="tab-delete-confirm">
-                  <button type="button" onClick={() => void removeTab(document.id)}>Delete</button>
-                  <button type="button" aria-label="Cancel delete" onClick={() => setPendingDeleteId("")}>Cancel</button>
-                </span>
-              ) : (
-                <button
-                  className="tab-close"
-                  type="button"
-                  aria-label={`Close ${document.name}`}
-                  onClick={() => setPendingDeleteId(document.id)}
-                >
-                  <X aria-hidden="true" size={13} />
-                </button>
-              )}
+              <button
+                className="tab-close"
+                type="button"
+                aria-label={`Close ${document.name}`}
+                onClick={() => setPendingDeleteId(document.id)}
+              >
+                <X aria-hidden="true" size={13} />
+              </button>
             </div>
           ))}
         </div>
-        <button className="new-tab-button" type="button" onClick={() => createTab()} aria-label="New diagram">
+        <button className="new-tab-button" type="button" onClick={() => setNewDiagramOpen(true)} aria-label="New diagram" title="New diagram">
           <Plus aria-hidden="true" size={17} />
         </button>
-        <label className="template-picker">
-          <span className="visually-hidden">Start from a template</span>
-          <select
-            value=""
-            aria-label="Start from a template"
-            onChange={(event) => {
-              const name = event.target.value;
-              if (name && TEMPLATES[name]) createTab(name, TEMPLATES[name]);
+        <div className="tab-actions-wrap">
+          <button
+            className="new-tab-button"
+            type="button"
+            title="Diagram actions (Rename, Duplicate, Delete)"
+            aria-label="Diagram actions"
+            aria-expanded={tabMenuOpen}
+            onClick={() => {
+              const next = !tabMenuOpen;
+              closeAllMenus();
+              setTabMenuOpen(next);
             }}
           >
-            <option value="">Templates</option>
-            {Object.keys(TEMPLATES).map((name) => <option key={name}>{name}</option>)}
-          </select>
-          <ChevronDown aria-hidden="true" size={13} />
-        </label>
+            <MoreVertical aria-hidden="true" size={16} />
+          </button>
+          {tabMenuOpen && (
+            <div className="studio-menu-popover tab-menu-popover" role="menu">
+              <button type="button" role="menuitem" onClick={() => { setTabMenuOpen(false); startRename(activeDocument); }}>
+                <Pencil aria-hidden="true" size={14} /> Rename
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setTabMenuOpen(false); createTab(`${activeDocument.name} copy`, activeDocument.code); }}>
+                <Copy aria-hidden="true" size={14} /> Duplicate
+              </button>
+              <button type="button" role="menuitem" className="danger-item" onClick={() => { setTabMenuOpen(false); setPendingDeleteId(activeDocument.id); }}>
+                <Trash2 aria-hidden="true" size={14} /> Delete
+              </button>
+            </div>
+          )}
+        </div>
+        {tabContextMenu && (() => {
+          if (tabContextMenu.docId === null) {
+            return (
+              <div
+                className="studio-menu-popover tab-context-menu"
+                role="menu"
+                aria-label="Tab strip actions"
+                style={{ position: "fixed", left: `${tabContextMenu.x}px`, top: `${tabContextMenu.y}px`, right: "auto" }}
+              >
+                <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); setNewDiagramOpen(true); }}>
+                  <Plus aria-hidden="true" size={14} /> New diagram
+                </button>
+              </div>
+            );
+          }
+          const targetDoc = data.documents.find((doc) => doc.id === tabContextMenu.docId) ?? activeDocument;
+          return (
+            <div
+              className="studio-menu-popover tab-context-menu"
+              role="menu"
+              aria-label={`Actions for ${targetDoc.name}`}
+              style={{ position: "fixed", left: `${tabContextMenu.x}px`, top: `${tabContextMenu.y}px`, right: "auto" }}
+            >
+              <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); startRename(targetDoc); }}>
+                <Pencil aria-hidden="true" size={14} /> Rename
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); createTab(`${targetDoc.name} copy`, targetDoc.code); }}>
+                <Copy aria-hidden="true" size={14} /> Duplicate
+              </button>
+              <button type="button" role="menuitem" className="danger-item" onClick={() => { setTabContextMenu(null); setPendingDeleteId(targetDoc.id); }}>
+                <Trash2 aria-hidden="true" size={14} /> Delete
+              </button>
+            </div>
+          );
+        })()}
       </section>
 
       <div className="message-stack">
@@ -1406,6 +1854,8 @@ function App() {
                 title="Translate current code to another format"
                 disabled={isReadOnlySnapshot}
                 value=""
+                onPointerDown={() => closeAllMenus()}
+                onFocus={() => closeAllMenus()}
                 onChange={(event) => {
                   const target = event.target.value as CodeFormat | "";
                   if (!target) return;
@@ -1432,8 +1882,13 @@ function App() {
               <button className="icon-button compact" aria-label="Download source file" title="Download source file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={isReadOnlySnapshot} onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={isReadOnlySnapshot} onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
-              <details className="history-menu">
-                <summary aria-label="Version history"><History aria-hidden="true" size={15} /></summary>
+              <details
+                className="history-menu"
+                onToggle={(event) => {
+                  if (event.currentTarget.open) closeAllMenus(event.currentTarget);
+                }}
+              >
+                <summary aria-label="Version history" title="Version history"><History aria-hidden="true" size={15} /></summary>
                 <div className="history-popover">
                   <strong>Version history</strong>
                   {activeDocument.history.length ? activeDocument.history.map((version) => (
@@ -1451,6 +1906,7 @@ function App() {
                 ref={editorRef}
                 value={activeDocument.code}
                 readOnly={isReadOnlySnapshot}
+                darkMode={data.settings.theme === "dark"}
                 error={renderError}
                 onChange={changeCode}
                 onUndo={undo}
@@ -1462,45 +1918,6 @@ function App() {
             <span>{activeDocument.code.split(/\r?\n/).length} lines</span>
             <span>Move a node with drag or arrow keys; Shift moves farther.</span>
           </div>
-          <div className="ai-controls">
-            <label htmlFor="ai-request">Ask AI to refine or organize this diagram</label>
-            <textarea
-              id="ai-request"
-              rows={2}
-              value={aiPrompt}
-              onChange={(event) => setAiPrompt(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !aiBusy) {
-                  event.preventDefault();
-                  setAiMode("refine");
-                  void runAi("refine");
-                }
-              }}
-              placeholder="Describe the change you want. Leave blank for a structured cleanup."
-            />
-            <div className="ai-buttons">
-              <button className="button primary" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine"); }}>
-                <Wand2 aria-hidden="true" size={15} /> Refine
-              </button>
-              <button className="button secondary" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("structured"); void runAi("structured"); }}>
-                <GitBranch aria-hidden="true" size={15} /> Structure
-              </button>
-              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Fix any syntax errors so the diagram renders cleanly while preserving its meaning."); }}>
-                Fix syntax
-              </button>
-              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Add cohesive classDef or style definitions to highlight key nodes while keeping all labels and relationships intact."); }}>
-                Style it
-              </button>
-              <button className="button text-button" type="button" disabled={aiBusy || isReadOnlySnapshot} onClick={() => { setAiMode("refine"); void runAi("refine", "Tidy the layout, shorten verbose labels, and simplify structure without losing meaning."); }}>
-                Tidy
-              </button>
-              <button className="button text-button" type="button" disabled={aiBusy} onClick={() => { setAiMode("explain"); void runAi("explain"); }}>
-                Explain
-              </button>
-              {aiBusy && <button className="button stop-button" type="button" onClick={stopAi}><StopCircle aria-hidden="true" size={15} /> Stop</button>}
-            </div>
-            <p className="privacy-note">An AI request sends this prompt and diagram directly to your selected provider.</p>
-          </div>
         </section>
 
         <div
@@ -1508,15 +1925,15 @@ function App() {
           role="separator"
           aria-label="Resize source and preview panes"
           aria-orientation="vertical"
-          aria-valuemin={28}
-          aria-valuemax={72}
-          aria-valuenow={Math.round(data.settings.splitPercent)}
+          aria-valuemin={22}
+          aria-valuemax={50}
+          aria-valuenow={Math.round(clampedSplitPercent)}
           tabIndex={0}
           onPointerDown={beginSplit}
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault();
-              changeSettings({ splitPercent: Math.min(72, Math.max(28, data.settings.splitPercent + (event.key === "ArrowRight" ? 2 : -2))) });
+              changeSettings({ splitPercent: Math.min(50, Math.max(22, clampedSplitPercent + (event.key === "ArrowRight" ? 2 : -2))) });
             }
           }}
         />
@@ -1541,39 +1958,65 @@ function App() {
               <span className={`diagram-kind ${supportedMovement ? "movable" : ""}`}>{diagramType}</span>
             </div>
             <div className="preview-actions">
+              <div className="direction-menu-wrap">
+                <button
+                  className="icon-button compact"
+                  type="button"
+                  title="Diagram direction"
+                  aria-label="Diagram direction"
+                  aria-expanded={directionMenuOpen}
+                  disabled={!supportedMovement || isReadOnlySnapshot}
+                  onClick={() => {
+                    const next = !directionMenuOpen;
+                    closeAllMenus();
+                    setDirectionMenuOpen(next);
+                  }}
+                >
+                  <LayoutGrid aria-hidden="true" size={15} />
+                </button>
+                {directionMenuOpen && (
+                  <div className="studio-menu-popover direction-popover" role="menu">
+                    <span className="menu-section-title">Direction</span>
+                    {(
+                      [
+                        { dir: "TD", label: "Top to bottom", Icon: ArrowDown },
+                        { dir: "BT", label: "Bottom to top", Icon: ArrowUp },
+                        { dir: "LR", label: "Left to right", Icon: ArrowRight },
+                        { dir: "RL", label: "Right to left", Icon: ArrowLeft },
+                      ] as const
+                    ).map(({ dir, label, Icon }) => (
+                      <button
+                        key={dir}
+                        type="button"
+                        role="menuitem"
+                        className={currentDirection === dir ? "active-dir" : undefined}
+                        onClick={() => {
+                          setDirectionMenuOpen(false);
+                          changeCode(applyDiagramDirection(activeDocument.code, dir));
+                          changeLayout({});
+                          requestAnimationFrame(() => canvasRef.current?.fit());
+                        }}
+                      >
+                        <span>{label}</span>
+                        <Icon aria-hidden="true" size={14} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 className="icon-button compact"
-                aria-label="Move tool (V)"
-                title="Move tool (V)"
-                aria-pressed={canvasTool === "move"}
-                onClick={() => canvasRef.current?.setTool("move")}
+                type="button"
+                aria-label={aiBarVisible ? "Hide AI assistant bar" : "Show AI assistant bar"}
+                title={aiBarVisible ? "Hide AI assistant bar" : "Show AI assistant bar"}
+                aria-pressed={aiBarVisible}
+                onClick={() => setAiBarVisible((current) => !current)}
               >
-                <MousePointer aria-hidden="true" size={15} />
+                <Wand2 aria-hidden="true" size={15} />
               </button>
               <button
                 className="icon-button compact"
-                aria-label="Hand pan tool (H)"
-                title="Hand pan tool (H)"
-                aria-pressed={canvasTool === "hand"}
-                onClick={() => canvasRef.current?.setTool("hand")}
-              >
-                <Hand aria-hidden="true" size={15} />
-              </button>
-              <button className="icon-button compact" aria-label="Zoom out" title="Zoom out (-)" onClick={() => canvasRef.current?.zoomBy(1 / 1.15)}><ZoomOut aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Zoom in" title="Zoom in (+)" onClick={() => canvasRef.current?.zoomBy(1.15)}><ZoomIn aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Fit diagram" title="Fit diagram (Shift+1)" onClick={() => canvasRef.current?.fit()}><Scan aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Reset pan and zoom" title="Reset pan and zoom" onClick={() => canvasRef.current?.reset()}><RotateCcw aria-hidden="true" size={15} /></button>
-              <button
-                className="icon-button compact"
-                aria-label="Arrange nodes in grid"
-                title="Arrange nodes in grid"
-                disabled={!supportedMovement || isReadOnlySnapshot}
-                onClick={() => canvasRef.current?.arrangeGrid()}
-              >
-                <LayoutGrid aria-hidden="true" size={15} />
-              </button>
-              <button
-                className="icon-button compact"
+                type="button"
                 aria-label="Reset node positions to automatic layout"
                 title="Reset node positions"
                 disabled={!Object.keys(activeDocument.layout).length || isReadOnlySnapshot}
@@ -1584,8 +2027,13 @@ function App() {
               >
                 <RefreshCcw aria-hidden="true" size={15} />
               </button>
-              <details className="sensitivity-menu">
-                <summary aria-label="Pan and zoom settings"><Settings2 aria-hidden="true" size={15} /></summary>
+              <details
+                className="sensitivity-menu"
+                onToggle={(event) => {
+                  if (event.currentTarget.open) closeAllMenus(event.currentTarget);
+                }}
+              >
+                <summary aria-label="Pan and zoom settings" title="Pan and zoom settings"><Settings2 aria-hidden="true" size={15} /></summary>
                 <div className="sensitivity-popover">
                   <strong>Pan and zoom</strong>
                   <label>Scroll behavior
@@ -1600,7 +2048,7 @@ function App() {
                   <label className="check-row"><input type="checkbox" checked={data.settings.invertScroll} onChange={(event) => changeSettings({ invertScroll: event.target.checked })} /> Invert scroll</label>
                   <label className="check-row"><input type="checkbox" checked={data.settings.smoothZoom} onChange={(event) => changeSettings({ smoothZoom: event.target.checked })} /> Smooth zoom</label>
                   <label className="check-row"><input type="checkbox" checked={data.settings.snapEnabled} onChange={(event) => changeSettings({ snapEnabled: event.target.checked })} /> Snap nodes to grid</label>
-                  <label>Grid size <input type="number" min="4" max="100" step="4" value={data.settings.snapSize} onChange={(event) => changeSettings({ snapSize: Number(event.target.value) })} /></label>
+                  <label>Grid size <input type="number" min={0} max={100} step={1} value={data.settings.snapSize} onChange={(event) => { const raw = Number(event.target.value); changeSettings({ snapSize: Number.isFinite(raw) ? Math.min(100, Math.max(0, Math.round(raw))) : 0 }); }} /></label>
                   <p>V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Shift: precision. Alt: bypass grid.</p>
                 </div>
               </details>
@@ -1613,30 +2061,60 @@ function App() {
                 ? <span id="node-movement-help">V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Arrow keys: nudge a box. Alt: bypass grid.</span>
                 : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
           </div>
-          <Suspense fallback={null}>
-            <DiagramCanvas
-              ref={canvasRef}
-              document={activeDocument}
-              settings={data.settings}
-              readOnly={isReadOnlySnapshot}
-              onLayoutChange={changeLayout}
-              onCodeChange={changeCode}
-              onNodeMoved={announceNodeMoved}
-              onNodeSelect={(id) => {
-                setMobilePane("code");
-                setExpandedPane((current) => (current === "preview" ? "none" : current));
-                editorRef.current?.focusNode(id);
-              }}
-              onToolChange={setCanvasTool}
-              onRenderError={setRenderError}
-              onTypeChange={setDiagramType}
-            />
-          </Suspense>
+          <div className="canvas-stage">
+            <Suspense fallback={null}>
+              <DiagramCanvas
+                ref={canvasRef}
+                document={activeDocument}
+                settings={data.settings}
+                readOnly={isReadOnlySnapshot}
+                onLayoutChange={changeLayout}
+                onCodeChange={changeCode}
+                onNodeMoved={announceNodeMoved}
+                onNodeSelect={(id) => {
+                  setMobilePane("code");
+                  setExpandedPane((current) => (current === "preview" ? "none" : current));
+                  editorRef.current?.focusNode(id);
+                }}
+                onToolChange={setCanvasTool}
+                onRenderError={setRenderError}
+                onTypeChange={setDiagramType}
+              />
+            </Suspense>
+            <div className="canvas-vertical-dock" role="toolbar" aria-label="Canvas tools" aria-orientation="vertical">
+              <button
+                className="icon-button compact"
+                type="button"
+                aria-label="Move tool (V)"
+                title="Move tool (V)"
+                aria-pressed={canvasTool === "move"}
+                onClick={() => canvasRef.current?.setTool("move")}
+              >
+                <MousePointer aria-hidden="true" size={15} />
+              </button>
+              <button
+                className="icon-button compact"
+                type="button"
+                aria-label="Hand pan tool (H)"
+                title="Hand pan tool (H)"
+                aria-pressed={canvasTool === "hand"}
+                onClick={() => canvasRef.current?.setTool("hand")}
+              >
+                <Hand aria-hidden="true" size={15} />
+              </button>
+              <span className="dock-separator" aria-hidden="true" />
+              <button className="icon-button compact" type="button" aria-label="Zoom out" title="Zoom out (-)" onClick={() => canvasRef.current?.zoomBy(1 / 1.15)}><ZoomOut aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" type="button" aria-label="Zoom in" title="Zoom in (+)" onClick={() => canvasRef.current?.zoomBy(1.15)}><ZoomIn aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" type="button" aria-label="Fit diagram" title="Fit diagram (Shift+1)" onClick={() => canvasRef.current?.fit()}><Scan aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" type="button" aria-label="Reset pan and zoom" title="Reset pan and zoom" onClick={() => canvasRef.current?.reset()}><RotateCcw aria-hidden="true" size={15} /></button>
+            </div>
+            {expandedPane !== "code" && aiFloatingBar}
+          </div>
         </section>
       </section>
 
       <AnimatePresence>
-        {(aiPanel || aiError || (aiBusy && aiStream)) && (
+        {(aiPanel || aiError || (aiBusy && aiStream && aiMode !== "explain")) && (
           <motion.aside
             className="ai-result-panel"
             initial={reduceMotion ? false : { opacity: 0, x: 16 }}
@@ -1749,8 +2227,29 @@ function App() {
           {settingsTab === "appearance" ? (
           <fieldset className="settings-card">
             <legend>Diagram appearance</legend>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={data.settings.theme === "dark"}
+              className="theme-switch-row settings-dark-row"
+              onClick={() => {
+                const nextTheme = data.settings.theme === "dark" ? "default" : "dark";
+                changeSettings({ theme: nextTheme, ...THEME_PRESETS[nextTheme] });
+              }}
+            >
+              <span className="theme-switch-label">
+                {data.settings.theme === "dark" ? <Moon aria-hidden="true" size={15} /> : <Sun aria-hidden="true" size={15} />}
+                <span>Dark mode</span>
+              </span>
+              <span className={`theme-switch-track${data.settings.theme === "dark" ? " is-on" : ""}`} aria-hidden="true">
+                <span className="theme-switch-thumb">
+                  {data.settings.theme === "dark" ? <Moon size={11} /> : <Sun size={11} />}
+                </span>
+              </span>
+            </button>
             <div
               className="settings-preview-swatch"
+              data-look={data.settings.look}
               aria-hidden="true"
               style={{ backgroundColor: data.settings.canvasColor }}
             >
@@ -1823,7 +2322,42 @@ function App() {
                   <code>{data.settings.canvasColor}</code>
                 </span>
               </label>
-              <label className="wide-field">Diagram font<input value={data.settings.font} onChange={(event) => changeSettings({ font: event.target.value })} /></label>
+              <label className="wide-field">
+                Diagram font
+                <select
+                  value={data.settings.font}
+                  onChange={(event) => changeSettings({ font: event.target.value })}
+                >
+                  {[
+                    { label: "Inter / Sans (Default)", value: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+                    { label: "System UI", value: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+                    { label: "JetBrains Mono (Code)", value: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" },
+                    { label: "Fira Code (Monospace)", value: "'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace" },
+                    { label: "Georgia (Serif)", value: "Georgia, Cambria, 'Times New Roman', Times, serif" },
+                    { label: "Trebuchet MS", value: "'Trebuchet MS', Verdana, Arial, sans-serif" },
+                    { label: "Verdana", value: "Verdana, Geneva, Tahoma, sans-serif" },
+                    { label: "Comic Sans MS (Handwritten)", value: "'Comic Sans MS', 'Segoe Print', cursive, sans-serif" },
+                    ...(
+                      [
+                        "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                        "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                        "'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace",
+                        "Georgia, Cambria, 'Times New Roman', Times, serif",
+                        "'Trebuchet MS', Verdana, Arial, sans-serif",
+                        "Verdana, Geneva, Tahoma, sans-serif",
+                        "'Comic Sans MS', 'Segoe Print', cursive, sans-serif",
+                      ].includes(data.settings.font)
+                        ? []
+                        : [{ label: `Custom (${data.settings.font})`, value: data.settings.font }]
+                    ),
+                  ].map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="wide-field settings-toggle-row">
                 <input
                   type="checkbox"
@@ -1958,13 +2492,171 @@ function App() {
         </div>
       </dialog>
 
+      {(() => {
+        const target = pendingDeleteId ? data.documents.find((doc) => doc.id === pendingDeleteId) ?? null : null;
+        return (
+          <dialog
+            ref={deleteDialog}
+            className="confirm-dialog"
+            role="alertdialog"
+            aria-labelledby="delete-dialog-title"
+            aria-describedby="delete-dialog-desc"
+            onClose={() => setPendingDeleteId("")}
+            onClick={(event) => {
+              if (event.target === deleteDialog.current) setPendingDeleteId("");
+            }}
+          >
+            <div className="confirm-dialog-body">
+              <h2 id="delete-dialog-title">Delete &lsquo;{target?.name ?? "diagram"}&rsquo;?</h2>
+              <p id="delete-dialog-desc">Once deleted, it cannot be restored.</p>
+            </div>
+            <div className="dialog-footer">
+              <button className="button secondary" type="button" onClick={() => setPendingDeleteId("")}>
+                Cancel
+              </button>
+              <button
+                className="button danger"
+                type="button"
+                onClick={() => {
+                  if (target) void removeTab(target.id);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </dialog>
+        );
+      })()}
+
+      {explainPopups.length > 0 && (
+        <div className="explain-pop-stack" role="region" aria-label="Diagram explanations">
+          {explainPopups.map((popup) => (
+            <article key={popup.id} className="explain-pop" role="status">
+              <div className="explain-pop-head">
+                <span className="explain-pop-title">
+                  <Wand2 aria-hidden="true" size={14} />
+                  <span>{popup.title}</span>
+                </span>
+                <button
+                  type="button"
+                  aria-label="Dismiss explanation"
+                  onClick={() => setExplainPopups((prev) => prev.filter((item) => item.id !== popup.id))}
+                >
+                  <X aria-hidden="true" size={14} />
+                </button>
+              </div>
+              <div className="explain-pop-body">{popup.text}</div>
+            </article>
+          ))}
+        </div>
+      )}
       {notice && (
         <div className="toast" role="status">
           <Check aria-hidden="true" size={15} /> {notice}
           <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}><X aria-hidden="true" size={14} /></button>
         </div>
       )}
+      {expandedPane === "code" && aiFloatingBar}
+
+      <dialog
+        ref={newDiagramDialog}
+        className="new-diagram-dialog"
+        aria-labelledby="new-diagram-title"
+        onClose={() => setNewDiagramOpen(false)}
+        onClick={(event) => {
+          if (event.target === newDiagramDialog.current) setNewDiagramOpen(false);
+        }}
+      >
+        <div className="dialog-heading">
+          <div>
+            <h2 id="new-diagram-title">New diagram</h2>
+            <p>Start from a template or pick a starter node.</p>
+          </div>
+          <button className="icon-button" type="button" aria-label="Close new diagram picker" onClick={() => setNewDiagramOpen(false)}>
+            <X aria-hidden="true" size={17} />
+          </button>
+        </div>
+        <div className="new-diagram-body">
+          <div className="new-diagram-picker">
+            <div className="new-diagram-section">
+              <h3>Templates</h3>
+              <div className="new-diagram-grid">
+                {Object.entries(TEMPLATES).map(([name, code]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className="new-diagram-option"
+                    aria-pressed={newDiagramSelection.kind === "template" && newDiagramSelection.label === name}
+                    onClick={() => {
+                      setNewDiagramSelection({ kind: "template", label: name, title: name, code });
+                    }}
+                  >
+                    <strong>{name}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="new-diagram-section">
+              <h3>Quick Nodes &amp; Shapes</h3>
+              <div className="new-diagram-grid">
+                {[
+                  { label: "Rectangle [Node]", title: "Flowchart", code: "flowchart TD\n  A[Start]" },
+                  { label: "Decision {Check}", title: "Decision Flow", code: "flowchart TD\n  Start([Start]) --> Check{Condition?}" },
+                  { label: "Database [(DB)]", title: "Service DB", code: "flowchart TD\n  Service[Service] --> DB[(Database)]" },
+                  { label: "Class { }", title: "Class", code: "classDiagram\n  class Class1 {\n    +String id\n  }" },
+                  { label: "ER Entity { }", title: "ER Entity", code: "erDiagram\n  ENTITY1 {\n    int id PK\n  }" },
+                  { label: "State (* -> Idle)", title: "State", code: "stateDiagram-v2\n  [*] --> Idle" },
+                ].map((nodeItem) => (
+                  <button
+                    key={nodeItem.label}
+                    type="button"
+                    className="new-diagram-option"
+                    aria-pressed={newDiagramSelection.kind === "starter" && newDiagramSelection.label === nodeItem.label}
+                    onClick={() => {
+                      setNewDiagramSelection({
+                        kind: "starter",
+                        label: nodeItem.label,
+                        title: nodeItem.title,
+                        code: nodeItem.code,
+                      });
+                    }}
+                  >
+                    <strong>{nodeItem.label}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="new-diagram-preview-pane" aria-label="Template preview">
+            <div className="new-diagram-preview-header">
+              <span>Preview</span>
+              <strong>{newDiagramSelection.label}</strong>
+            </div>
+            <div
+              className="new-diagram-preview-canvas"
+              style={{ backgroundColor: data.settings.canvasColor }}
+            >
+              <div ref={newDiagramPreviewRef} className="new-diagram-preview-svg" />
+              {newDiagramPreviewBusy && <span className="new-diagram-preview-status">Rendering…</span>}
+            </div>
+          </div>
+        </div>
+        <div className="dialog-footer" style={{ justifyContent: "flex-end" }}>
+          <button
+            className="button apply-green-btn"
+            type="button"
+            onClick={() => {
+              createTab(newDiagramSelection.title, newDiagramSelection.code);
+              setNewDiagramOpen(false);
+            }}
+          >
+            Apply
+          </button>
+        </div>
+      </dialog>
+
       <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
+      <AppTooltip />
     </main>
   );
 }
