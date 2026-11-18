@@ -367,6 +367,7 @@ test("pans when dragging empty canvas space and preserves mindmap foreignObject 
   const beforePan = await graphic.getAttribute("style");
   const box = await viewport.boundingBox();
   if (!box) throw new Error("The viewport has no visible bounds.");
+  await page.getByRole("button", { name: "Hand pan tool (H)" }).click();
   await page.mouse.move(box.x + 16, box.y + 16);
   await page.mouse.down();
   await page.mouse.move(box.x + 76, box.y + 56, { steps: 4 });
@@ -414,7 +415,8 @@ test("arranges nodes into a grid with one click and undo restores the original l
   await expect(dog).toBeVisible();
   const initialTransform = await dog.getAttribute("transform");
 
-  await page.getByRole("button", { name: "Arrange nodes in grid" }).click();
+  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
+  await page.getByRole("menuitem", { name: "Auto-arrange (grid)" }).click();
   await expect.poll(() => dog.getAttribute("transform")).not.toBe(initialTransform);
 
   await page.getByRole("button", { name: "Undo" }).click();
@@ -465,7 +467,8 @@ test("expands preview pane, auto-focuses on grid layout, and enforces readable c
   await page.mouse.move(vpBox.x + 320, vpBox.y + 260, { steps: 4 });
   await page.mouse.up();
 
-  await page.getByRole("button", { name: "Arrange nodes in grid" }).click();
+  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
+  await page.getByRole("menuitem", { name: "Auto-arrange (grid)" }).click();
   const dogBox = await page.locator('[data-sgs-node="Dog"]').boundingBox();
   if (!dogBox) throw new Error("Dog node has no bounds.");
   expect(dogBox.x).toBeGreaterThanOrEqual(vpBox.x);
@@ -594,7 +597,8 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   });
   await expect(page.locator('[data-sgs-node="Product"]')).toBeVisible();
 
-  await page.getByRole("button", { name: "Arrange nodes in grid" }).click();
+  await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
+  await page.getByRole("menuitem", { name: "Auto-arrange (grid)" }).click();
   const routingCheck = await page.evaluate(() => {
     const svg = document.querySelector<SVGSVGElement>(".diagram-graphic svg")!;
     const paths = Array.from(svg.querySelectorAll<SVGPathElement>("path.relation"));
@@ -749,7 +753,7 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
 
   await host.close();
   await expect(guests[0]!.getByText(/Host closed the browser or ended the room/i)).toBeVisible();
-  await expect(guests[0]!.getByRole("button", { name: "Arrange nodes in grid" })).toBeDisabled();
+  await expect(guests[0]!.getByRole("button", { name: "Diagram direction" })).toBeDisabled();
   await expect(guests[0]!.getByLabel("Convert code format")).toBeDisabled();
   await expect(guests[0]!.getByRole("button", { name: "Export SVG" })).toBeEnabled();
   await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
@@ -1346,9 +1350,16 @@ test("vertical canvas dock sits on right inside graph, stays outside SVG, and V 
   await page.mouse.move(stageBox!.x + 24, stageBox!.y + 24);
   await page.mouse.down();
   await page.mouse.move(stageBox!.x + 84, stageBox!.y + 64, { steps: 5 });
+  await expect(page.locator(".sgs-marquee")).toBeVisible();
   await page.mouse.up();
-  const afterTransform = await graphic.evaluate((el) => getComputedStyle(el).transform);
-  expect(afterTransform).not.toBe(beforeTransform);
+  expect(await graphic.evaluate((el) => getComputedStyle(el).transform)).toBe(beforeTransform);
+
+  await page.getByRole("button", { name: "Hand pan tool (H)" }).click();
+  await page.mouse.move(stageBox!.x + 24, stageBox!.y + 24);
+  await page.mouse.down();
+  await page.mouse.move(stageBox!.x + 84, stageBox!.y + 64, { steps: 5 });
+  await page.mouse.up();
+  expect(await graphic.evaluate((el) => getComputedStyle(el).transform)).not.toBe(beforeTransform);
 });
 
 test("new diagram picker previews templates before Apply and right-clicking a tab opens tab actions", async ({ page }) => {
@@ -1364,7 +1375,7 @@ test("new diagram picker previews templates before Apply and right-clicking a ta
   await page.getByRole("tab", { name: "Sequence" }).click({ button: "right" });
   const tabMenu = page.locator(".tab-context-menu");
   await expect(tabMenu).toBeVisible();
-  await expect(tabMenu.getByRole("menuitem", { name: "New diagram" })).toBeVisible();
+  await expect(tabMenu.getByRole("menuitem", { name: "New diagram" })).toHaveCount(0);
   await expect(tabMenu.getByRole("menuitem", { name: "Rename" })).toBeVisible();
   await expect(tabMenu.getByRole("menuitem", { name: "Duplicate" })).toBeVisible();
   await expect(tabMenu.getByRole("menuitem", { name: "Delete" })).toBeVisible();

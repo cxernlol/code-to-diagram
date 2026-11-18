@@ -655,15 +655,16 @@ summary:focus-visible,
 }
 
 .format-convert-select {
-  max-inline-size: 108px;
-  min-block-size: 24px;
-  padding: 0 6px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--ink-soft);
+  max-inline-size: 118px;
+  min-block-size: 26px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--ink);
   background: var(--surface);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .pane-actions,
@@ -1592,10 +1593,10 @@ html[data-theme="dark"] .ai-error .button:hover {
 }
 
 .new-diagram-preview-svg svg {
+  inline-size: 100%;
   max-inline-size: 100%;
   max-block-size: 380px;
   block-size: auto;
-  inline-size: auto;
 }
 
 .dialog-footer .button.dialog-cancel-btn,
@@ -1616,6 +1617,17 @@ html[data-theme="dark"] .ai-error .button:hover {
 .dialog-footer .button.apply-green-btn:hover {
   border-color: #196347;
   background: #196347;
+}
+
+html[data-theme="dark"] .dialog-footer .button.apply-green-btn {
+  border-color: #6eb895;
+  color: #eef4f2;
+  background: #1a3529;
+}
+
+html[data-theme="dark"] .dialog-footer .button.apply-green-btn:hover {
+  border-color: #84cba9;
+  background: #224435;
 }
 
 .new-diagram-preview-status {

@@ -310,9 +310,10 @@ function App() {
   const [newDiagramPreviewBusy, setNewDiagramPreviewBusy] = useState(false);
   const newDiagramPreviewRef = useRef<HTMLDivElement>(null);
   const [aiMenuOpen, setAiMenuOpen] = useState(false);
+  const [aiBarVisible, setAiBarVisible] = useState(true);
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [tabContextMenu, setTabContextMenu] = useState<{
-    docId: string;
+    docId: string | null;
     x: number;
     y: number;
   } | null>(null);
@@ -624,19 +625,19 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [testStatus]);
 
-  const closeAllMenus = useCallback(() => {
+  const closeAllMenus = useCallback((keepDetails?: HTMLDetailsElement | null) => {
     setStudioMenuOpen(false);
     setTabMenuOpen(false);
     setTabContextMenu(null);
     setDirectionMenuOpen(false);
     setAiMenuOpen(false);
     document.querySelectorAll("details.history-menu[open], details.sensitivity-menu[open]").forEach((el) => {
+      if (keepDetails && el === keepDetails) return;
       el.removeAttribute("open");
     });
   }, []);
 
   useEffect(() => {
-    if (!studioMenuOpen && !tabMenuOpen && !tabContextMenu && !directionMenuOpen && !aiMenuOpen) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (studioMenuOpen && !target?.closest(".studio-menu-wrap")) setStudioMenuOpen(false);
@@ -644,6 +645,11 @@ function App() {
       if (tabContextMenu && !target?.closest(".tab-context-menu")) setTabContextMenu(null);
       if (directionMenuOpen && !target?.closest(".direction-menu-wrap")) setDirectionMenuOpen(false);
       if (aiMenuOpen && !target?.closest(".ai-floating-wrap")) setAiMenuOpen(false);
+      document.querySelectorAll("details.history-menu[open], details.sensitivity-menu[open]").forEach((el) => {
+        if (!target?.closest("details.history-menu, details.sensitivity-menu") || !el.contains(target)) {
+          el.removeAttribute("open");
+        }
+      });
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") closeAllMenus();
@@ -952,6 +958,32 @@ function App() {
     changeCode(version.code);
     setNotice(`Restored “${version.reason}”.`);
   };
+
+  useEffect(() => {
+    if (!activeDocument || endedRoomDocIds.has(activeDocument.id)) return;
+    const latestCode = activeDocument.history[0]?.code;
+    if (latestCode === activeDocument.code) return;
+    const docId = activeDocument.id;
+    const snapshotCode = activeDocument.code;
+    const timer = window.setTimeout(() => {
+      updateDocument(docId, (doc) => {
+        if (doc.code !== snapshotCode || doc.history[0]?.code === snapshotCode) return doc;
+        return {
+          ...doc,
+          history: [
+            {
+              id: crypto.randomUUID(),
+              createdAt: Date.now(),
+              reason: doc.history.length === 0 ? "Initial snapshot" : "Edited diagram",
+              code: snapshotCode,
+            },
+            ...doc.history,
+          ].slice(0, 30),
+        };
+      });
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [activeDocument?.id, activeDocument?.code, activeDocument?.history, endedRoomDocIds, updateDocument]);
 
   const acceptAiResult = () => {
     if (!aiPanel || !activeDocument) return;
@@ -1373,14 +1405,6 @@ function App() {
 
   const supportedMovement = ["flowchart", "class", "state", "er"].includes(diagramType);
   const currentDirection = detectDirectionFromCode(activeDocument.code);
-  const DirectionIcon =
-    currentDirection === "BT"
-      ? ArrowUp
-      : currentDirection === "LR"
-        ? ArrowRight
-        : currentDirection === "RL"
-          ? ArrowLeft
-          : ArrowDown;
   const codeFormat = detectCodeFormat(activeDocument.code);
   const isReadOnlySnapshot = endedRoomDocIds.has(activeDocument.id);
 
@@ -1497,7 +1521,21 @@ function App() {
         </div>
       </header>
 
-      <section className="document-strip" aria-label="Diagrams">
+      <section
+        className="document-strip"
+        aria-label="Diagrams"
+        onContextMenu={(event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          if (target?.closest(".document-tab")) return;
+          event.preventDefault();
+          closeAllMenus();
+          setTabContextMenu({
+            docId: null,
+            x: Math.min(window.innerWidth - 180, Math.max(8, event.clientX)),
+            y: Math.min(window.innerHeight - 120, Math.max(8, event.clientY)),
+          });
+        }}
+      >
         <div className="document-tabs" role="tablist" aria-label="Open diagrams">
           {data.documents.map((document, index) => (
             <div
@@ -1575,9 +1613,6 @@ function App() {
           </button>
           {tabMenuOpen && (
             <div className="studio-menu-popover tab-menu-popover" role="menu">
-              <button type="button" role="menuitem" onClick={() => { setTabMenuOpen(false); setNewDiagramOpen(true); }}>
-                <Plus aria-hidden="true" size={14} /> New diagram
-              </button>
               <button type="button" role="menuitem" onClick={() => { setTabMenuOpen(false); startRename(activeDocument); }}>
                 <Pencil aria-hidden="true" size={14} /> Rename
               </button>
@@ -1591,6 +1626,20 @@ function App() {
           )}
         </div>
         {tabContextMenu && (() => {
+          if (tabContextMenu.docId === null) {
+            return (
+              <div
+                className="studio-menu-popover tab-context-menu"
+                role="menu"
+                aria-label="Tab strip actions"
+                style={{ position: "fixed", left: `${tabContextMenu.x}px`, top: `${tabContextMenu.y}px`, right: "auto" }}
+              >
+                <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); setNewDiagramOpen(true); }}>
+                  <Plus aria-hidden="true" size={14} /> New diagram
+                </button>
+              </div>
+            );
+          }
           const targetDoc = data.documents.find((doc) => doc.id === tabContextMenu.docId) ?? activeDocument;
           return (
             <div
@@ -1599,9 +1648,6 @@ function App() {
               aria-label={`Actions for ${targetDoc.name}`}
               style={{ position: "fixed", left: `${tabContextMenu.x}px`, top: `${tabContextMenu.y}px`, right: "auto" }}
             >
-              <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); setNewDiagramOpen(true); }}>
-                <Plus aria-hidden="true" size={14} /> New diagram
-              </button>
               <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); startRename(targetDoc); }}>
                 <Pencil aria-hidden="true" size={14} /> Rename
               </button>
@@ -1726,6 +1772,8 @@ function App() {
                 title="Translate current code to another format"
                 disabled={isReadOnlySnapshot}
                 value=""
+                onPointerDown={() => closeAllMenus()}
+                onFocus={() => closeAllMenus()}
                 onChange={(event) => {
                   const target = event.target.value as CodeFormat | "";
                   if (!target) return;
@@ -1752,8 +1800,13 @@ function App() {
               <button className="icon-button compact" aria-label="Download source file" title="Download source file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={isReadOnlySnapshot} onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={isReadOnlySnapshot} onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
-              <details className="history-menu">
-                <summary aria-label="Version history"><History aria-hidden="true" size={15} /></summary>
+              <details
+                className="history-menu"
+                onToggle={(event) => {
+                  if (event.currentTarget.open) closeAllMenus(event.currentTarget);
+                }}
+              >
+                <summary aria-label="Version history" title="Version history"><History aria-hidden="true" size={15} /></summary>
                 <div className="history-popover">
                   <strong>Version history</strong>
                   {activeDocument.history.length ? activeDocument.history.map((version) => (
@@ -1823,16 +1876,6 @@ function App() {
               <span className={`diagram-kind ${supportedMovement ? "movable" : ""}`}>{diagramType}</span>
             </div>
             <div className="preview-actions">
-              <button
-                className="icon-button compact"
-                type="button"
-                aria-label="Arrange nodes in grid"
-                title="Arrange nodes in grid"
-                disabled={!supportedMovement || isReadOnlySnapshot}
-                onClick={() => canvasRef.current?.arrangeGrid()}
-              >
-                <LayoutGrid aria-hidden="true" size={15} />
-              </button>
               <div className="direction-menu-wrap">
                 <button
                   className="icon-button compact"
@@ -1847,7 +1890,7 @@ function App() {
                     setDirectionMenuOpen(next);
                   }}
                 >
-                  <DirectionIcon aria-hidden="true" size={15} />
+                  <LayoutGrid aria-hidden="true" size={15} />
                 </button>
                 {directionMenuOpen && (
                   <div className="studio-menu-popover direction-popover" role="menu">
@@ -1882,6 +1925,16 @@ function App() {
               <button
                 className="icon-button compact"
                 type="button"
+                aria-label={aiBarVisible ? "Hide AI assistant bar" : "Show AI assistant bar"}
+                title={aiBarVisible ? "Hide AI assistant bar" : "Show AI assistant bar"}
+                aria-pressed={aiBarVisible}
+                onClick={() => setAiBarVisible((current) => !current)}
+              >
+                <Wand2 aria-hidden="true" size={15} />
+              </button>
+              <button
+                className="icon-button compact"
+                type="button"
                 aria-label="Reset node positions to automatic layout"
                 title="Reset node positions"
                 disabled={!Object.keys(activeDocument.layout).length || isReadOnlySnapshot}
@@ -1892,7 +1945,12 @@ function App() {
               >
                 <RefreshCcw aria-hidden="true" size={15} />
               </button>
-              <details className="sensitivity-menu">
+              <details
+                className="sensitivity-menu"
+                onToggle={(event) => {
+                  if (event.currentTarget.open) closeAllMenus(event.currentTarget);
+                }}
+              >
                 <summary aria-label="Pan and zoom settings" title="Pan and zoom settings"><Settings2 aria-hidden="true" size={15} /></summary>
                 <div className="sensitivity-popover">
                   <strong>Pan and zoom</strong>
@@ -2098,7 +2156,7 @@ function App() {
             >
               <span className="theme-switch-label">
                 {data.settings.theme === "dark" ? <Moon aria-hidden="true" size={15} /> : <Sun aria-hidden="true" size={15} />}
-                <span>Dark mode (60-30-10)</span>
+                <span>Dark mode</span>
               </span>
               <span className={`theme-switch-track${data.settings.theme === "dark" ? " is-on" : ""}`} aria-hidden="true">
                 <span className="theme-switch-thumb">
@@ -2180,7 +2238,42 @@ function App() {
                   <code>{data.settings.canvasColor}</code>
                 </span>
               </label>
-              <label className="wide-field">Diagram font<input value={data.settings.font} onChange={(event) => changeSettings({ font: event.target.value })} /></label>
+              <label className="wide-field">
+                Diagram font
+                <select
+                  value={data.settings.font}
+                  onChange={(event) => changeSettings({ font: event.target.value })}
+                >
+                  {[
+                    { label: "Inter / Sans (Default)", value: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+                    { label: "System UI", value: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+                    { label: "JetBrains Mono (Code)", value: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" },
+                    { label: "Fira Code (Monospace)", value: "'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace" },
+                    { label: "Georgia (Serif)", value: "Georgia, Cambria, 'Times New Roman', Times, serif" },
+                    { label: "Trebuchet MS", value: "'Trebuchet MS', Verdana, Arial, sans-serif" },
+                    { label: "Verdana", value: "Verdana, Geneva, Tahoma, sans-serif" },
+                    { label: "Comic Sans MS (Handwritten)", value: "'Comic Sans MS', 'Segoe Print', cursive, sans-serif" },
+                    ...(
+                      [
+                        "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                        "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                        "'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace",
+                        "Georgia, Cambria, 'Times New Roman', Times, serif",
+                        "'Trebuchet MS', Verdana, Arial, sans-serif",
+                        "Verdana, Geneva, Tahoma, sans-serif",
+                        "'Comic Sans MS', 'Segoe Print', cursive, sans-serif",
+                      ].includes(data.settings.font)
+                        ? []
+                        : [{ label: `Custom (${data.settings.font})`, value: data.settings.font }]
+                    ),
+                  ].map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="wide-field settings-toggle-row">
                 <input
                   type="checkbox"
@@ -2357,6 +2450,7 @@ function App() {
           <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}><X aria-hidden="true" size={14} /></button>
         </div>
       )}
+      {aiBarVisible && (
       <div className="ai-floating-wrap">
         {aiMenuOpen && (
           <div className="ai-actions-popover" role="menu">
@@ -2424,6 +2518,7 @@ function App() {
           )}
         </div>
       </div>
+      )}
 
       <dialog
         ref={newDiagramDialog}

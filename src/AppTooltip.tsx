@@ -35,6 +35,14 @@ export function AppTooltip() {
     };
 
     const showFor = (el: HTMLElement, delayMs: number) => {
+      if (
+        el.getAttribute("aria-expanded") === "true" ||
+        el.closest("details[open]") ||
+        (el instanceof HTMLSelectElement && document.activeElement === el)
+      ) {
+        clear();
+        return;
+      }
       const text = readTooltipText(el).trim();
       if (!text) return;
       if (timerRef.current !== undefined) window.clearTimeout(timerRef.current);
@@ -99,6 +107,7 @@ export function AppTooltip() {
 
     const onFocusIn = (event: FocusEvent) => {
       if (!(event.target instanceof HTMLElement)) return;
+      if (event.target instanceof HTMLSelectElement) return;
       if (!event.target.matches(":focus-visible")) return;
       const target = findTarget(event.target);
       if (target) showFor(target, 0);
@@ -108,22 +117,65 @@ export function AppTooltip() {
       if (event.key === "Escape") clear();
     };
 
+    const convertTitleAttributes = (root: ParentNode) => {
+      root.querySelectorAll<HTMLElement>("[title]").forEach((el) => {
+        const val = el.getAttribute("title");
+        if (val) el.setAttribute("data-tooltip", val);
+        el.removeAttribute("title");
+      });
+    };
+
+    convertTitleAttributes(document);
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "attributes" && mutation.target instanceof HTMLElement) {
+          const val = mutation.target.getAttribute("title");
+          if (val !== null) {
+            if (val) mutation.target.setAttribute("data-tooltip", val);
+            mutation.target.removeAttribute("title");
+          }
+        } else if (mutation.type === "childList") {
+          mutation.addedNodes.forEach((node) => {
+            if (node instanceof HTMLElement) {
+              if (node.hasAttribute("title")) {
+                const val = node.getAttribute("title");
+                if (val) node.setAttribute("data-tooltip", val);
+                node.removeAttribute("title");
+              }
+              convertTitleAttributes(node);
+            }
+          });
+        }
+      }
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["title"],
+    });
+
     document.addEventListener("pointerover", onPointerOver);
     document.addEventListener("pointerout", onPointerOut);
     document.addEventListener("pointerdown", clear);
+    document.addEventListener("click", clear);
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", clear);
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("blur", clear);
     window.addEventListener("scroll", clear, true);
 
     return () => {
       clear();
+      observer.disconnect();
       document.removeEventListener("pointerover", onPointerOver);
       document.removeEventListener("pointerout", onPointerOut);
       document.removeEventListener("pointerdown", clear);
+      document.removeEventListener("click", clear);
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", clear);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("blur", clear);
       window.removeEventListener("scroll", clear, true);
     };
   }, []);

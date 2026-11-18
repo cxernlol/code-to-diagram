@@ -938,13 +938,17 @@ function routeEdge(
     sourceDiamond ? 0 : sourceOffset,
   );
 
-  const { point: end, normal: endNormal } = endOverride
+  const { point: rawEnd, normal: endNormal } = endOverride
     ? { point: { ...endOverride.point }, normal: { ...endOverride.normal } }
     : portOnFace(
         targetBounds,
         targetFace,
         targetDiamond ? 0 : targetOffset,
       );
+  const end = {
+    x: rawEnd.x + endNormal.x * 1.5,
+    y: rawEnd.y + endNormal.y * 1.5,
+  };
 
   if (!endOverride) {
     if (
@@ -1554,23 +1558,13 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const behavior = zoom<HTMLDivElement, unknown>()
       .scaleExtent([0.1, 5])
       .filter((event) => {
-        const target = event.target instanceof Element ? event.target : null;
         if (event.type === "wheel") return false;
         if (event.type === "mousedown") {
           const button = (event as MouseEvent).button;
-          return (
-            button === 1 ||
-            spaceDown.current ||
-            toolModeRef.current === "hand" ||
-            (button === 0 && !(event as MouseEvent).shiftKey && !target?.closest("[data-sgs-node], [data-sgs-edge]"))
-          );
+          return button === 1 || spaceDown.current || toolModeRef.current === "hand";
         }
         if (event.type === "touchstart") {
-          return (
-            (event as TouchEvent).touches.length > 1 ||
-            toolModeRef.current === "hand" ||
-            !target?.closest("[data-sgs-node], [data-sgs-edge]")
-          );
+          return (event as TouchEvent).touches.length > 1 || toolModeRef.current === "hand";
         }
         return false;
       })
@@ -1769,7 +1763,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const palette = resolveDiagramPalette(settingsRef.current);
     normalizeMarkers(svg, palette.canvasColor);
     const kind = detectDiagramType(document.code);
-    if (kind === "class") {
+    if (kind === "class" && settingsRef.current.look !== "handDrawn") {
       svg.querySelectorAll<SVGGElement>("g.node, g.classGroup").forEach((nodeEl) => {
         const membersGroup = nodeEl.querySelector<SVGGElement>(".members-group");
         const methodsGroup = nodeEl.querySelector<SVGGElement>(".methods-group");
@@ -1786,34 +1780,38 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
         const lastVisible = hasMembers ? membersGroup : labelGroup;
         if (!lastVisible) return;
-        const boxShape = nodeEl.querySelector<SVGGeometryElement>("g.basic.label-container > path, g.basic.label-container > rect, :scope > rect");
-        if (!boxShape) return;
+        const boxShapes = Array.from(
+          nodeEl.querySelectorAll<SVGGeometryElement>("g.basic.label-container > path, g.basic.label-container > rect, :scope > rect"),
+        );
+        if (!boxShapes.length) return;
         try {
           const lastBox = lastVisible.getBBox();
           const ctm = lastVisible.getCTM();
           const nodeCtm = nodeEl.getCTM();
           const offsetY = ctm && nodeCtm ? ctm.f - nodeCtm.f : 0;
           const desiredBottom = offsetY + lastBox.y + lastBox.height + 12;
-          if (boxShape instanceof SVGRectElement) {
-            const y = boxShape.y.baseVal.value;
-            const curH = boxShape.height.baseVal.value;
-            const nextH = desiredBottom - y;
-            if (nextH > 20 && nextH < curH - 4) {
-              boxShape.setAttribute("height", String(Number(nextH.toFixed(2))));
+          boxShapes.forEach((boxShape) => {
+            if (boxShape instanceof SVGRectElement) {
+              const y = boxShape.y.baseVal.value;
+              const curH = boxShape.height.baseVal.value;
+              const nextH = desiredBottom - y;
+              if (nextH > 20 && nextH < curH - 4) {
+                boxShape.setAttribute("height", String(Number(nextH.toFixed(2))));
+              }
+            } else if (boxShape instanceof SVGPathElement) {
+              const curBox = boxShape.getBBox();
+              const minX = curBox.x;
+              const maxX = curBox.x + curBox.width;
+              const minY = curBox.y;
+              const curMaxY = curBox.y + curBox.height;
+              if (desiredBottom > minY + 20 && desiredBottom < curMaxY - 4) {
+                boxShape.setAttribute(
+                  "d",
+                  `M${minX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${desiredBottom.toFixed(2)} L${minX.toFixed(2)} ${desiredBottom.toFixed(2)} Z`,
+                );
+              }
             }
-          } else if (boxShape instanceof SVGPathElement) {
-            const curBox = boxShape.getBBox();
-            const minX = curBox.x;
-            const maxX = curBox.x + curBox.width;
-            const minY = curBox.y;
-            const curMaxY = curBox.y + curBox.height;
-            if (desiredBottom > minY + 20 && desiredBottom < curMaxY - 4) {
-              boxShape.setAttribute(
-                "d",
-                `M${minX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${minY.toFixed(2)} L${maxX.toFixed(2)} ${desiredBottom.toFixed(2)} L${minX.toFixed(2)} ${desiredBottom.toFixed(2)} Z`,
-              );
-            }
-          }
+          });
         } catch {
           // Ignore nodes without measurable geometry.
         }
@@ -2649,7 +2647,6 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         .forEach((el) => {
           delete el.dataset.selected;
         });
-      return;
     }
     if (readOnlyRef.current || toolModeRef.current === "hand" || spaceDown.current) return;
     const viewport = viewportRef.current;

@@ -200,6 +200,8 @@ function renderWithSequence(
     const type = detectDiagramType(compiled);
     const { primaryColor, textColor, lineColor, canvasColor } = resolveDiagramPalette(settings);
     const isDark = relativeLuminance(canvasColor) < 0.25;
+    const safeFont = settings.font.replace(/[;{}<>]/g, "");
+    const isHandDrawn = settings.look === "handDrawn";
     const seriesColors = isDark
       ? ["#2c6b78", "#c26427", "#3b7a57", "#6b5ca5", "#b5822b", "#3f6d9e", "#a64d68", "#4b7c74"]
       : ["#2f6f7d", "#c26427", "#3f825e", "#6f61a8", "#b8832c", "#4473a3", "#a9526c", "#4e8078"];
@@ -207,7 +209,7 @@ function renderWithSequence(
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
-      look: settings.look === "handDrawn" ? "handDrawn" : "classic",
+      look: isHandDrawn ? "handDrawn" : "classic",
       theme: "base",
       htmlLabels: false,
       flowchart: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68, padding: 16 },
@@ -215,8 +217,15 @@ function renderWithSequence(
       state: { htmlLabels: false, nodeSpacing: 56, rankSpacing: 68 },
 
       themeCSS: `
-        .node > rect, .node > circle, .node > ellipse, .node > polygon, .node > path, .node .basic.label-container, g.classGroup rect, .basic.label-container > path:first-child, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
-        .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }
+        svg, .nodeLabel, .label text, .label tspan, g.classGroup text, .entityLabel { font-family: ${safeFont} !important; }
+        .node > rect, .node > circle, .node > ellipse, .node > polygon, .node > path, .node .basic.label-container, g.classGroup rect, .stateGroup rect, .entityBox { fill: ${primaryColor}; stroke: ${lineColor}; }
+        ${
+          isHandDrawn
+            ? `.basic.label-container > path:first-child { fill: none; stroke: ${isDark ? "rgba(138, 180, 173, 0.2)" : "rgba(49, 81, 88, 0.14)"}; }
+        .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }`
+            : `.basic.label-container > path:first-child { fill: ${primaryColor}; stroke: ${lineColor}; }
+        .basic.label-container > path:nth-child(2), .divider, .divider path, g.classGroup line { fill: none; stroke: ${lineColor}; }`
+        }
         .nodeLabel, .label text, .label tspan, .label span, .label div, g.classGroup text, .classTitleText, .node text, .entityLabel, .edgeTerminals text, .edgeTerminals span { fill: ${textColor} !important; color: ${textColor} !important; }
         .edgePath .path, .flowchart-link, path.relation, .transition, .er.relationshipLine { stroke: ${lineColor}; }
         .edgeLabel, .edgeLabel rect, .edgeLabel span, .labelBkg { background-color: ${canvasColor}; fill: ${canvasColor}; color: ${textColor}; }
@@ -244,7 +253,7 @@ function renderWithSequence(
         nodeBorder: lineColor,
         lineColor,
         background: canvasColor,
-        fontFamily: settings.font.replace(/[;{}<>]/g, ""),
+        fontFamily: safeFont,
         pie1: seriesColors[0],
         pie2: seriesColors[1],
         pie3: seriesColors[2],
