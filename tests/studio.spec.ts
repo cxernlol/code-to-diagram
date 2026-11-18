@@ -2,7 +2,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 async function openTemplate(page: Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "New diagram" }).click();
-  await page.locator(".new-diagram-dialog").getByRole("button", { name, exact: true }).click();
+  const dialog = page.locator(".new-diagram-dialog");
+  await dialog.getByRole("button", { name, exact: true }).first().click();
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
 }
 
 async function expectEdgeEndsAtNodes(edge: Locator): Promise<void> {
@@ -1153,9 +1155,12 @@ test("mobile layout has no horizontal overflow or toolbar overlap across all pag
   await page.locator(".mobile-pane-switch").getByRole("button", { name: "Preview", exact: true }).click();
   const previewTitleBox = await page.locator(".preview-toolbar .pane-title").boundingBox();
   const previewActionsBox = await page.locator(".preview-toolbar .preview-actions").boundingBox();
+  const verticalDockBox = await page.locator(".canvas-stage .canvas-vertical-dock").boundingBox();
   expect(previewTitleBox).not.toBeNull();
   expect(previewActionsBox).not.toBeNull();
+  expect(verticalDockBox).not.toBeNull();
   expect(previewTitleBox!.x + previewTitleBox!.width).toBeLessThanOrEqual(previewActionsBox!.x + 1);
+  expect(verticalDockBox!.x + verticalDockBox!.width).toBeLessThanOrEqual(375);
 
   await page.locator(".mobile-pane-switch").getByRole("button", { name: "Code", exact: true }).click();
   const editorTitleBox = await page.locator(".editor-toolbar .pane-title").boundingBox();
@@ -1180,6 +1185,7 @@ test("deleting a diagram tab opens a centered confirmation dialog with Delete an
   await expect(picker).toBeVisible();
   await expect(picker.getByRole("button", { name: "Decision {Check}" })).toBeVisible();
   await picker.getByRole("button", { name: "Flowchart", exact: true }).click();
+  await picker.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page.locator(".document-tab")).toHaveCount(2);
 
   await page.getByRole("button", { name: "Close Flowchart" }).first().click();
@@ -1318,4 +1324,62 @@ test("dark mode toggle switches 60-30-10 dark palette and syncs with settings", 
   await darkSwitch.click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(darkSwitch).toHaveAttribute("aria-checked", "false");
+});
+
+test("vertical canvas dock sits on right inside graph, stays outside SVG, and V mode moves nodes and pans canvas", async ({ page }) => {
+  await page.goto("/#app");
+  const stage = page.locator(".canvas-stage");
+  const dock = stage.locator(".canvas-vertical-dock");
+  await expect(dock).toBeVisible();
+
+  const stageBox = await stage.boundingBox();
+  const dockBox = await dock.boundingBox();
+  expect(stageBox).not.toBeNull();
+  expect(dockBox).not.toBeNull();
+  expect(dockBox!.x).toBeGreaterThan(stageBox!.x + stageBox!.width * 0.7);
+  expect(dockBox!.x + dockBox!.width).toBeLessThanOrEqual(stageBox!.x + stageBox!.width);
+  expect(await page.locator(".diagram-graphic svg .canvas-vertical-dock").count()).toBe(0);
+
+  await expect(page.locator(".diagram-viewport")).toHaveAttribute("data-tool", "move");
+  const graphic = page.locator(".diagram-graphic");
+  const beforeTransform = await graphic.evaluate((el) => getComputedStyle(el).transform);
+  await page.mouse.move(stageBox!.x + 24, stageBox!.y + 24);
+  await page.mouse.down();
+  await page.mouse.move(stageBox!.x + 84, stageBox!.y + 64, { steps: 5 });
+  await page.mouse.up();
+  const afterTransform = await graphic.evaluate((el) => getComputedStyle(el).transform);
+  expect(afterTransform).not.toBe(beforeTransform);
+});
+
+test("new diagram picker previews templates before Apply and right-clicking a tab opens tab actions", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "New diagram" }).click();
+  const dialog = page.locator(".new-diagram-dialog");
+  await dialog.getByRole("button", { name: "Sequence", exact: true }).click();
+  await expect(dialog.locator(".new-diagram-preview-header strong")).toHaveText("Sequence");
+  await expect(dialog.locator(".new-diagram-preview-svg svg")).toBeVisible();
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Sequence" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Sequence" }).click({ button: "right" });
+  const tabMenu = page.locator(".tab-context-menu");
+  await expect(tabMenu).toBeVisible();
+  await expect(tabMenu.getByRole("menuitem", { name: "New diagram" })).toBeVisible();
+  await expect(tabMenu.getByRole("menuitem", { name: "Rename" })).toBeVisible();
+  await expect(tabMenu.getByRole("menuitem", { name: "Duplicate" })).toBeVisible();
+  await expect(tabMenu.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+  await tabMenu.getByRole("menuitem", { name: "Duplicate" }).click();
+  await expect(page.getByRole("tab", { name: "Sequence copy" })).toBeVisible();
+});
+
+test("class node context menu adds member/field into code and collapses empty class compartments", async ({ page }) => {
+  await page.goto("/#app");
+  await openTemplate(page, "Class");
+  const firstClass = page.locator("[data-sgs-node]").first();
+  await expect(firstClass).toBeVisible();
+  await firstClass.click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Add member/i }).click();
+  await page.getByLabel("New member or field").fill("+String color");
+  await page.locator(".canvas-context-form").getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.locator(".cm-content")).toContainText("+String color");
 });

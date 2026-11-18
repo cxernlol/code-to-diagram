@@ -372,7 +372,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
               <>
                 <section className="docs-grid" aria-label="Arrows and shapes reference">
                   {(!searching || filteredArrows.length > 0) && (
-                    <article className="legal-card">
+                    <article id="arrows-connectors" className="legal-card">
                       <h2>Arrows &amp; Connectors</h2>
                       <div className="docs-table-wrap">
                         <table className="docs-table">
@@ -398,7 +398,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
                   )}
 
                   {(!searching || filteredShapes.length > 0) && (
-                    <article className="legal-card">
+                    <article id="flowchart-shapes" className="legal-card">
                       <h2>Flowchart Shapes</h2>
                       <div className="docs-table-wrap">
                         <table className="docs-table">
@@ -425,7 +425,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
                 </section>
 
                 {!searching && (
-                  <article className="legal-card docs-format-guide" aria-label="Syntax by format">
+                  <article id="format-guides" className="legal-card docs-format-guide" aria-label="Syntax by format">
                     <div className="docs-guide-head">
                       <div>
                         <h2>Syntax by Format (All 7 Languages)</h2>
@@ -635,6 +635,36 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
                 </article>
               )}
           </div>
+          <aside className="docs-toc" aria-label="On this page">
+            <span className="docs-toc-title">On this page</span>
+            <nav className="docs-toc-list">
+              {showSection("syntax") && !searching && (
+                <>
+                  <a className="docs-toc-link" href="#arrows-connectors">Arrows &amp; Connectors</a>
+                  <a className="docs-toc-link" href="#flowchart-shapes">Flowchart Shapes</a>
+                  <a className="docs-toc-link" href="#format-guides">Syntax by Format (7 Languages)</a>
+                </>
+              )}
+              <span className="docs-toc-subhead">7 Supported Formats</span>
+              {FORMAT_GUIDES.map((guide) => (
+                <button
+                  key={guide.id}
+                  type="button"
+                  className={`docs-toc-link${activeSection === "syntax" && activeGuide.id === guide.id ? " active" : ""}`}
+                  onClick={() => {
+                    setQuery("");
+                    setActiveSection("syntax");
+                    setActiveGuideId(guide.id);
+                    requestAnimationFrame(() => {
+                      document.getElementById("format-guides")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
+                    });
+                  }}
+                >
+                  {guide.label}
+                </button>
+              ))}
+            </nav>
+          </aside>
         </div>
       </main>
 

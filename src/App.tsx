@@ -296,8 +296,26 @@ function App() {
   const [expandedPane, setExpandedPane] = useState<"none" | "code" | "preview">("none");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newDiagramOpen, setNewDiagramOpen] = useState(false);
+  const [newDiagramSelection, setNewDiagramSelection] = useState<{
+    kind: "template" | "starter";
+    label: string;
+    title: string;
+    code: string;
+  }>(() => ({
+    kind: "template",
+    label: "Flowchart",
+    title: "Flowchart",
+    code: TEMPLATES.Flowchart,
+  }));
+  const [newDiagramPreviewBusy, setNewDiagramPreviewBusy] = useState(false);
+  const newDiagramPreviewRef = useRef<HTMLDivElement>(null);
   const [aiMenuOpen, setAiMenuOpen] = useState(false);
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    docId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [studioMenuOpen, setStudioMenuOpen] = useState(false);
   const [directionMenuOpen, setDirectionMenuOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"appearance" | "ai">("appearance");
@@ -584,12 +602,32 @@ function App() {
   }, [view, activeDocument?.name]);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = data?.settings.theme === "dark" ? "dark" : "light";
-  }, [data?.settings.theme]);
+    document.documentElement.dataset.theme =
+      view === "studio" && data?.settings.theme === "dark" ? "dark" : "light";
+  }, [view, data?.settings.theme]);
+
+  useEffect(() => {
+    if (!roomNotice) return;
+    const timer = window.setTimeout(() => setRoomNotice(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [roomNotice]);
+
+  useEffect(() => {
+    if (!aiError) return;
+    const timer = window.setTimeout(() => setAiError(""), 4500);
+    return () => window.clearTimeout(timer);
+  }, [aiError]);
+
+  useEffect(() => {
+    if (!testStatus) return;
+    const timer = window.setTimeout(() => setTestStatus(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [testStatus]);
 
   const closeAllMenus = useCallback(() => {
     setStudioMenuOpen(false);
     setTabMenuOpen(false);
+    setTabContextMenu(null);
     setDirectionMenuOpen(false);
     setAiMenuOpen(false);
     document.querySelectorAll("details.history-menu[open], details.sensitivity-menu[open]").forEach((el) => {
@@ -598,11 +636,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!studioMenuOpen && !tabMenuOpen && !directionMenuOpen && !aiMenuOpen) return;
+    if (!studioMenuOpen && !tabMenuOpen && !tabContextMenu && !directionMenuOpen && !aiMenuOpen) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (studioMenuOpen && !target?.closest(".studio-menu-wrap")) setStudioMenuOpen(false);
       if (tabMenuOpen && !target?.closest(".tab-actions-wrap")) setTabMenuOpen(false);
+      if (tabContextMenu && !target?.closest(".tab-context-menu")) setTabContextMenu(null);
       if (directionMenuOpen && !target?.closest(".direction-menu-wrap")) setDirectionMenuOpen(false);
       if (aiMenuOpen && !target?.closest(".ai-floating-wrap")) setAiMenuOpen(false);
     };
@@ -615,7 +654,55 @@ function App() {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [studioMenuOpen, tabMenuOpen, directionMenuOpen, aiMenuOpen, closeAllMenus]);
+  }, [studioMenuOpen, tabMenuOpen, tabContextMenu, directionMenuOpen, aiMenuOpen, closeAllMenus]);
+
+  useEffect(() => {
+    if (!newDiagramOpen || !data) return;
+    let cancelled = false;
+    setNewDiagramPreviewBusy(true);
+    void Promise.all([import("./lib/mermaid"), import("dompurify")])
+      .then(async ([{ renderMermaidPreview }, { default: DOMPurify }]) => {
+        const result = await renderMermaidPreview(newDiagramSelection.code, data.settings);
+        if (cancelled) return;
+        const host = newDiagramPreviewRef.current;
+        if (!host) return;
+        const clean = DOMPurify.sanitize(result.svg, {
+          USE_PROFILES: { svg: true, svgFilters: true, html: true },
+          ADD_TAGS: ["foreignObject"],
+          FORBID_TAGS: ["script", "iframe", "object", "embed"],
+        });
+        const parsed = new DOMParser().parseFromString(clean, "image/svg+xml");
+        const svgEl = parsed.documentElement;
+        if (svgEl.tagName.toLowerCase() === "svg") {
+          svgEl.removeAttribute("width");
+          svgEl.removeAttribute("height");
+          host.replaceChildren(window.document.importNode(svgEl, true));
+        } else {
+          host.replaceChildren();
+        }
+      })
+      .catch(() => {
+        if (!cancelled && newDiagramPreviewRef.current) {
+          newDiagramPreviewRef.current.replaceChildren();
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setNewDiagramPreviewBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    newDiagramOpen,
+    newDiagramSelection,
+    data?.settings.theme,
+    data?.settings.look,
+    data?.settings.primaryColor,
+    data?.settings.textColor,
+    data?.settings.lineColor,
+    data?.settings.canvasColor,
+    data?.settings.font,
+  ]);
 
   useEffect(() => {
     const onRouteChange = () => {
@@ -1413,7 +1500,20 @@ function App() {
       <section className="document-strip" aria-label="Diagrams">
         <div className="document-tabs" role="tablist" aria-label="Open diagrams">
           {data.documents.map((document, index) => (
-            <div className="document-tab" role="presentation" key={document.id}>
+            <div
+              className="document-tab"
+              role="presentation"
+              key={document.id}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                closeAllMenus();
+                setTabContextMenu({
+                  docId: document.id,
+                  x: Math.min(window.innerWidth - 180, Math.max(8, event.clientX)),
+                  y: Math.min(window.innerHeight - 170, Math.max(8, event.clientY)),
+                });
+              }}
+            >
               {renameId === document.id ? (
                 <input
                   className="rename-input"
@@ -1475,6 +1575,9 @@ function App() {
           </button>
           {tabMenuOpen && (
             <div className="studio-menu-popover tab-menu-popover" role="menu">
+              <button type="button" role="menuitem" onClick={() => { setTabMenuOpen(false); setNewDiagramOpen(true); }}>
+                <Plus aria-hidden="true" size={14} /> New diagram
+              </button>
               <button type="button" role="menuitem" onClick={() => { setTabMenuOpen(false); startRename(activeDocument); }}>
                 <Pencil aria-hidden="true" size={14} /> Rename
               </button>
@@ -1487,6 +1590,30 @@ function App() {
             </div>
           )}
         </div>
+        {tabContextMenu && (() => {
+          const targetDoc = data.documents.find((doc) => doc.id === tabContextMenu.docId) ?? activeDocument;
+          return (
+            <div
+              className="studio-menu-popover tab-context-menu"
+              role="menu"
+              aria-label={`Actions for ${targetDoc.name}`}
+              style={{ position: "fixed", left: `${tabContextMenu.x}px`, top: `${tabContextMenu.y}px`, right: "auto" }}
+            >
+              <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); setNewDiagramOpen(true); }}>
+                <Plus aria-hidden="true" size={14} /> New diagram
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); startRename(targetDoc); }}>
+                <Pencil aria-hidden="true" size={14} /> Rename
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setTabContextMenu(null); createTab(`${targetDoc.name} copy`, targetDoc.code); }}>
+                <Copy aria-hidden="true" size={14} /> Duplicate
+              </button>
+              <button type="button" role="menuitem" className="danger-item" onClick={() => { setTabContextMenu(null); setPendingDeleteId(targetDoc.id); }}>
+                <Trash2 aria-hidden="true" size={14} /> Delete
+              </button>
+            </div>
+          );
+        })()}
       </section>
 
       <div className="message-stack">
@@ -1698,28 +1825,7 @@ function App() {
             <div className="preview-actions">
               <button
                 className="icon-button compact"
-                aria-label="Move tool (V)"
-                title="Move tool (V)"
-                aria-pressed={canvasTool === "move"}
-                onClick={() => canvasRef.current?.setTool("move")}
-              >
-                <MousePointer aria-hidden="true" size={15} />
-              </button>
-              <button
-                className="icon-button compact"
-                aria-label="Hand pan tool (H)"
-                title="Hand pan tool (H)"
-                aria-pressed={canvasTool === "hand"}
-                onClick={() => canvasRef.current?.setTool("hand")}
-              >
-                <Hand aria-hidden="true" size={15} />
-              </button>
-              <button className="icon-button compact" aria-label="Zoom out" title="Zoom out (-)" onClick={() => canvasRef.current?.zoomBy(1 / 1.15)}><ZoomOut aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Zoom in" title="Zoom in (+)" onClick={() => canvasRef.current?.zoomBy(1.15)}><ZoomIn aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Fit diagram" title="Fit diagram (Shift+1)" onClick={() => canvasRef.current?.fit()}><Scan aria-hidden="true" size={15} /></button>
-              <button className="icon-button compact" aria-label="Reset pan and zoom" title="Reset pan and zoom" onClick={() => canvasRef.current?.reset()}><RotateCcw aria-hidden="true" size={15} /></button>
-              <button
-                className="icon-button compact"
+                type="button"
                 aria-label="Arrange nodes in grid"
                 title="Arrange nodes in grid"
                 disabled={!supportedMovement || isReadOnlySnapshot}
@@ -1775,6 +1881,7 @@ function App() {
               </div>
               <button
                 className="icon-button compact"
+                type="button"
                 aria-label="Reset node positions to automatic layout"
                 title="Reset node positions"
                 disabled={!Object.keys(activeDocument.layout).length || isReadOnlySnapshot}
@@ -1786,7 +1893,7 @@ function App() {
                 <RefreshCcw aria-hidden="true" size={15} />
               </button>
               <details className="sensitivity-menu">
-                <summary aria-label="Pan and zoom settings"><Settings2 aria-hidden="true" size={15} /></summary>
+                <summary aria-label="Pan and zoom settings" title="Pan and zoom settings"><Settings2 aria-hidden="true" size={15} /></summary>
                 <div className="sensitivity-popover">
                   <strong>Pan and zoom</strong>
                   <label>Scroll behavior
@@ -1814,25 +1921,54 @@ function App() {
                 ? <span id="node-movement-help">V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Arrow keys: nudge a box. Alt: bypass grid.</span>
                 : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
           </div>
-          <Suspense fallback={null}>
-            <DiagramCanvas
-              ref={canvasRef}
-              document={activeDocument}
-              settings={data.settings}
-              readOnly={isReadOnlySnapshot}
-              onLayoutChange={changeLayout}
-              onCodeChange={changeCode}
-              onNodeMoved={announceNodeMoved}
-              onNodeSelect={(id) => {
-                setMobilePane("code");
-                setExpandedPane((current) => (current === "preview" ? "none" : current));
-                editorRef.current?.focusNode(id);
-              }}
-              onToolChange={setCanvasTool}
-              onRenderError={setRenderError}
-              onTypeChange={setDiagramType}
-            />
-          </Suspense>
+          <div className="canvas-stage">
+            <Suspense fallback={null}>
+              <DiagramCanvas
+                ref={canvasRef}
+                document={activeDocument}
+                settings={data.settings}
+                readOnly={isReadOnlySnapshot}
+                onLayoutChange={changeLayout}
+                onCodeChange={changeCode}
+                onNodeMoved={announceNodeMoved}
+                onNodeSelect={(id) => {
+                  setMobilePane("code");
+                  setExpandedPane((current) => (current === "preview" ? "none" : current));
+                  editorRef.current?.focusNode(id);
+                }}
+                onToolChange={setCanvasTool}
+                onRenderError={setRenderError}
+                onTypeChange={setDiagramType}
+              />
+            </Suspense>
+            <div className="canvas-vertical-dock" role="toolbar" aria-label="Canvas tools" aria-orientation="vertical">
+              <button
+                className="icon-button compact"
+                type="button"
+                aria-label="Move tool (V)"
+                title="Move tool (V)"
+                aria-pressed={canvasTool === "move"}
+                onClick={() => canvasRef.current?.setTool("move")}
+              >
+                <MousePointer aria-hidden="true" size={15} />
+              </button>
+              <button
+                className="icon-button compact"
+                type="button"
+                aria-label="Hand pan tool (H)"
+                title="Hand pan tool (H)"
+                aria-pressed={canvasTool === "hand"}
+                onClick={() => canvasRef.current?.setTool("hand")}
+              >
+                <Hand aria-hidden="true" size={15} />
+              </button>
+              <span className="dock-separator" aria-hidden="true" />
+              <button className="icon-button compact" type="button" aria-label="Zoom out" title="Zoom out (-)" onClick={() => canvasRef.current?.zoomBy(1 / 1.15)}><ZoomOut aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" type="button" aria-label="Zoom in" title="Zoom in (+)" onClick={() => canvasRef.current?.zoomBy(1.15)}><ZoomIn aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" type="button" aria-label="Fit diagram" title="Fit diagram (Shift+1)" onClick={() => canvasRef.current?.fit()}><Scan aria-hidden="true" size={15} /></button>
+              <button className="icon-button compact" type="button" aria-label="Reset pan and zoom" title="Reset pan and zoom" onClick={() => canvasRef.current?.reset()}><RotateCcw aria-hidden="true" size={15} /></button>
+            </div>
+          </div>
         </section>
       </section>
 
@@ -2308,49 +2444,81 @@ function App() {
           </button>
         </div>
         <div className="new-diagram-body">
-          <div className="new-diagram-section">
-            <h3>Templates</h3>
-            <div className="new-diagram-grid">
-              {Object.entries(TEMPLATES).map(([name, code]) => (
-                <button
-                  key={name}
-                  type="button"
-                  className="new-diagram-option"
-                  onClick={() => {
-                    createTab(name, code);
-                    setNewDiagramOpen(false);
-                  }}
-                >
-                  <strong>{name}</strong>
-                </button>
-              ))}
+          <div className="new-diagram-picker">
+            <div className="new-diagram-section">
+              <h3>Templates</h3>
+              <div className="new-diagram-grid">
+                {Object.entries(TEMPLATES).map(([name, code]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className="new-diagram-option"
+                    aria-pressed={newDiagramSelection.kind === "template" && newDiagramSelection.label === name}
+                    onClick={() => {
+                      setNewDiagramSelection({ kind: "template", label: name, title: name, code });
+                    }}
+                  >
+                    <strong>{name}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="new-diagram-section">
+              <h3>Quick Nodes &amp; Shapes</h3>
+              <div className="new-diagram-grid">
+                {[
+                  { label: "Rectangle [Node]", title: "Flowchart", code: "flowchart TD\n  A[Start]" },
+                  { label: "Decision {Check}", title: "Decision Flow", code: "flowchart TD\n  Start([Start]) --> Check{Condition?}" },
+                  { label: "Database [(DB)]", title: "Service DB", code: "flowchart TD\n  Service[Service] --> DB[(Database)]" },
+                  { label: "Class { }", title: "Class", code: "classDiagram\n  class Class1 {\n    +String id\n  }" },
+                  { label: "ER Entity { }", title: "ER Entity", code: "erDiagram\n  ENTITY1 {\n    int id PK\n  }" },
+                  { label: "State (* -> Idle)", title: "State", code: "stateDiagram-v2\n  [*] --> Idle" },
+                ].map((nodeItem) => (
+                  <button
+                    key={nodeItem.label}
+                    type="button"
+                    className="new-diagram-option"
+                    aria-pressed={newDiagramSelection.kind === "starter" && newDiagramSelection.label === nodeItem.label}
+                    onClick={() => {
+                      setNewDiagramSelection({
+                        kind: "starter",
+                        label: nodeItem.label,
+                        title: nodeItem.title,
+                        code: nodeItem.code,
+                      });
+                    }}
+                  >
+                    <strong>{nodeItem.label}</strong>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="new-diagram-section">
-            <h3>Quick Nodes &amp; Shapes</h3>
-            <div className="new-diagram-grid">
-              {[
-                { label: "Rectangle [Node]", title: "Flowchart", code: "flowchart TD\n  A[Start]" },
-                { label: "Decision {Check}", title: "Decision Flow", code: "flowchart TD\n  Start([Start]) --> Check{Condition?}" },
-                { label: "Database [(DB)]", title: "Service DB", code: "flowchart TD\n  Service[Service] --> DB[(Database)]" },
-                { label: "Class { }", title: "Class", code: "classDiagram\n  class Class1 {\n    +String id\n  }" },
-                { label: "ER Entity { }", title: "ER Entity", code: "erDiagram\n  ENTITY1 {\n    int id PK\n  }" },
-                { label: "State", title: "State", code: "stateDiagram-v2\n  [*] --> Idle" },
-              ].map((nodeItem) => (
-                <button
-                  key={nodeItem.label}
-                  type="button"
-                  className="new-diagram-option"
-                  onClick={() => {
-                    createTab(nodeItem.title, nodeItem.code);
-                    setNewDiagramOpen(false);
-                  }}
-                >
-                  <strong>{nodeItem.label}</strong>
-                </button>
-              ))}
+          <div className="new-diagram-preview-pane" aria-label="Template preview">
+            <div className="new-diagram-preview-header">
+              <span>Preview</span>
+              <strong>{newDiagramSelection.label}</strong>
+            </div>
+            <div
+              className="new-diagram-preview-canvas"
+              style={{ backgroundColor: data.settings.canvasColor }}
+            >
+              <div ref={newDiagramPreviewRef} className="new-diagram-preview-svg" />
+              {newDiagramPreviewBusy && <span className="new-diagram-preview-status">Rendering…</span>}
             </div>
           </div>
+        </div>
+        <div className="dialog-footer" style={{ justifyContent: "flex-end" }}>
+          <button
+            className="button apply-green-btn"
+            type="button"
+            onClick={() => {
+              createTab(newDiagramSelection.title, newDiagramSelection.code);
+              setNewDiagramOpen(false);
+            }}
+          >
+            Apply
+          </button>
         </div>
       </dialog>
 

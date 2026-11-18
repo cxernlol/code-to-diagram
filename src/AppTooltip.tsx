@@ -4,7 +4,7 @@ interface TooltipState {
   text: string;
   x: number;
   y: number;
-  placement: "bottom" | "top";
+  placement: "bottom" | "top" | "left";
 }
 
 export function AppTooltip() {
@@ -45,6 +45,15 @@ export function AppTooltip() {
         const rect = el.getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0) return;
         const margin = 10;
+        if (el.closest(".canvas-vertical-dock, [aria-orientation='vertical']")) {
+          setTooltip({
+            text,
+            x: Math.max(margin, rect.left - 8),
+            y: Math.max(margin, Math.min(window.innerHeight - margin, rect.top + rect.height / 2)),
+            placement: "left",
+          });
+          return;
+        }
         const estimatedHalf = Math.min(140, Math.max(48, text.length * 3.6 + 14));
         const centerX = rect.left + rect.width / 2;
         const clampedX = Math.max(
