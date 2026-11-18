@@ -119,13 +119,17 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
               </a>
             </p>
 
-            <h2>1. Your content &amp; MIT license</h2>
+            <h2>1. Your content &amp; software license</h2>
             <p>
               You retain full ownership and responsibility for all diagram source code, layouts, and
               exported SVG, PNG, or source files you create with CTD Studio. CTD Studio&apos;s
-              application source code is licensed separately under the{" "}
+              application source code is free for individual and internal use under the{" "}
               <a href="https://github.com/cxernlol/code-to-diagram/blob/main/LICENSE" target="_blank" rel="noreferrer">
-                MIT License
+                Elastic License 2.0 (ELv2)
+              </a>
+              ; selling, white-labeling, or offering it as a hosted or managed SaaS requires a{" "}
+              <a href="https://github.com/cxernlol/code-to-diagram/blob/main/COMMERCIAL-LICENSE-AGREEMENT.md" target="_blank" rel="noreferrer">
+                Commercial License Agreement
               </a>
               .
             </p>
