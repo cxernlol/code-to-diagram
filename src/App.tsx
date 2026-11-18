@@ -154,7 +154,7 @@ type AiPanel =
   | { kind: "explain"; text: string };
 
 const SYSTEM_MERMAID =
-  "You edit Mermaid diagrams. Return only valid Mermaid source, without markdown fences or explanation. Preserve the user's intent, use clear stable node IDs, and keep diagrams readable.";
+  "You edit Mermaid diagrams. Return only valid Mermaid source, without markdown fences or explanation. Preserve the user's intent, use clear stable node IDs, keep diagrams readable, and preserve existing %% sgs-hide: and %% sgs-hidden-member: comment directives unless asked to remove them.";
 const SYSTEM_STRUCTURED =
   'Return one valid JSON object only: {"overview":"<Mermaid source>","diagrams":[{"name":"<short descriptive name>","code":"<Mermaid source>"}]}. Include an Overview and at least one named detail diagram. Keep each diagram focused and professional. Do not wrap the JSON in markdown.';
 const SYSTEM_EXPLAIN =
