@@ -2,9 +2,16 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "ignoreCommand": "[ \"$VERCEL_ENV\" = \"production\" ] && exit 1; git rev-parse --verify HEAD^ >/dev/null 2>&1 || exit 1; git diff --quiet HEAD^ HEAD -- . ':!*.md' ':!docs/' ':!.github/'",
+  "redirects": [
+    {
+      "source": "/dot.html",
+      "destination": "/docs",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
-      "source": "/((?!assets/|_vercel/|mermaid\\.min\\.js|favicon\\.ico|favicon\\.svg|og-image\\.png|og-image\\.svg|robots\\.txt|sitemap\\.xml).*)",
+      "source": "/((?!assets/|_vercel/|mermaid\\.min\\.js|favicon\\.ico|favicon\\.svg|og-image\\.png|og-image\\.svg|robots\\.txt|sitemap\\.xml|llms\\.txt).*)",
       "destination": "/index.html"
     }
   ],
@@ -53,20 +60,11 @@
       ]
     },
     {
-      "source": "/",
+      "source": "/(|index.html|docs|privacy|terms|app|llms.txt|robots.txt|sitemap.xml)",
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
+          "value": "public, max-age=0, s-maxage=0, must-revalidate"
         }
       ]
     }
