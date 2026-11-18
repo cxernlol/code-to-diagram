@@ -14,14 +14,14 @@ Supports Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw
 ## Features
 
 - **7 input formats**, auto-detected, with one-click conversion between them
-- **Multi-select & right-click editing:** Shift+click or box-select group drag, right-click to edit labels, add nodes/classes/entities, arrow-key nudging, grid snap, alignment guides
-- **One-click auto-arrange** and orthogonal edge routing
-- **Themes:** default, dark, forest, neutral, plus live-previewable colorized boxes across all diagram types on canvas and export
-- **Local-first:** diagrams, layouts, and version history live in IndexedDB
+- **Multi-select & right-click editing:** Move tool (`V`) for node/line dragging and marquee box-selection, Hand pan tool (`H`) / `Space+drag` for panning, right-click to edit labels, add nodes/classes/entities or members/fields, suppress nodes/members like Canva, delete via `Delete` key or menu, arrow-key nudging, grid snap, and alignment guides
+- **Multi-direction & orthogonal routing:** Switch diagram flow (`TD`, `BT`, `LR`, `RL`), drag line segments or arrowhead perimeter anchors with selection glow
+- **Themes, Dark mode & Fonts:** Light and Dark mode UI, theme presets (`default`, `dark`, `forest`, `neutral`), `Classic` & `Hand drawn` looks, multi-font selector that resizes node boxes to match, and live-previewable colorized boxes on canvas and export
+- **Local-first:** diagrams, manual layouts, and automatic debounced version history live in IndexedDB
 - **5-device live rooms:** share a live PeerJS session link to collaborate in real time
 - **Export** full-bounds SVG/PNG, or restore/share diagrams with manual layout via `#d=` URLs
-- **Optional BYOK AI:** 14 providers (OpenAI, Anthropic, Google Gemini, DeepSeek, OpenRouter, Groq, xAI, Mistral, Together, Fireworks, Ollama, LM Studio, Anthropic-compatible, or custom), model auto-detect, and `low`/`medium`/`high`/`max` usage presets
-- **Syntax & template docs:** quick reference for arrows (`-->`, `-.->`, `==>`), shapes, 7-format syntax, and starter templates at [`#docs`](https://code-to-diagram.vercel.app/#docs)
+- **Optional BYOK AI:** 14 providers (OpenAI, Anthropic, Google Gemini, DeepSeek, OpenRouter, Groq, xAI, Mistral, Together, Fireworks, Ollama, LM Studio, Anthropic-compatible, or custom), model auto-detect, `low`/`medium`/`high`/`max` usage presets, and a toggleable floating AI bar
+- **Syntax & template docs:** 3-column Mermaid-style reference for arrows (`-->`, `-.->`, `==>`), shapes, all 7 input formats, and starter templates at [`#docs`](https://code-to-diagram.vercel.app/#docs)
 
 ## Supported Syntax
 

@@ -26,7 +26,7 @@ Run these from the repository root (`code-to-diagram/`):
 npm run build
 
 # Required when changing mcp/ or shared src/lib/ parsers
-npm run mcp:test
+npm run test:parsers && npm run mcp:test
 
 # Required when changing web app files (src/, index.html, public/)
 npx playwright test --workers=1
