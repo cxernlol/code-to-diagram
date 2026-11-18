@@ -66,7 +66,7 @@ test("lists expected tools, resources, resource templates, and prompts", async (
   const prompts = await client.listPrompts();
   assert.deepEqual(
     prompts.prompts.map((p) => p.name),
-    ["code_to_diagram"],
+    ["code_to_diagram", "configure_diagram", "explain_diagram"],
   );
 });
 
