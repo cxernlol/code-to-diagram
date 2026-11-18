@@ -401,12 +401,12 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.32, ease: "easeOut" }}
           >
-            <p className="home-eyebrow">MCP-Ready · Modern Alternative to Draw.io &amp; Mermaid.ai</p>
-            <h1 id="home-title">Code to diagram, or right-click to edit directly.</h1>
+            <p className="home-eyebrow">Code-First Diagrams · Local-First &amp; MCP-Ready</p>
+            <h1 id="home-title">Code-first diagrams you can still hand-tune.</h1>
             <p className="home-lead">
-              Skip clunky legacy UIs and annoying AI paywalls. Paste Mermaid, DOT, PlantUML, D2,
-              SQL, TypeScript, or XML — or right-click any box, line, or canvas to edit, add nodes,
-              and drag into place. Local-first with zero sign-in.
+              Write Mermaid or translate DOT, PlantUML, D2, SQL, TypeScript, and XML—then drag boxes
+              and 3-point connector lines into place. Manual layouts are stored separately by ID, so
+              your dragged layout survives code edits.
             </p>
             <div className="home-cta-row">
               <button className="button primary home-cta-start" type="button" onClick={() => onStart()}>
