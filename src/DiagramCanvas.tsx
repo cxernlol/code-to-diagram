@@ -1772,7 +1772,58 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         const dividers = Array.from(nodeEl.querySelectorAll<SVGGElement>("g.divider"));
         const hasMembers = Boolean(membersGroup?.textContent?.trim());
         const hasMethods = Boolean(methodsGroup?.textContent?.trim());
-        if (hasMethods) return;
+        if (hasMembers && hasMethods) return;
+        const boxShapes = Array.from(
+          nodeEl.querySelectorAll<SVGGeometryElement>("g.basic.label-container > path, g.basic.label-container > rect, :scope > rect"),
+        );
+        if (!hasMembers && hasMethods) {
+          if (membersGroup) membersGroup.style.display = "none";
+          if (dividers.length >= 2) dividers[1]!.style.display = "none";
+          if (methodsGroup && dividers.length >= 2) {
+            try {
+              const d0 = dividers[0]!.getBBox();
+              const d1 = dividers[1]!.getBBox();
+              const d0Ctm = dividers[0]!.getCTM();
+              const d1Ctm = dividers[1]!.getCTM();
+              const mCtm = methodsGroup.getCTM();
+              const nodeCtm = nodeEl.getCTM();
+              const d0Y = (d0Ctm && nodeCtm ? d0Ctm.f - nodeCtm.f : 0) + d0.y;
+              const d1Y = (d1Ctm && nodeCtm ? d1Ctm.f - nodeCtm.f : 0) + d1.y;
+              const shift = Math.max(0, d1Y - d0Y);
+              if (shift > 4) {
+                const mBase = readTranslation(methodsGroup.getAttribute("transform"));
+                const mY = mCtm && nodeCtm ? mCtm.f - nodeCtm.f : mBase.y;
+                methodsGroup.setAttribute("transform", `translate(${mBase.x} ${mY - shift})`);
+                boxShapes.forEach((boxShape) => {
+                  if (boxShape instanceof SVGRectElement) {
+                    const curH = boxShape.height.baseVal.value;
+                    if (curH - shift > 24) boxShape.setAttribute("height", String(Number((curH - shift).toFixed(2))));
+                  } else if (boxShape instanceof SVGPathElement) {
+                    const curBox = boxShape.getBBox();
+                    const nextBottom = curBox.y + curBox.height - shift;
+                    if (nextBottom > curBox.y + 24) {
+                      if (isHandDrawn) {
+                        const scaleY = (nextBottom - curBox.y) / curBox.height;
+                        boxShape.setAttribute(
+                          "transform",
+                          `translate(0 ${(curBox.y * (1 - scaleY)).toFixed(2)}) scale(1 ${scaleY.toFixed(4)})`,
+                        );
+                      } else {
+                        boxShape.setAttribute(
+                          "d",
+                          `M${curBox.x.toFixed(2)} ${curBox.y.toFixed(2)} L${(curBox.x + curBox.width).toFixed(2)} ${curBox.y.toFixed(2)} L${(curBox.x + curBox.width).toFixed(2)} ${nextBottom.toFixed(2)} L${curBox.x.toFixed(2)} ${nextBottom.toFixed(2)} Z`,
+                        );
+                      }
+                    }
+                  }
+                });
+              }
+            } catch {
+              // Ignore unmeasurable geometry.
+            }
+          }
+          return;
+        }
         if (methodsGroup) methodsGroup.style.display = "none";
         if (dividers.length >= 2) dividers[1]!.style.display = "none";
         if (!hasMembers) {
@@ -1781,9 +1832,6 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
         const lastVisible = hasMembers ? membersGroup : labelGroup;
         if (!lastVisible) return;
-        const boxShapes = Array.from(
-          nodeEl.querySelectorAll<SVGGeometryElement>("g.basic.label-container > path, g.basic.label-container > rect, :scope > rect"),
-        );
         if (!boxShapes.length) return;
         try {
           const lastBox = lastVisible.getBBox();
