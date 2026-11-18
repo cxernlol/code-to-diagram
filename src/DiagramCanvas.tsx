@@ -2368,6 +2368,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const validLayoutKeys = new Set([
       ...nodes.map((node) => node.id),
       ...edges.map((edge) => edge.id),
+      ...edges.map((edge) => `${edge.id}::start`),
       ...edges.map((edge) => `${edge.id}::end`),
     ]);
     const trimmedLayout = Object.fromEntries(
@@ -3147,21 +3148,26 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                       <span>Edit label…</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={readOnly || (!(contextMenu.id in document.layout) && !(`${contextMenu.id}::end` in document.layout))}
-                    onClick={() => {
-                      const next = { ...document.layout };
-                      delete next[contextMenu.id];
-                      delete next[`${contextMenu.id}::end`];
-                      onLayoutChange(next);
-                      setContextMenu(null);
-                    }}
-                  >
-                    <RotateCcw aria-hidden="true" size={14} />
-                    <span>Reset line offset</span>
-                  </button>
+                  {((contextMenu.id in document.layout) ||
+                    (`${contextMenu.id}::start` in document.layout) ||
+                    (`${contextMenu.id}::end` in document.layout)) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={readOnly}
+                      onClick={() => {
+                        const next = { ...document.layout };
+                        delete next[contextMenu.id];
+                        delete next[`${contextMenu.id}::start`];
+                        delete next[`${contextMenu.id}::end`];
+                        onLayoutChange(next);
+                        setContextMenu(null);
+                      }}
+                    >
+                      <RotateCcw aria-hidden="true" size={14} />
+                      <span>Reset line offset</span>
+                    </button>
+                  )}
                 </>
               )}
             </>

@@ -1436,3 +1436,35 @@ test("class node context menu adds member/field into code and collapses empty cl
   await page.locator(".canvas-context-form").getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.locator(".cm-content")).toContainText("+String color");
 });
+
+test("Requirement and C4 diagrams support node movement, 3-point edge handles, and Reset line offset", async ({ page }) => {
+  await page.goto("/#app");
+  await openTemplate(page, "Requirement Diagram");
+  await expect(page.locator(".diagram-kind")).toHaveText("requirement");
+  await expect(page.locator(".diagram-kind")).toHaveClass(/movable/);
+  await expect(page.locator("[data-sgs-node]")).toHaveCount(2);
+
+  const edge = page.locator("[data-sgs-edge]").first();
+  await expect(edge.locator(".sgs-edge-handle")).toHaveCount(3);
+  const startHandle = edge.locator(".sgs-edge-start-handle");
+  await expect(startHandle).toBeAttached();
+  const before = await startHandle.boundingBox();
+  expect(before).not.toBeNull();
+  await page.mouse.move(before!.x + before!.width / 2, before!.y + before!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(before!.x + before!.width / 2 + 40, before!.y + before!.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect(edge).toHaveAttribute("data-moved", "true");
+  const after = await startHandle.boundingBox();
+  expect(Math.abs(after!.x - before!.x)).toBeGreaterThan(10);
+
+  await edge.click({ button: "right", force: true });
+  await page.getByRole("menuitem", { name: "Reset line offset" }).click();
+  await expect(edge).not.toHaveAttribute("data-moved", "true");
+
+  await openTemplate(page, "C4 Architecture");
+  await expect(page.locator(".diagram-kind")).toHaveText("c4");
+  await expect(page.locator(".diagram-kind")).toHaveClass(/movable/);
+  await expect(page.locator("[data-sgs-node]")).toHaveCount(3);
+  await expect(page.locator("[data-sgs-edge]")).toHaveCount(1);
+});
