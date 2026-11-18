@@ -9,7 +9,7 @@ var package_default = {
 	version: "1.2.0",
 	description: "CTD Studio MCP server — convert and translate Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
 	type: "module",
-	license: "MIT",
+	license: "Elastic-2.0",
 	main: "./dist/index.js",
 	bin: { "ctd-mcp": "dist/index.js" },
 	files: ["dist", "README.md"],
@@ -41,6 +41,7 @@ var package_default = {
 		"zod": "^4.6.7"
 	}
 };
+// src/constants.ts
 var THEME_PRESETS = {
 	default: {
 		primaryColor: "#f3f7f5",
@@ -67,7 +68,6 @@ var THEME_PRESETS = {
 		canvasColor: "#f6f5f2"
 	}
 };
-({ ...THEME_PRESETS.default });
 var TEMPLATES = {
 	Flowchart: `flowchart TD
   Start([Start]) --> Check{Valid?}
