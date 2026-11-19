@@ -1235,7 +1235,7 @@ test("deleting a diagram tab opens a centered confirmation dialog with Delete an
   const picker = page.locator(".new-diagram-dialog");
   await expect(picker).toBeVisible();
   await expect(picker.getByRole("button", { name: "Decision {Check}" })).toBeVisible();
-  await picker.getByRole("button", { name: "Flowchart", exact: true }).click();
+  await picker.getByRole("button", { name: "Flowchart", exact: true }).first().click();
   await picker.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page.locator(".document-tab")).toHaveCount(2);
 
@@ -1607,7 +1607,7 @@ test("F3, F4, F5, F10: first-run coachmark, first-drag sidecar explainer + submi
   await expect(page.getByRole("heading", { name: /Supported Formats \(7\) & Compatibility Matrix/i })).toBeVisible();
 
   // Return to studio and switch back to Flowchart
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.getByRole("button", { name: "Start", exact: true }).click();
   await openTemplate(page, "Flowchart");
   await expect(page.locator(".diagram-capability-badge")).toHaveText("Draggable");
 
