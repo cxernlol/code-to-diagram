@@ -4,6 +4,7 @@ import { select } from "d3-selection";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import type { DiagramDocument, Position, StudioSettings } from "./types";
 import { colorizeExportedNodes } from "./export";
+import { trimLayoutToValidKeys, validLayoutKeySet } from "./lib/layoutKeys";
 import {
   detectDiagramType,
   formatMermaidError,
@@ -2365,15 +2366,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     };
     routeEdges();
 
-    const validLayoutKeys = new Set([
-      ...nodes.map((node) => node.id),
-      ...edges.map((edge) => edge.id),
-      ...edges.map((edge) => `${edge.id}::start`),
-      ...edges.map((edge) => `${edge.id}::end`),
-    ]);
-    const trimmedLayout = Object.fromEntries(
-      Object.entries(document.layout).filter(([id]) => validLayoutKeys.has(id)),
+    const validLayoutKeys = validLayoutKeySet(
+      nodes.map((node) => node.id),
+      edges.map((edge) => edge.id),
     );
+    const trimmedLayout = trimLayoutToValidKeys(document.layout, validLayoutKeys);
     if (Object.keys(trimmedLayout).length !== Object.keys(document.layout).length) {
       onLayoutChangeRef.current(trimmedLayout);
     }

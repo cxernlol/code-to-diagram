@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 async function openTemplate(page: Page, name: string): Promise<void> {
@@ -58,8 +59,12 @@ test("shows the home page with Start and GitHub links and opens the diagram app 
   await expect(page.getByRole("heading", { name: /Terms of Use/i })).toBeVisible();
   await page.getByRole("button", { name: "Back to home" }).click();
   await page.getByRole("button", { name: "Docs" }).first().click();
-  await expect(page).toHaveURL(/#docs$/);
-  await expect(page.getByRole("heading", { name: /Syntax & Template Docs/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/docs\/?$/);
+  await expect(page.getByRole("heading", { name: /First time: code → diagram/i })).toBeVisible();
+  await page.locator(".docs-toc").getByRole("button", { name: "Coursework starters" }).click();
+  await expect(page).toHaveURL(/\/docs#coursework-starters$/);
+  await expect(page.getByRole("heading", { name: /First time: code → diagram/i })).toBeVisible();
+  await page.locator(".docs-nav-list").getByRole("button", { name: /Syntax & Arrows/i }).click();
   await expect(page.getByText("A -.-> B", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Graphviz DOT" }).click();
   await expect(page.locator(".docs-guide-split .docs-guide-code")).toContainText("digraph Architecture");
@@ -118,7 +123,7 @@ test("moves one flowchart node and keeps its connectors attached", async ({ page
 
 test("class relationships follow a snapped class move", async ({ page }) => {
   await page.goto("/#app");
-  await openTemplate(page, "Class" );
+  await openTemplate(page, "Class");
   const node = page.locator('[data-sgs-node="Dog"]');
   const edge = page.locator(".diagram-graphic .edgePaths path.relation").first();
   await expect(node).toBeVisible();
@@ -351,7 +356,7 @@ test("supports a narrow Code/Preview switch and disables node movement for seque
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#app");
   await expect(page.getByRole("button", { name: "Code", exact: false })).toBeVisible();
-  await openTemplate(page, "Sequence" );
+  await openTemplate(page, "Sequence");
   await expect(page.getByText(/sequence diagrams use automatic layout/i)).toBeVisible();
   await expect(page.locator("[data-sgs-node]")).toHaveCount(0);
   await page.getByRole("button", { name: "Code", exact: false }).click();
@@ -374,7 +379,7 @@ test("pans when dragging empty canvas space and preserves mindmap foreignObject 
   await page.mouse.up();
   await expect.poll(() => graphic.getAttribute("style")).not.toBe(beforePan);
 
-  await openTemplate(page, "Mindmap" );
+  await openTemplate(page, "Mindmap");
   await expect(page.locator(".diagram-graphic")).toContainText("Planning");
 });
 
@@ -410,7 +415,7 @@ test("restores both Mermaid source and manual node layout from a share link", as
 
 test("arranges nodes into a grid with one click and undo restores the original layout", async ({ page }) => {
   await page.goto("/#app");
-  await openTemplate(page, "Class" );
+  await openTemplate(page, "Class");
   const dog = page.locator('[data-sgs-node="Dog"]');
   await expect(dog).toBeVisible();
   const initialTransform = await dog.getAttribute("transform");
@@ -442,7 +447,7 @@ test("selecting a theme preset updates primary, text, connector, and canvas colo
 
 test("expands preview pane, auto-focuses on grid layout, and enforces readable class diagram colors", async ({ page }) => {
   await page.goto("/#app");
-  await openTemplate(page, "Class" );
+  await openTemplate(page, "Class");
   const animal = page.locator('[data-sgs-node="Animal"]');
   await expect(animal).toBeVisible();
 
@@ -674,7 +679,7 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(pngWidth).toBeGreaterThan(1000);
   expect(pngHeight).toBeGreaterThan(1000);
 
-  await openTemplate(page, "Sequence" );
+  await openTemplate(page, "Sequence");
   await expect(page.locator(".diagram-graphic svg")).toContainText("DB");
   const seqSvgPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export SVG" }).click();
@@ -707,7 +712,7 @@ test("renders DOT, PlantUML, D2, SQL DDL, TypeScript, and XML code and translate
   ];
 
   for (const item of cases) {
-    await openTemplate(page, item.template );
+    await openTemplate(page, item.template);
     await expect(page.locator(".language-chip")).toHaveText(item.chip);
     await expect(page.locator(".diagram-graphic")).toContainText(item.text);
     if (item.node) {
@@ -749,7 +754,7 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(sixthDevice.getByText(/Room is full \(maximum 5 devices\)/)).toBeVisible();
   await sixthDevice.close();
 
-  await openTemplate(host, "Class" );
+  await openTemplate(host, "Class");
   await expect(guests[0]!.locator('[data-sgs-node="Animal"]')).toBeVisible({ timeout: 10000 });
 
   await host.close();
@@ -869,7 +874,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(node1.locator("polygon")).toBeVisible();
 
   // Class diagram node label edit & Add class
-  await openTemplate(page, "Class" );
+  await openTemplate(page, "Class");
   const animalNode = page.locator('[data-sgs-node="Animal"]');
   await expect(animalNode).toBeVisible({ timeout: 10000 });
   await animalNode.click({ button: "right" });
@@ -898,7 +903,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(page.locator('[data-sgs-node="Class1"]')).toBeVisible();
 
   // State diagram node/edge label edit & Add state
-  await openTemplate(page, "State" );
+  await openTemplate(page, "State");
   const idleNode = page.locator('[data-sgs-node="Idle"]');
   await expect(idleNode).toBeVisible({ timeout: 10000 });
   await idleNode.click({ button: "right" });
@@ -920,7 +925,7 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(page.locator('[data-sgs-node="State1"]')).toBeVisible();
 
   // ER diagram node/edge label edit & Add entity
-  await openTemplate(page, "ER" );
+  await openTemplate(page, "ER");
   const userNode = page.locator('[data-sgs-node="USER"]');
   await expect(userNode).toBeVisible({ timeout: 10000 });
   await userNode.click({ button: "right" });
@@ -1178,7 +1183,7 @@ test("mobile layout has no horizontal overflow or toolbar overlap across all pag
 
   // 2. Docs page (direct path route + SEO metadata)
   await page.goto("/docs");
-  await expect(page.getByRole("heading", { name: /Syntax & Template Docs/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /First time: code → diagram|Syntax & Template Docs/i })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://code-to-diagram.vercel.app/docs");
 
@@ -1467,4 +1472,197 @@ test("Requirement and C4 diagrams support node movement, 3-point edge handles, a
   await expect(page.locator(".diagram-kind")).toHaveClass(/movable/);
   await expect(page.locator("[data-sgs-node]")).toHaveCount(3);
   await expect(page.locator("[data-sgs-edge]")).toHaveCount(1);
+});
+
+test("imports and exports .ctd.json sidecar layout with golden git-flow fixture", async ({ page }) => {
+  await page.goto("/#app");
+  await page.locator('input[type="file"]').setInputFiles("tests/fixtures/git-flow/flow.mmd");
+  await expect(page.getByRole("tab", { name: "flow", exact: true })).toBeVisible();
+
+  const clientNode = page.locator('[data-sgs-node="Client"]');
+  await expect(clientNode).toBeVisible();
+  const initialTransform = await clientNode.getAttribute("transform");
+
+  await page.locator('input[type="file"]').setInputFiles("tests/fixtures/git-flow/flow.ctd.json");
+  await expect(page.locator(".toast")).toContainText("flow.ctd.json layout applied.");
+  await expect.poll(() => clientNode.getAttribute("transform")).not.toBe(initialTransform);
+
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  const sidecarDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Export layout (.ctd.json)" }).click();
+  const sidecarDownload = await sidecarDownloadPromise;
+  expect(sidecarDownload.suggestedFilename()).toBe("flow.ctd.json");
+  const downloadedPath = await sidecarDownload.path();
+  expect(downloadedPath).not.toBeNull();
+  const exported = JSON.parse(await readFile(downloadedPath!, "utf8")) as {
+    version: number;
+    layout: Record<string, { x: number; y: number }>;
+    meta?: { generatedFrom?: string };
+  };
+  expect(exported.version).toBe(1);
+  expect(exported.layout.Client).toEqual({ x: 160, y: 90 });
+  expect(exported.layout.Gateway).toEqual({ x: 160, y: 210 });
+  expect(exported.meta?.generatedFrom).toBe("flow.mmd");
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "broken.ctd.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify({ version: 99, layout: {} }), "utf8"),
+  });
+  await expect(page.locator('[role="alert"]')).toContainText("Unsupported CTD sidecar version");
+  await expect(clientNode).toBeVisible();
+});
+
+test("F7–F9: canonical /docs routing, TOC anchor navigation without SPA unload, tutorial/MCP search, and 200 static schema/samples/llms assets", async ({ page, request }) => {
+  for (const assetPath of [
+    "/schema/ctd-sidecar.v1.json",
+    "/llms.txt",
+    "/samples/git-flow/flow.mmd",
+    "/samples/git-flow/flow.ctd.json",
+    "/samples/flow.mmd",
+    "/samples/flow.ctd.json",
+  ]) {
+    const res = await request.get(assetPath);
+    expect(res.status(), `Expected 200 for ${assetPath}`).toBe(200);
+  }
+  const llmsText = await (await request.get("/llms.txt")).text();
+  expect(llmsText).toContain("v1.3.0");
+  expect(llmsText).toContain("/docs");
+  expect(llmsText).not.toContain("#docs");
+
+  // Legacy /#docs canonicalizes to /docs and TOC clicks stay on /docs
+  await page.goto("/#docs");
+  await expect(page).toHaveURL(/\/docs$/);
+  await expect(page.getByRole("heading", { name: /First time: code → diagram/i })).toBeVisible();
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /First-time code-to-diagram tutorial/i);
+
+  await page.locator(".docs-toc").getByRole("button", { name: /Lesson 1/i }).click();
+  await expect(page).toHaveURL(/\/docs#first-flow$/);
+  await expect(page.getByRole("heading", { name: /First time: code → diagram/i })).toBeVisible();
+
+  await page.locator(".docs-toc").getByRole("button", { name: "Graphviz DOT" }).click();
+  await expect(page).toHaveURL(/\/docs#format-guides$/);
+  await expect(page.locator(".docs-guide-split .docs-guide-code")).toContainText("digraph Architecture");
+
+  // Filter search covers tutorial lessons, coursework templates, workbench sidecars, and MCP Phase 2 tools
+  const filterInput = page.getByLabel("Filter documentation");
+  await filterInput.fill("Loop Trace");
+  await expect(page.getByRole("heading", { name: /Lesson 4/i })).toBeVisible();
+  await filterInput.fill("regen_preserve_layout");
+  await expect(page.getByText("regen_preserve_layout", { exact: true })).toBeVisible();
+  await filterInput.fill("ctd-sidecar.v1.json");
+  await expect(page.getByText(/Portable sidecars/i)).toBeVisible();
+});
+
+test("F1, F2, F6: onboarding lanes (Coursework vs Project), draggable-only coursework filter, and one-click git-flow sample with sidecar layout", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "New diagram" }).click();
+  const dialog = page.locator(".new-diagram-dialog");
+  await expect(dialog).toBeVisible();
+
+  const courseworkCard = dialog.locator('[data-lane="coursework"]');
+  const projectCard = dialog.locator('[data-lane="project"]');
+  await expect(courseworkCard).toBeVisible();
+  await expect(courseworkCard).toContainText("Draggable types only");
+  await expect(projectCard).toBeVisible();
+  await expect(projectCard).toContainText(".mmd + .ctd.json");
+  await expect(projectCard).toContainText("docs/GIT_AND_AGENT_WORKFLOW.md");
+
+  // Coursework lane filter shows draggable types only (no Sequence or Gantt)
+  await dialog.getByRole("button", { name: "Coursework (Draggable)" }).click();
+  await expect(dialog.getByRole("button", { name: "Loop Trace", exact: true }).first()).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Intro OOP", exact: true }).first()).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Student ER Lab", exact: true }).first()).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Vending Machine", exact: true }).first()).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Sequence", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Gantt", exact: true })).toHaveCount(0);
+
+  // One-click open git-flow sample from Coursework lane applies flow.ctd.json layout
+  await courseworkCard.getByRole("button", { name: "Open git-flow sample" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("tab", { name: "flow", exact: true })).toBeVisible();
+  const clientNode = page.locator('[data-sgs-node="Client"]');
+  await expect(clientNode).toBeVisible();
+  await expect(clientNode).not.toHaveAttribute("transform", "translate(0,0)");
+});
+
+test("F3, F4, F5, F10: first-run coachmark, first-drag sidecar explainer + submission export, diagram capability badge, and pedagogical error hints", async ({ page }) => {
+  await page.goto("/#app");
+
+  // F10: First-run coachmark visible once per profile and dismissible via localStorage
+  const coachmark = page.getByRole("region", { name: "First-run guide" });
+  await expect(coachmark).toBeVisible();
+  await expect(coachmark.getByRole("button", { name: /First time\? Tutorial \(\/docs\)/i })).toBeVisible();
+  await coachmark.getByRole("button", { name: "Dismiss quick start hint" }).click();
+  await expect(coachmark).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem("ctd-coachmark-dismissed"))).toBe("1");
+
+  // F4: Diagram-type badge shows Draggable vs Render-only and deeplinks to /docs#compatibility-matrix
+  const badge = page.locator(".diagram-capability-badge");
+  await expect(badge).toHaveText("Draggable");
+  await openTemplate(page, "Sequence");
+  await expect(badge).toHaveText("Render-only");
+  await badge.click();
+  await expect(page).toHaveURL(/\/docs#compatibility-matrix$/);
+  await expect(page.getByRole("heading", { name: /Supported Formats \(7\) & Compatibility Matrix/i })).toBeVisible();
+
+  // Return to studio and switch back to Flowchart
+  await page.getByRole("button", { name: "Start" }).click();
+  await openTemplate(page, "Flowchart");
+  await expect(page.locator(".diagram-capability-badge")).toHaveText("Draggable");
+
+  // F3: Drag a node -> first-drag sidecar explainer appears once and dismisses into localStorage
+  const checkNode = page.locator('[data-sgs-node="Check"]');
+  await expect(checkNode).toBeVisible();
+  const box = await checkNode.boundingBox();
+  if (!box) throw new Error("Check node has no bounds.");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 40, { steps: 4 });
+  await page.mouse.up();
+
+  const dragExplainer = page.getByRole("status", { name: "First-drag sidecar hint" });
+  await expect(dragExplainer).toBeVisible();
+  await dragExplainer.getByRole("button", { name: "Dismiss sidecar hint" }).click();
+  await expect(dragExplainer).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem("ctd-first-drag-explainer-dismissed"))).toBe("1");
+
+  // F3: Submission export in Studio menu downloads PNG + .mmd + .ctd.json when layout is set
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  const submissionItem = page.getByRole("menuitem", { name: /Submission export \(PNG \+ \.mmd \+ \.ctd\.json\)/i });
+  await expect(submissionItem).toBeVisible();
+  const downloads: string[] = [];
+  page.on("download", (dl) => downloads.push(dl.suggestedFilename()));
+  await submissionItem.click();
+  await expect.poll(() => downloads.length).toBe(3);
+  expect(downloads.some((f) => f.endsWith(".png"))).toBe(true);
+  expect(downloads.some((f) => f.endsWith(".mmd"))).toBe(true);
+  expect(downloads.some((f) => f.endsWith(".ctd.json"))).toBe(true);
+
+  // F5: Pedagogical error hints for >=3 exemplar error classes + /docs deeplink
+  const editor = page.locator(".cm-content");
+  const banner = page.locator(".error-banner");
+
+  // Class 1: Flowchart single-dash arrow A -> B
+  await editor.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText("flowchart TD\n  A -> B");
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText(/Flowcharts use 'A --> B'/i);
+  await expect(banner.getByRole("button", { name: "Arrow docs" })).toBeVisible();
+
+  // Class 2: Unclosed node brackets
+  await editor.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText("flowchart TD\n  A --> B{Unclosed");
+  await expect(banner).toContainText(/Close all node brackets/i);
+  await expect(banner.getByRole("button", { name: "Shape docs" })).toBeVisible();
+
+  // Class 3: Duplicate / mid-file diagram header + deeplink click
+  await editor.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText("classDiagram\n  class A\n  A <|-- BclassDiagram class Broken");
+  await expect(banner).toContainText(/Start line 1 with one diagram keyword/i);
+  await banner.getByRole("button", { name: "Syntax docs" }).click();
+  await expect(page).toHaveURL(/\/docs#syntax$/);
 });

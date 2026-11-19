@@ -408,3 +408,91 @@ export function formatMermaidError(error: unknown): string {
   }
   return raw;
 }
+
+export interface PedagogicalErrorHint {
+  id: string;
+  hint: string;
+  anchor: string;
+  label: string;
+}
+
+export function getPedagogicalErrorHint(
+  source: string,
+  errorMessage: string,
+): PedagogicalErrorHint {
+  const trimmed = source.trim();
+  const lines = trimmed.split(/\r?\n/);
+  const firstLine = lines[0]?.trim() ?? "";
+  const msg = errorMessage.toLowerCase();
+
+  if (
+    msg.includes("doctype") ||
+    msg.includes("entity") ||
+    msg.includes("sidecar") ||
+    msg.includes("xml") ||
+    msg.includes("create table") ||
+    msg.includes("@startuml") ||
+    /^(?:digraph|strict\s+digraph|graph\s+[A-Za-z0-9_{]|@startuml|CREATE\s+TABLE|ALTER\s+TABLE|SELECT\s+|<\?xml|<diagram|<definitions|<mxGraphModel)/i.test(
+      firstLine,
+    )
+  ) {
+    return {
+      id: "format-subset",
+      hint: "Tip: Non-Mermaid translators support documented subsets (e.g. CREATE TABLE for SQL, @startuml…@enduml for PlantUML, no XML DOCTYPE).",
+      anchor: "formats",
+      label: "Format docs",
+    };
+  }
+
+  if (
+    /^(?:flowchart|graph)\b/i.test(firstLine) &&
+    lines.slice(1).some((line) => /(?:^|\s)[A-Za-z0-9_)\]}]+\s*->(?!>)\s*[A-Za-z0-9_([{]+/.test(line))
+  ) {
+    return {
+      id: "flowchart-arrow",
+      hint: "Tip: Flowcharts use 'A --> B' (two dashes) or 'A -.-> B', not 'A -> B'.",
+      anchor: "arrows-connectors",
+      label: "Arrow docs",
+    };
+  }
+
+  const countChar = (ch: string) => {
+    let n = 0;
+    for (const c of trimmed) if (c === ch) n += 1;
+    return n;
+  };
+  if (
+    countChar("[") !== countChar("]") ||
+    countChar("{") !== countChar("}") ||
+    countChar("(") !== countChar(")") ||
+    countChar('"') % 2 !== 0 ||
+    /\b(?:SQE|DIAMOND_STOP)\b/i.test(errorMessage)
+  ) {
+    return {
+      id: "node-brackets",
+      hint: "Tip: Close all node brackets—decisions use {Valid?}, boxes use [Step], and wrap labels with special characters in quotes.",
+      anchor: "flowchart-shapes",
+      label: "Shape docs",
+    };
+  }
+
+  const headerRe = /^(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|gantt|mindmap|pie|journey|gitGraph|requirementDiagram|C4(?:Context|Container|Component|Dynamic|Deployment))\b/i;
+  const hasMidLineHeader = lines
+    .slice(1)
+    .some((line) => /(?:flowchart|classDiagram|sequenceDiagram|erDiagram|stateDiagram(?:-v2)?)\b/.test(line));
+  if (!headerRe.test(firstLine) || hasMidLineHeader || msg.includes("no diagram type detected")) {
+    return {
+      id: "diagram-header",
+      hint: "Tip: Start line 1 with one diagram keyword (e.g. flowchart TD, classDiagram, erDiagram) and put each declaration on its own line.",
+      anchor: "syntax",
+      label: "Syntax docs",
+    };
+  }
+
+  return {
+    id: "connector-syntax",
+    hint: "Tip: Check connector syntax for this diagram type (A --> B for flowchart, A <|-- B for class, A ||--o{ B for ER).",
+    anchor: "arrows-connectors",
+    label: "Syntax docs",
+  };
+}

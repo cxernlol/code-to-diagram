@@ -11,7 +11,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|_vercel/|mermaid\\.min\\.js|favicon\\.ico|favicon\\.svg|og-image\\.png|og-image\\.svg|robots\\.txt|sitemap\\.xml|llms\\.txt).*)",
+      "source": "/((?!assets/|_vercel/|schema/|samples/|mermaid\\.min\\.js|favicon\\.ico|favicon\\.svg|og-image\\.png|og-image\\.svg|robots\\.txt|sitemap\\.xml|llms\\.txt).*)",
       "destination": "/index.html"
     }
   ],

@@ -1,17 +1,26 @@
 # CTD Studio (code-to-diagram)
 
-> Local-first browser diagram editor and MCP server (`ctd-mcp` v1.2.0) supporting Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io `mxGraphModel`, BPMN, generic XML).
+> Local-first browser diagram editor and MCP server (`ctd-mcp` v1.3.0) supporting Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io `mxGraphModel`, BPMN, generic XML).
 
-## Canonical Pages
+## Multi-agent work (Cursor / Antigravity)
+- `AGENT_SYNC.md`: Watch, summaries (timestamp + one line), delegation pointer.
+- `ROADMAP.md`: phases, § Improvement queue (FIFO), § Audits (summary), § Agent history (summary).
+- `docs/FIRST_TIME_CODE_TO_DIAGRAM.md`: first-time Studio users (no MCP required).
+- FIFO: done=delete+renumber; new=append last. **Git:** no push/PR unless the user explicitly requests it.
+
+## Canonical Pages & Static Assets
 - Home: https://code-to-diagram.vercel.app/
 - Interactive Studio Workbench: https://code-to-diagram.vercel.app/app
-- Syntax & Template Docs: https://code-to-diagram.vercel.app/docs
+- Docs & tutorial: https://code-to-diagram.vercel.app/docs
+- Sidecar JSON Schema (v1): https://code-to-diagram.vercel.app/schema/ctd-sidecar.v1.json
+- Git-flow sample pair: https://code-to-diagram.vercel.app/samples/git-flow/flow.mmd and https://code-to-diagram.vercel.app/samples/git-flow/flow.ctd.json
 - Privacy & Cookies: https://code-to-diagram.vercel.app/privacy
 - Terms of Use (Elastic License 2.0): https://code-to-diagram.vercel.app/terms
 - Repository: https://github.com/cxernlol/code-to-diagram
 
 ## Key Capabilities
 - **7 Input Formats:** Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).
-- **Interactive Canvas:** Drag boxes, adjust 3-point connector handles (start, middle, end/arrow), snap to grid, switch themes/looks (`classic` / `handDrawn`), and export SVG or PNG.
+- **Onboarding Lanes & Coursework Starters:** First-time tutorial (`/docs`) and coursework templates (`Flowchart`, `Loop Trace`, `Intro OOP`, `Student ER Lab`, `Vending Machine`, `SQL Schema`) alongside Project git + sidecar (`*.mmd` + `*.ctd.json`) workflows.
+- **Interactive Canvas:** Drag boxes, adjust 3-point connector handles (start, middle, end/arrow), snap to grid, switch themes/looks (`classic` / `handDrawn`), and export SVG, PNG, or submission bundle (PNG + `.mmd` + `.ctd.json`).
 - **Local-First Privacy:** Zero cookies, IndexedDB local storage (`sgs-studio`), and optional client-side BYOK AI refinement.
-- **MCP Server (`ctd-mcp` v1.2.0):** Run via `npx -y ctd-mcp` for Claude Desktop, Cursor, Windsurf, VS Code, and Antigravity (`detect_format`, `to_mermaid`, `translate_format`, `parse_diagram_ir`, `emit_from_ir`, `list_templates`, `get_studio_info`, `configure_mermaid_diagram`).
+- **MCP Server (`ctd-mcp` v1.3.0):** `npx -y ctd-mcp` — convert/translate/IR plus layout tools (`regen_preserve_layout`, `list_orphan_layout`, `diff_ir`, `verify_diagram`, `patch_source`, `check_drift`, `get_studio_info` with capabilities).

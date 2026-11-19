@@ -18,9 +18,9 @@ const PAGE_SEO: Record<SeoView, PageSeo> = {
     robots: "index, follow",
   },
   docs: {
-    title: "Syntax & Template Docs — CTD Studio",
+    title: "Docs & Tutorial: Code to Diagram — CTD Studio",
     description:
-      "Quick reference for Mermaid arrows, flowchart shapes, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, XML, and starter templates in CTD Studio.",
+      "First-time code-to-diagram tutorial, coursework starters (Loop Trace, Intro OOP, Student ER Lab, Vending Machine), Mermaid arrows, seven input formats, draggable vs render-only diagrams, .ctd.json sidecars, and ctd-mcp tools.",
     canonical: `${SITE_ORIGIN}/docs`,
     robots: "index, follow",
   },
