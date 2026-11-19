@@ -856,7 +856,11 @@ function App() {
             }
             setLastSavedAt(Date.now());
             setSaveState("saved");
-            setStorageError("");
+            setStorageError((prev) =>
+              prev && /CTD sidecar|JSON|read-only|too large|Empty|Unsupported/i.test(prev)
+                ? prev
+                : "",
+            );
           })
           .catch((error: unknown) => {
             if (error instanceof DocumentConflictError) {
@@ -1279,6 +1283,7 @@ function App() {
   const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setStorageError("");
     try {
       const lowerName = file.name.toLowerCase();
       if (lowerName.endsWith(".ctd.json") || lowerName.endsWith(".json")) {
