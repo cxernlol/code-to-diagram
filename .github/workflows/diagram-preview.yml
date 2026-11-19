@@ -1,0 +1,52 @@
+name: Diagram Preview
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.mmd"
+      - "**/*.ctd.json"
+
+permissions:
+  contents: read
+
+jobs:
+  render-diagrams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Studio
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Render changed diagrams
+        run: |
+          mkdir -p diagram-previews
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.mmd' '*.ctd.json' | sed 's/\.ctd\.json$/.mmd/' | sort -u)
+          for file in $CHANGED; do
+            if [ -f "$file" ]; then
+              base=$(basename "$file" .mmd)
+              node scripts/render-diagram.mjs --input "$file" --out "diagram-previews/${base}.svg" --png "diagram-previews/${base}.png"
+            fi
+          done
+
+      - name: Upload diagram previews
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagram-previews
+          path: diagram-previews/
+          if-no-files-found: ignore
+          retention-days: 7
