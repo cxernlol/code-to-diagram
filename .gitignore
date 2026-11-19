@@ -1,3 +1,9 @@
+# Local agent desk (Cursor ↔ Antigravity) — never commit
+.agent-local/
+/ROADMAP.md
+/AGENT_SYNC.md
+/DELEGATION.md
+
 node_modules/
 /dist/
 playwright-report/

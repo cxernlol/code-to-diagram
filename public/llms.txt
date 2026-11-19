@@ -2,12 +2,6 @@
 
 > Local-first browser diagram editor and MCP server (`ctd-mcp` v1.3.0) supporting Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io `mxGraphModel`, BPMN, generic XML).
 
-## Multi-agent work (Cursor / Antigravity)
-- `AGENT_SYNC.md`: Watch, summaries (timestamp + one line), delegation pointer.
-- `ROADMAP.md`: phases, § Improvement queue (FIFO), § Audits (summary), § Agent history (summary).
-- `docs/FIRST_TIME_CODE_TO_DIAGRAM.md`: first-time Studio users (no MCP required).
-- FIFO: done=delete+renumber; new=append last. **Git:** no push/PR unless the user explicitly requests it.
-
 ## Canonical Pages & Static Assets
 - Home: https://code-to-diagram.vercel.app/
 - Interactive Studio Workbench: https://code-to-diagram.vercel.app/app

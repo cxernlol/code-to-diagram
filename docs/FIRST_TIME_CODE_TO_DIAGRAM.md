@@ -41,6 +41,5 @@ Open any of these from **Docs → Starter Templates** or the in-app new-diagram 
 | What | Where |
 |------|--------|
 | Interactive tutorial | App → **Docs** → *First time: code → diagram* (`/docs` when deployed) |
-| Agent status & FIFO | [`AGENT_SYNC.md`](../AGENT_SYNC.md) |
-| Phases & improvement queue | [`ROADMAP.md`](../ROADMAP.md) |
+| Git + agents (contributors) | [`GIT_AND_AGENT_WORKFLOW.md`](./GIT_AND_AGENT_WORKFLOW.md) |
 | Syntax reference | Same **Docs** page — Syntax, Formats, Templates |
