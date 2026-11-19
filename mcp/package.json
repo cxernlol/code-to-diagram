@@ -1,6 +1,6 @@
 {
   "name": "ctd-mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "CTD Studio MCP server — convert and translate Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML diagrams via npx.",
   "type": "module",
   "license": "Elastic-2.0",

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { TEMPLATES, THEME_PRESETS } from "../../src/constants";
@@ -9,7 +10,9 @@ import {
   translateCodeFormat,
   type CodeFormat,
 } from "../../src/lib/formats";
+import { partitionLayoutKeys, validLayoutKeysFromIR } from "../../src/lib/layoutKeys";
 import { detectDiagramType } from "../../src/lib/mermaid";
+import { parseSidecar, serializeSidecar, SIDECAR_VERSION } from "../../src/lib/sidecar";
 import {
   emitFromIR,
   parseMermaidToIR,
@@ -17,6 +20,21 @@ import {
   type DiagramIR,
 } from "../../src/lib/translate";
 import { ensureNodeDomPolyfills } from "./dom-polyfill";
+
+export const IR_VERSION = 1 as const;
+
+const MERMAID_DIAGRAM_HEADER_RE =
+  /^(?:%%\{[\s\S]*?\}%%\s*)?(?:flowchart|graph|classDiagram|stateDiagram(?:-v2)?|erDiagram|sequenceDiagram|gantt|mindmap|pie|journey|gitGraph|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment|requirementDiagram)\b/i;
+
+function hasValidMermaidHeader(source: string): boolean {
+  const lines = source
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && (!line.startsWith("%%") || line.startsWith("%%{")));
+  if (lines.length === 0) return false;
+  return MERMAID_DIAGRAM_HEADER_RE.test(lines.join("\n"));
+}
 
 export const CODE_FORMATS = [
   "mermaid",
@@ -83,8 +101,8 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
     },
     {
       instructions: [
-        "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, configuring, and translating diagrams across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).",
-        "Recommended AI workflow: (1) Call detect_format when the input format or diagram type is unclear. (2) Call to_mermaid to convert any supported code/diagram into Mermaid, or translate_format to convert between any two supported formats. (3) Call configure_mermaid_diagram to change layout direction (TD/TB/BT/LR/RL), hide or show nodes (%% sgs-hide), or add class/ER members. (4) Call parse_diagram_ir to inspect nodes/edges/subgraphs, or list_templates and get_studio_info for starter templates and capabilities.",
+        "CTD Studio MCP server (ctd-mcp) for detecting, parsing, converting, configuring, translating, and verifying diagrams + .ctd.json sidecar layouts across Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).",
+        "Recommended AI workflow: (1) Call detect_format, to_mermaid, or translate_format to convert/inspect diagrams. (2) Call parse_diagram_ir or diff_ir to inspect structure and changes. (3) Call regen_preserve_layout, list_orphan_layout, check_drift, verify_diagram, and patch_source to update diagrams while preserving manual .ctd.json layouts. (4) Call get_studio_info for capabilities and irVersion.",
       ].join(" "),
     },
   );
@@ -354,8 +372,26 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
         name: "CTD Studio",
         mcpName: "ctd-mcp",
         mermaidVersion: "12.3.0",
+        irVersion: IR_VERSION,
+        sidecarVersion: SIDECAR_VERSION,
         url: "https://code-to-diagram.vercel.app/",
         repository: "https://github.com/cxernlol/code-to-diagram",
+        capabilities: [
+          "detect_format",
+          "to_mermaid",
+          "translate_format",
+          "parse_diagram_ir",
+          "emit_from_ir",
+          "list_templates",
+          "get_studio_info",
+          "configure_mermaid_diagram",
+          "regen_preserve_layout",
+          "list_orphan_layout",
+          "diff_ir",
+          "verify_diagram",
+          "patch_source",
+          "check_drift",
+        ],
         formats: CODE_FORMATS.map((id) => ({
           id,
           label: FORMAT_LABELS[id],
@@ -490,6 +526,396 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
         content: [{ type: "text", text: next }],
         structuredContent: { code: next },
       };
+    },
+  );
+
+  const SidecarInputSchema = z
+    .union([z.string().min(1), z.record(z.string(), z.unknown())])
+    .describe("CTD sidecar v1 JSON string or parsed object.");
+
+  const sha256Hex = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
+
+  server.registerTool(
+    "regen_preserve_layout",
+    {
+      title: "Regenerate & Preserve Sidecar Layout",
+      description:
+        "Compare old and new diagram source, preserve matching node/edge layout keys from a .ctd.json sidecar, report orphaned keys and likely renamed node IDs, and return an updated sidecar.",
+      inputSchema: {
+        oldSource: z.string().trim().min(1, "oldSource must not be empty."),
+        newSource: z.string().trim().min(1, "newSource must not be empty."),
+        sidecar: SidecarInputSchema,
+        generatedFrom: z.string().optional().describe("Optional source filename for sidecar meta.generatedFrom."),
+      },
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ oldSource, newSource, sidecar, generatedFrom }) => {
+      try {
+        const warnings: string[] = [];
+        const parsedSidecar = parseSidecar(sidecar, { onWarning: (w) => warnings.push(w) });
+        const { ir: oldIr } = parseSourceToIR(oldSource);
+        const { ir: newIr } = parseSourceToIR(newSource);
+        const validNewKeys = validLayoutKeysFromIR(newIr);
+        const { preserved, orphaned } = partitionLayoutKeys(parsedSidecar.layout, validNewKeys);
+
+        const oldNodeIds = new Set(oldIr.nodes.map((n) => n.id));
+        const newNodeIds = new Set(newIr.nodes.map((n) => n.id));
+        const removedNodes = oldIr.nodes.filter((n) => !newNodeIds.has(n.id));
+        const addedNodes = newIr.nodes.filter((n) => !oldNodeIds.has(n.id));
+        const renamed: { from: string; to: string; reason: string }[] = [];
+        for (const oldNode of removedNodes) {
+          if (!(oldNode.id in parsedSidecar.layout)) continue;
+          const match = addedNodes.find(
+            (n) => n.label.trim().toLowerCase() === oldNode.label.trim().toLowerCase(),
+          );
+          if (match) {
+            renamed.push({ from: oldNode.id, to: match.id, reason: "matching-label" });
+          }
+        }
+
+        const updatedSidecar = serializeSidecar(preserved, {
+          ...parsedSidecar.meta,
+          ...(generatedFrom ? { generatedFrom } : {}),
+          sha256: sha256Hex(newSource),
+          updatedAt: new Date().toISOString(),
+        });
+
+        const result = {
+          ok: true,
+          irVersion: IR_VERSION,
+          preserved,
+          orphaned,
+          renamed,
+          sidecar: updatedSidecar,
+          warnings,
+          errors: [] as string[],
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+        };
+      } catch (error) {
+        return formatErrorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "list_orphan_layout",
+    {
+      title: "List Orphaned Layout Keys",
+      description:
+        "Inspect a .ctd.json sidecar against diagram source and list layout keys whose node or edge IDs no longer exist in the diagram.",
+      inputSchema: {
+        source: z.string().trim().min(1, "Source must not be empty."),
+        sidecar: SidecarInputSchema,
+      },
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ source, sidecar }) => {
+      try {
+        const warnings: string[] = [];
+        const parsedSidecar = parseSidecar(sidecar, { onWarning: (w) => warnings.push(w) });
+        const { ir } = parseSourceToIR(source);
+        const validKeys = validLayoutKeysFromIR(ir);
+        const { preserved, orphaned, orphanedEntries } = partitionLayoutKeys(
+          parsedSidecar.layout,
+          validKeys,
+        );
+        const result = {
+          ok: true,
+          irVersion: IR_VERSION,
+          preservedCount: Object.keys(preserved).length,
+          orphaned,
+          orphanedEntries,
+          warnings,
+          errors: [] as string[],
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+        };
+      } catch (error) {
+        return formatErrorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "diff_ir",
+    {
+      title: "Diff Diagram IR",
+      description:
+        "Compare two diagram sources at the DiagramIR level and return added, removed, and changed nodes and edges.",
+      inputSchema: {
+        oldSource: z.string().trim().min(1, "oldSource must not be empty."),
+        newSource: z.string().trim().min(1, "newSource must not be empty."),
+      },
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ oldSource, newSource }) => {
+      try {
+        const { ir: oldIr } = parseSourceToIR(oldSource);
+        const { ir: newIr } = parseSourceToIR(newSource);
+
+        const oldNodes = new Map(oldIr.nodes.map((n) => [n.id, n]));
+        const newNodes = new Map(newIr.nodes.map((n) => [n.id, n]));
+
+        const addedNodes = newIr.nodes.filter((n) => !oldNodes.has(n.id));
+        const removedNodes = oldIr.nodes.filter((n) => !newNodes.has(n.id));
+        const changedNodes = newIr.nodes
+          .filter((n) => {
+            const prev = oldNodes.get(n.id);
+            if (!prev) return false;
+            return (
+              prev.label !== n.label ||
+              prev.shape !== n.shape ||
+              JSON.stringify(prev.fields ?? []) !== JSON.stringify(n.fields ?? [])
+            );
+          })
+          .map((n) => ({ id: n.id, before: oldNodes.get(n.id)!, after: n }));
+
+        const edgeKey = (e: DiagramIR["edges"][number]) =>
+          `${e.from}-->${e.to}|${e.label ?? ""}|${Boolean(e.dashed)}|${e.relation ?? ""}`;
+        const oldEdgeKeys = new Set(oldIr.edges.map(edgeKey));
+        const newEdgeKeys = new Set(newIr.edges.map(edgeKey));
+        const addedEdges = newIr.edges.filter((e) => !oldEdgeKeys.has(edgeKey(e)));
+        const removedEdges = oldIr.edges.filter((e) => !newEdgeKeys.has(edgeKey(e)));
+
+        const result = {
+          ok: true,
+          irVersion: IR_VERSION,
+          kindChanged: oldIr.kind !== newIr.kind,
+          directionChanged: oldIr.direction !== newIr.direction,
+          addedNodes,
+          removedNodes,
+          changedNodes,
+          addedEdges,
+          removedEdges,
+          summary: `+${addedNodes.length}/-${removedNodes.length}/~${changedNodes.length} nodes, +${addedEdges.length}/-${removedEdges.length} edges`,
+          warnings: [] as string[],
+          errors: [] as string[],
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+        };
+      } catch (error) {
+        return formatErrorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "verify_diagram",
+    {
+      title: "Verify Diagram & Sidecar",
+      description:
+        "Verify that a diagram parses cleanly, optional .ctd.json sidecar layout keys are a subset of IR node/edge IDs, and optional SQL DDL table names appear in ER entities.",
+      inputSchema: {
+        source: z.string().trim().min(1, "Source must not be empty."),
+        sidecar: SidecarInputSchema.optional(),
+        sqlSource: z.string().optional().describe("Optional SQL DDL to verify table names against diagram entities."),
+      },
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ source, sidecar, sqlSource }) => {
+      const warnings: string[] = [];
+      const errors: string[] = [];
+      let sourceFormat: CodeFormat | null = null;
+      let diagramKind: DiagramIR["kind"] | null = null;
+      let orphanLayoutKeys: string[] = [];
+      let missingSqlTables: string[] = [];
+      let validSource = false;
+      let ir: DiagramIR | null = null;
+
+      try {
+        const parsed = parseSourceToIR(source);
+        sourceFormat = parsed.sourceFormat;
+        ir = parsed.ir;
+        diagramKind = ir.kind;
+        if (sourceFormat === "mermaid" && !hasValidMermaidHeader(source)) {
+          errors.push("Unrecognized diagram format or missing Mermaid diagram header.");
+        } else {
+          validSource = true;
+        }
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+
+      if (ir && sidecar !== undefined) {
+        try {
+          const parsedSidecar = parseSidecar(sidecar, { onWarning: (w) => warnings.push(w) });
+          const validKeys = validLayoutKeysFromIR(ir);
+          orphanLayoutKeys = partitionLayoutKeys(parsedSidecar.layout, validKeys).orphaned;
+          if (orphanLayoutKeys.length > 0) {
+            warnings.push(`Found ${orphanLayoutKeys.length} orphaned layout key(s).`);
+          }
+        } catch (error) {
+          errors.push(error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      if (ir && sqlSource && sqlSource.trim().length > 0) {
+        try {
+          const { sourceFormat: sqlFormat, ir: sqlIr } = parseSourceToIR(sqlSource);
+          if (sqlFormat !== "sql" || sqlIr.nodes.length === 0) {
+            errors.push("Invalid sqlSource: expected SQL DDL with at least one CREATE TABLE statement.");
+          } else {
+            const diagramIds = new Set(ir.nodes.map((n) => n.id.toLowerCase()));
+            missingSqlTables = sqlIr.nodes
+              .map((n) => n.id)
+              .filter((table) => !diagramIds.has(table.toLowerCase()));
+            if (missingSqlTables.length > 0) {
+              warnings.push(`SQL tables missing from diagram: ${missingSqlTables.join(", ")}`);
+            }
+          }
+        } catch (error) {
+          errors.push(`Invalid sqlSource: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      const ok = validSource && errors.length === 0 && orphanLayoutKeys.length === 0 && missingSqlTables.length === 0;
+      const result = {
+        ok,
+        irVersion: IR_VERSION,
+        validSource,
+        sourceFormat,
+        diagramKind,
+        orphanLayoutKeys,
+        missingSqlTables,
+        warnings,
+        errors,
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+      };
+    },
+  );
+
+  server.registerTool(
+    "patch_source",
+    {
+      title: "Patch Diagram Source",
+      description:
+        "Apply targeted find/replace hunks to diagram source without rewriting the whole file, and validate that the patched source still parses.",
+      inputSchema: {
+        source: z.string().min(1, "Source must not be empty."),
+        patches: z
+          .array(
+            z.object({
+              find: z.string().min(1),
+              replace: z.string(),
+              all: z.boolean().optional(),
+            }),
+          )
+          .min(1),
+        dryRun: z.boolean().optional(),
+      },
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ source, patches, dryRun }) => {
+      const warnings: string[] = [];
+      const errors: string[] = [];
+      let patched = source;
+      let appliedCount = 0;
+
+      for (const patch of patches) {
+        if (!patched.includes(patch.find)) {
+          warnings.push(`Patch target not found: ${JSON.stringify(patch.find)}`);
+          continue;
+        }
+        patched = patch.all
+          ? patched.split(patch.find).join(patch.replace)
+          : patched.replace(patch.find, patch.replace);
+        appliedCount += 1;
+      }
+
+      try {
+        const { sourceFormat } = parseSourceToIR(patched);
+        if (sourceFormat === "mermaid" && !hasValidMermaidHeader(patched)) {
+          errors.push("Patched source is missing a valid Mermaid diagram header.");
+        }
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+
+      const result = {
+        ok: errors.length === 0,
+        irVersion: IR_VERSION,
+        dryRun: Boolean(dryRun),
+        changed: patched !== source,
+        appliedCount,
+        patchedSource: patched,
+        warnings,
+        errors,
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+      };
+    },
+  );
+
+  server.registerTool(
+    "check_drift",
+    {
+      title: "Check Diagram / Sidecar Drift",
+      description:
+        "Compare current diagram source SHA-256 against sidecar meta.sha256 and check for orphaned layout keys.",
+      inputSchema: {
+        source: z.string().min(1, "Source must not be empty."),
+        sidecar: SidecarInputSchema,
+      },
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ source, sidecar }) => {
+      try {
+        const warnings: string[] = [];
+        const parsedSidecar = parseSidecar(sidecar, { onWarning: (w) => warnings.push(w) });
+        const { ir } = parseSourceToIR(source);
+        const validKeys = validLayoutKeysFromIR(ir);
+        const orphanLayoutKeys = partitionLayoutKeys(parsedSidecar.layout, validKeys).orphaned;
+        const currentSha256 = sha256Hex(source);
+        const expectedSha256 = parsedSidecar.meta?.sha256;
+        const hasBaselineSha256 = Boolean(expectedSha256);
+        if (!hasBaselineSha256) {
+          warnings.push("Sidecar meta.sha256 is missing; drift check fell back to orphan key check.");
+        }
+        const shaDrifted = hasBaselineSha256 && expectedSha256 !== currentSha256;
+        const drifted = shaDrifted || orphanLayoutKeys.length > 0;
+        const result = {
+          ok: true,
+          irVersion: IR_VERSION,
+          hasBaselineSha256,
+          drifted,
+          currentSha256,
+          expectedSha256: expectedSha256 ?? null,
+          generatedFrom: parsedSidecar.meta?.generatedFrom ?? null,
+          orphanLayoutKeys,
+          warnings,
+          errors: [] as string[],
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+        };
+      } catch (error) {
+        return formatErrorResult(error);
+      }
     },
   );
 

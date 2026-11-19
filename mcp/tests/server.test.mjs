@@ -44,14 +44,20 @@ test("lists expected tools, resources, resource templates, and prompts", async (
   const tools = await client.listTools();
   const toolNames = tools.tools.map((t) => t.name).sort();
   assert.deepEqual(toolNames, [
+    "check_drift",
     "configure_mermaid_diagram",
     "detect_format",
+    "diff_ir",
     "emit_from_ir",
     "get_studio_info",
+    "list_orphan_layout",
     "list_templates",
     "parse_diagram_ir",
+    "patch_source",
+    "regen_preserve_layout",
     "to_mermaid",
     "translate_format",
+    "verify_diagram",
   ]);
 
   const resources = await client.listResources();
@@ -326,4 +332,164 @@ test("configure_mermaid_diagram updates direction, node suppression, and class m
   assert.match(updated, /direction LR/);
   assert.match(updated, /%% sgs-hide: Dog/);
   assert.match(updated, /\+speak\(\) void/);
+});
+
+test("get_studio_info reports irVersion, sidecarVersion, and Phase 2 capabilities", async () => {
+  const res = await client.callTool({ name: "get_studio_info", arguments: {} });
+  assert.notEqual(res.isError, true);
+  const info = res.structuredContent;
+  assert.equal(info.irVersion, 1);
+  assert.equal(info.sidecarVersion, 1);
+  assert.ok(Array.isArray(info.capabilities));
+  assert.ok(info.capabilities.includes("regen_preserve_layout"));
+  assert.ok(info.capabilities.includes("verify_diagram"));
+  assert.ok(info.capabilities.includes("check_drift"));
+});
+
+test("regen_preserve_layout and list_orphan_layout preserve valid keys and report orphans/renames", async () => {
+  const oldSource = "flowchart LR\n  A[Gateway] --> B[Service]";
+  const newSource = "flowchart LR\n  GW[Gateway] --> B[Service]\n  B --> C[DB]";
+  const sidecar = JSON.stringify({
+    version: 1,
+    layout: {
+      A: { x: 100, y: 120 },
+      B: { x: 300, y: 120 },
+      "edge::A->B::0::start": { x: 160, y: 120 },
+      Ghost: { x: 999, y: 999 },
+    },
+    meta: { unknownKey: "ignored" },
+  });
+
+  const orphanRes = await client.callTool({
+    name: "list_orphan_layout",
+    arguments: { source: oldSource, sidecar },
+  });
+  assert.notEqual(orphanRes.isError, true);
+  assert.deepEqual(orphanRes.structuredContent.orphaned, ["Ghost"]);
+  assert.equal(orphanRes.structuredContent.preservedCount, 3);
+  assert.equal(orphanRes.structuredContent.warnings.length, 1);
+
+  const regenRes = await client.callTool({
+    name: "regen_preserve_layout",
+    arguments: { oldSource, newSource, sidecar, generatedFrom: "arch.mmd" },
+  });
+  assert.notEqual(regenRes.isError, true);
+  const regen = regenRes.structuredContent;
+  assert.equal(regen.ok, true);
+  assert.deepEqual(regen.preserved, { B: { x: 300, y: 120 } });
+  assert.ok(regen.orphaned.includes("A"));
+  assert.ok(regen.orphaned.includes("Ghost"));
+  assert.deepEqual(regen.renamed, [{ from: "A", to: "GW", reason: "matching-label" }]);
+  assert.match(regen.sidecar, /"generatedFrom": "arch\.mmd"/);
+  assert.match(regen.sidecar, /"sha256": "[a-f0-9]{64}"/);
+});
+
+test("diff_ir, verify_diagram, patch_source, and check_drift work end-to-end", async () => {
+  const oldSource = "flowchart LR\n  A[Start] --> B[End]";
+  const newSource = "flowchart TD\n  A[Begin] --> B[End]\n  B[End] --> C[Done]";
+
+  const diffRes = await client.callTool({
+    name: "diff_ir",
+    arguments: { oldSource, newSource },
+  });
+  assert.notEqual(diffRes.isError, true);
+  assert.equal(diffRes.structuredContent.directionChanged, true);
+  assert.equal(diffRes.structuredContent.addedNodes.map((n) => n.id).join(","), "C");
+  assert.equal(diffRes.structuredContent.changedNodes.map((n) => n.id).join(","), "A");
+
+  const patchRes = await client.callTool({
+    name: "patch_source",
+    arguments: {
+      source: oldSource,
+      patches: [{ find: "A[Start]", replace: "A[Launch]" }],
+      dryRun: true,
+    },
+  });
+  assert.notEqual(patchRes.isError, true);
+  assert.equal(patchRes.structuredContent.ok, true);
+  assert.equal(patchRes.structuredContent.changed, true);
+  assert.equal(patchRes.structuredContent.appliedCount, 1);
+  assert.match(patchRes.structuredContent.patchedSource, /A\[Launch\]/);
+
+  const erSource = "erDiagram\n  USERS {\n    int id PK\n  }\n  ORDERS {\n    int id PK\n  }\n  USERS ||--o{ ORDERS : places";
+  const sqlGood = "CREATE TABLE USERS (id INT PRIMARY KEY);\nCREATE TABLE ORDERS (id INT PRIMARY KEY);";
+  const sqlExtra = "CREATE TABLE USERS (id INT PRIMARY KEY);\nCREATE TABLE INVOICES (id INT PRIMARY KEY);";
+
+  const verifyGood = await client.callTool({
+    name: "verify_diagram",
+    arguments: { source: erSource, sqlSource: sqlGood },
+  });
+  assert.equal(verifyGood.structuredContent.ok, true);
+  assert.deepEqual(verifyGood.structuredContent.missingSqlTables, []);
+
+  const verifyBad = await client.callTool({
+    name: "verify_diagram",
+    arguments: {
+      source: erSource,
+      sidecar: JSON.stringify({ version: 1, layout: { STALE: { x: 1, y: 2 } } }),
+      sqlSource: sqlExtra,
+    },
+  });
+  assert.equal(verifyBad.structuredContent.ok, false);
+  assert.deepEqual(verifyBad.structuredContent.orphanLayoutKeys, ["STALE"]);
+  assert.deepEqual(verifyBad.structuredContent.missingSqlTables, ["INVOICES"]);
+
+  // Drift check using sha256 from regen_preserve_layout
+  const regen = await client.callTool({
+    name: "regen_preserve_layout",
+    arguments: {
+      oldSource,
+      newSource: oldSource,
+      sidecar: JSON.stringify({ version: 1, layout: { A: { x: 10, y: 20 } } }),
+    },
+  });
+  const freshSidecar = regen.structuredContent.sidecar;
+
+  const noDrift = await client.callTool({
+    name: "check_drift",
+    arguments: { source: oldSource, sidecar: freshSidecar },
+  });
+  assert.equal(noDrift.structuredContent.hasBaselineSha256, true);
+  assert.equal(noDrift.structuredContent.drifted, false);
+
+  const drifted = await client.callTool({
+    name: "check_drift",
+    arguments: { source: newSource, sidecar: freshSidecar },
+  });
+  assert.equal(drifted.structuredContent.drifted, true);
+
+  const verifyInvalidHeader = await client.callTool({
+    name: "verify_diagram",
+    arguments: { source: "not a valid diagram ???" },
+  });
+  assert.equal(verifyInvalidHeader.structuredContent.ok, false);
+  assert.equal(verifyInvalidHeader.structuredContent.validSource, false);
+  assert.ok(verifyInvalidHeader.structuredContent.errors.length > 0);
+
+  const verifyBadSql = await client.callTool({
+    name: "verify_diagram",
+    arguments: { source: erSource, sqlSource: "CREATE TABL broken (" },
+  });
+  assert.equal(verifyBadSql.structuredContent.ok, false);
+  assert.ok(verifyBadSql.structuredContent.errors.some((e) => /sqlSource/i.test(e)));
+
+  const verifyDot = await client.callTool({
+    name: "verify_diagram",
+    arguments: {
+      source: "digraph G { Api -> Db; }",
+      sidecar: JSON.stringify({ version: 1, layout: { Api: { x: 10, y: 20 } } }),
+    },
+  });
+  assert.equal(verifyDot.structuredContent.ok, true);
+  assert.equal(verifyDot.structuredContent.sourceFormat, "dot");
+
+  const patchBrokenHeader = await client.callTool({
+    name: "patch_source",
+    arguments: {
+      source: oldSource,
+      patches: [{ find: "flowchart LR", replace: "not-a-diagram" }],
+    },
+  });
+  assert.equal(patchBrokenHeader.structuredContent.ok, false);
+  assert.ok(patchBrokenHeader.structuredContent.errors.length > 0);
 });
