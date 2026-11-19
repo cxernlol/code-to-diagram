@@ -1,11 +1,13 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, GitBranch, Search, Terminal, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, BookOpen, FolderOpen, GitBranch, GraduationCap, Search, Terminal, X } from "lucide-react";
+import { AppTooltip } from "./AppTooltip";
 import { TEMPLATES } from "./constants";
 
 interface DocsPageProps {
   onBack: () => void;
   onStart: (templateName?: string) => void;
+  onOpenSample?: () => void;
   onLegal: (tab: "privacy" | "terms") => void;
 }
 
@@ -35,7 +37,7 @@ const SHAPE_SYNTAX = [
 const FORMAT_SUPPORT = [
   {
     format: "Mermaid (v12.3.0)",
-    scope: "Full Mermaid v12.3.0 runtime for rendering. IR translation (Convert to...) supports flowchart/graph, classDiagram, erDiagram, and sequenceDiagram.",
+    scope: "Full Mermaid v12.3.0 runtime for rendering. IR translation (Convert to...) supports flowchart/graph, classDiagram, erDiagram, and sequenceDiagram. Draggable types: flowchart, class, state, ER, requirement, C4. Render-only auto-layout: sequence, gantt, mindmap, pie, journey, gitGraph.",
     omissions: "gantt, mindmap, pie, journey, gitGraph, C4, and requirement render natively but are not translated by Convert to....",
   },
   {
@@ -224,6 +226,10 @@ class Diagram implements Node {
 
 const FEATURED_TEMPLATES = [
   "Flowchart",
+  "Loop Trace",
+  "Intro OOP",
+  "Student ER Lab",
+  "Vending Machine",
   "API Auth Flow",
   "CI/CD Pipeline",
   "Microservices Flow",
@@ -240,9 +246,132 @@ const FEATURED_TEMPLATES = [
   "BPMN Flow",
 ] as const;
 
-type DocsSectionId = "syntax" | "formats" | "workbench" | "mcp" | "templates";
+export const COURSEWORK_TEMPLATES = [
+  "Flowchart",
+  "Loop Trace",
+  "Intro OOP",
+  "Student ER Lab",
+  "Vending Machine",
+  "SQL Schema",
+] as const;
+
+interface TutorialLesson {
+  id: string;
+  title: string;
+  goal: string;
+  steps: string[];
+  template: string;
+  snippet?: string;
+}
+
+const TUTORIAL_LESSONS: TutorialLesson[] = [
+  {
+    id: "first-flow",
+    title: "Lesson 1 — Your first flowchart",
+    goal: "See how text on the left becomes boxes and arrows on the right.",
+    steps: [
+      "Click Start in the header (or Try in editor below) to open the Flowchart template.",
+      "Change one label in the code, e.g. rename Process to Validate input.",
+      "Wait a moment — the canvas updates automatically (debounced render).",
+    ],
+    template: "Flowchart",
+    snippet: `flowchart TD
+  Start([Start]) --> Check{Valid?}
+  Check -->|Yes| Process[Process]
+  Check -->|No| Fix[Fix Inputs]`,
+  },
+  {
+    id: "drag-export",
+    title: "Lesson 2 — Drag and export (for assignments)",
+    goal: "Tidy the layout, then save an image, source text, or submission bundle.",
+    steps: [
+      "Press V (Move tool) or click the move icon in the toolbar.",
+      "Drag a node; enable grid snap in the toolbar if you want alignment.",
+      "Export SVG or PNG from the top bar, or use Studio menu → Submission export (PNG + .mmd + .ctd.json).",
+      "Copy the editor text or use Download source if your instructor wants the .mmd file.",
+    ],
+    template: "Flowchart",
+  },
+  {
+    id: "from-sql",
+    title: "Lesson 3 — Code you already wrote → diagram",
+    goal: "Turn SQL or TypeScript from a lab into a diagram without learning Mermaid first.",
+    steps: [
+      "Open the SQL Schema or TypeScript Types starter, or paste CREATE TABLE statements.",
+      "Studio detects the format and compiles to Mermaid ER or class diagram.",
+      "On ER and class diagrams you can drag nodes; edit the SQL/TS to add tables or fields and watch the diagram change.",
+    ],
+    template: "SQL Schema",
+    snippet: `CREATE TABLE students (
+  id INT PRIMARY KEY,
+  name VARCHAR(80)
+);
+CREATE TABLE courses (
+  id INT PRIMARY KEY,
+  title VARCHAR(120)
+);`,
+  },
+  {
+    id: "lesson-4-coursework",
+    title: "Lesson 4 — Coursework templates & git-flow sample",
+    goal: "Starting points for loops, OOP, ER labs, state machines, and sidecar layouts.",
+    steps: [
+      "Try Loop Trace for while-loop logic, Intro OOP for inheritance, Student ER Lab for three tables, or Vending Machine for states.",
+      "Click Open git-flow sample below to see a pre-arranged diagram loaded with its flow.ctd.json sidecar layout.",
+      "Sequence and gantt diagrams render (Render-only badge) but do not support dragging — use flowchart, class, ER, or state for hand-tuned layouts.",
+    ],
+    template: "Loop Trace",
+  },
+];
+
+const WORKBENCH_ITEMS = [
+  {
+    id: "wb-drag",
+    title: "Drag boxes & lines",
+    detail:
+      "Move (V) drags nodes or connector segments in flowchart, class, state, requirement, C4, and ER diagrams; Shift+click or Shift+drag box-selects multiple nodes; Pan (H) moves the canvas.",
+  },
+  {
+    id: "wb-menu",
+    title: "Right-click canvas menu",
+    detail:
+      "Right-click a node or edge to edit its label, change node shape, hide class members, add a connected item, jump to code, or reset its position; right-click empty canvas to add items or auto-arrange.",
+  },
+  {
+    id: "wb-snap",
+    title: "Grid snap & arrange",
+    detail: "Toggle grid snapping, nudge selected boxes with arrow keys, or click Arrange nodes in grid.",
+  },
+  {
+    id: "wb-sidecar",
+    title: "Portable sidecars (*.ctd.json) & Submission export",
+    detail:
+      "Export and import layout-only sidecars alongside *.mmd files via Studio menu, or use Submission export to download PNG + .mmd + .ctd.json together. Schema: /schema/ctd-sidecar.v1.json (version: 1; never embeds API keys or diagram code).",
+  },
+  {
+    id: "wb-precedence",
+    title: "Persistence precedence",
+    detail:
+      "Opening a #d=…&l=… share link decodes that diagram into a tab; otherwise Studio restores tabs and layouts from local browser IndexedDB (sgs-studio). Importing a .mmd file creates a new tab; importing a .ctd.json file applies its layout to the active tab.",
+  },
+  {
+    id: "wb-byok",
+    title: "BYOK AI assistant & URL guidance",
+    detail:
+      "Configure OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, Groq, or custom endpoints in Settings (stored in IndexedDB only, never in share URLs or sidecars). Use HTTPS for remote custom endpoints and http://localhost / 127.0.0.1 only for local runtimes (e.g., Ollama).",
+  },
+  {
+    id: "wb-rooms",
+    title: "Live rooms (PeerJS / WebRTC)",
+    detail:
+      "Share live connects up to 5 devices peer-to-peer. Signaling/STUN expose network metadata/IPs to peers; incoming layouts are sanitized with parseLayoutRecord, and guests become read-only when the host ends the room.",
+  },
+] as const;
+
+export type DocsSectionId = "start" | "syntax" | "formats" | "workbench" | "mcp" | "templates";
 
 const DOCS_SECTIONS: ReadonlyArray<{ id: DocsSectionId; label: string; group: string }> = [
+  { id: "start", label: "First time: code → diagram", group: "Tutorial" },
   { id: "syntax", label: "Syntax & Arrows", group: "Reference" },
   { id: "formats", label: "Supported Formats", group: "Reference" },
   { id: "workbench", label: "Workbench & Keys", group: "Studio" },
@@ -257,17 +386,81 @@ const MCP_TOOLS = [
   { name: "parse_diagram_ir", params: "source", returns: "Structured DiagramIR (nodes, edges, direction)" },
   { name: "emit_from_ir", params: "ir, targetFormat", returns: "Diagram source generated from DiagramIR" },
   { name: "list_templates", params: "name?", returns: "Built-in starter templates or a single template" },
-  { name: "get_studio_info", params: "—", returns: "Supported formats, extensions, themes, metadata" },
+  { name: "regen_preserve_layout", params: "oldSource, newSource, sidecar?", returns: "Updated sidecar + preserved/orphan/renamed keys" },
+  { name: "list_orphan_layout", params: "source, sidecar", returns: "Layout keys with no matching node/edge id" },
+  { name: "diff_ir", params: "sourceA, sourceB", returns: "Added, removed, changed nodes/edges between IRs" },
+  { name: "verify_diagram", params: "source, sidecar?", returns: "Parse/layout validity + warnings" },
+  { name: "patch_source", params: "source, patch", returns: "Patched diagram source" },
+  { name: "check_drift", params: "sidecar, source?", returns: "Whether meta.sha256 matches source" },
+  { name: "get_studio_info", params: "—", returns: "capabilities, irVersion, formats, themes" },
 ] as const;
 
-export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
+function resolveDocsHash(rawHash: string): { section: DocsSectionId; anchorId?: string } | null {
+  const id = rawHash.replace(/^#/, "").trim();
+  if (!id || id === "docs") return null;
+  if (
+    id === "start" ||
+    id === "first-flow" ||
+    id === "drag-export" ||
+    id === "from-sql" ||
+    id === "lesson-4-coursework" ||
+    id === "coursework-starters" ||
+    id === "common-errors"
+  ) {
+    return { section: "start", anchorId: id === "start" ? undefined : id };
+  }
+  if (id === "syntax" || id === "arrows-connectors" || id === "flowchart-shapes" || id === "format-guides") {
+    return { section: "syntax", anchorId: id === "syntax" ? undefined : id };
+  }
+  if (id === "formats" || id === "compatibility-matrix") {
+    return { section: "formats", anchorId: id === "formats" ? undefined : id };
+  }
+  if (id === "workbench" || id === "workbench-sidecar") {
+    return { section: "workbench", anchorId: id === "workbench" ? undefined : id };
+  }
+  if (id === "mcp" || id === "mcp-tools") {
+    return { section: "mcp", anchorId: id === "mcp" ? undefined : id };
+  }
+  if (id === "templates") {
+    return { section: "templates" };
+  }
+  return null;
+}
+
+export function DocsPage({ onBack, onStart, onOpenSample, onLegal }: DocsPageProps) {
   const reduceMotion = useReducedMotion();
-  const [activeSection, setActiveSection] = useState<DocsSectionId>("syntax");
+  const [activeSection, setActiveSection] = useState<DocsSectionId>(() => {
+    return resolveDocsHash(window.location.hash)?.section ?? "start";
+  });
   const [activeGuideId, setActiveGuideId] = useState(FORMAT_GUIDES[0]!.id);
   const [query, setQuery] = useState("");
   const activeGuide = FORMAT_GUIDES.find((g) => g.id === activeGuideId) ?? FORMAT_GUIDES[0]!;
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const target = resolveDocsHash(window.location.hash);
+      if (!target) return;
+      setActiveSection(target.section);
+      if (target.anchorId) {
+        const anchorId = target.anchorId;
+        requestAnimationFrame(() => {
+          document.getElementById(anchorId)?.scrollIntoView({
+            behavior: reduceMotion ? "auto" : "smooth",
+            block: "start",
+          });
+        });
+      }
+    };
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    window.addEventListener("popstate", syncFromHash);
+    return () => {
+      window.removeEventListener("hashchange", syncFromHash);
+      window.removeEventListener("popstate", syncFromHash);
+    };
+  }, [reduceMotion]);
 
   const filteredArrows = searching
     ? ARROW_SYNTAX.filter((i) => `${i.diagram} ${i.syntax} ${i.meaning}`.toLowerCase().includes(q))
@@ -278,31 +471,81 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
   const filteredFormats = searching
     ? FORMAT_SUPPORT.filter((i) => `${i.format} ${i.scope} ${i.omissions}`.toLowerCase().includes(q))
     : FORMAT_SUPPORT;
+  const filteredWorkbench = searching
+    ? WORKBENCH_ITEMS.filter((i) => `${i.title} ${i.detail}`.toLowerCase().includes(q))
+    : WORKBENCH_ITEMS;
   const filteredMcpTools = searching
     ? MCP_TOOLS.filter((t) => `${t.name} ${t.params} ${t.returns}`.toLowerCase().includes(q))
     : MCP_TOOLS;
   const filteredTemplates = searching
     ? FEATURED_TEMPLATES.filter((n) => `${n} ${TEMPLATES[n]}`.toLowerCase().includes(q))
     : FEATURED_TEMPLATES;
+  const filteredLessons = searching
+    ? TUTORIAL_LESSONS.filter((lesson) => {
+        const haystack = `${lesson.title} ${lesson.goal} ${lesson.steps.join(" ")} ${lesson.template} ${lesson.snippet ?? ""} coursework first-time tutorial`.toLowerCase();
+        return haystack.includes(q);
+      })
+    : TUTORIAL_LESSONS;
 
-  const showSection = (id: DocsSectionId) => (!searching && activeSection === id);
+  const showSection = (id: DocsSectionId) => !searching && activeSection === id;
+
+  const scrollToDocAnchor = useCallback(
+    (id: string, sectionOverride?: DocsSectionId) => {
+      if (sectionOverride) {
+        setActiveSection(sectionOverride);
+      }
+      if (window.location.pathname.replace(/\/+$/, "") !== "/docs") {
+        window.history.replaceState(null, "", `/docs#${id}`);
+      } else if (window.location.hash !== `#${id}`) {
+        window.history.replaceState(null, "", `${window.location.pathname}#${id}`);
+      }
+      requestAnimationFrame(() => {
+        const el = document.getElementById(id);
+        el?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+      });
+    },
+    [reduceMotion],
+  );
+
+  const selectSection = useCallback((id: DocsSectionId) => {
+    setQuery("");
+    setActiveSection(id);
+    if (window.location.hash) {
+      window.history.replaceState(null, "", "/docs");
+    }
+  }, []);
+
+  const docsHero =
+    activeSection === "start" && !searching
+      ? {
+          eyebrow: "Tutorial",
+          title: "First time: code → diagram",
+          lead:
+            "Five minutes in the browser: edit text, watch the canvas update, drag nodes on supported diagrams, and export PNG or SVG. No sign-in, no MCP required.",
+        }
+      : {
+          eyebrow: "API & Syntax Reference",
+          title: "Syntax & Template Docs",
+          lead:
+            "Concise reference for arrows (-->), shapes, all 7 input formats, workbench shortcuts, and ctd-mcp endpoints.",
+        };
 
   return (
     <div className="home-page">
       <header className="home-nav">
         <div className="home-nav-inner">
-          <button type="button" className="home-brand home-brand-btn" onClick={onBack}>
+          <button type="button" className="home-brand home-brand-btn" onClick={onBack} title="Return to CTD Studio home">
             <span className="brand-mark">
               <GitBranch aria-hidden="true" size={17} />
             </span>
             <span className="home-brand-name">CTD Studio</span>
           </button>
           <nav className="home-nav-actions" aria-label="Documentation navigation">
-            <button type="button" className="home-link" onClick={onBack}>
+            <button type="button" className="home-link" onClick={onBack} title="Back to home page">
               <ArrowLeft aria-hidden="true" size={14} />
               <span>Home</span>
             </button>
-            <button type="button" className="button primary home-nav-start" onClick={() => onStart()}>
+            <button type="button" className="button primary home-nav-start" onClick={() => onStart()} title="Open interactive diagram workbench">
               Start
               <ArrowRight aria-hidden="true" size={15} />
             </button>
@@ -313,13 +556,15 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
       <main className="docs-main">
         <header className="docs-hero docs-api-header">
           <span className="home-eyebrow">
-            <BookOpen aria-hidden="true" size={13} /> API &amp; Syntax Reference
+            {activeSection === "start" && !searching ? (
+              <GraduationCap aria-hidden="true" size={13} />
+            ) : (
+              <BookOpen aria-hidden="true" size={13} />
+            )}{" "}
+            {docsHero.eyebrow}
           </span>
-          <h1>Syntax &amp; Template Docs</h1>
-          <p>
-            Concise reference for arrows (<code>-.-&gt;</code>), shapes, all 7 input formats,
-            workbench shortcuts, and <code>ctd-mcp</code> endpoints.
-          </p>
+          <h1>{docsHero.title}</h1>
+          <p>{docsHero.lead}</p>
         </header>
 
         <div className="docs-api-layout">
@@ -330,7 +575,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Filter reference..."
+                placeholder="Filter tutorial, syntax, MCP..."
                 aria-label="Filter documentation"
               />
               {query && (
@@ -345,6 +590,22 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
               )}
             </div>
 
+            <label className="docs-mobile-jump-wrap">
+              <span className="visually-hidden">Jump to documentation section</span>
+              <select
+                className="docs-mobile-jump"
+                aria-label="Jump to documentation section"
+                value={activeSection}
+                onChange={(event) => selectSection(event.target.value as DocsSectionId)}
+              >
+                {DOCS_SECTIONS.map((section) => (
+                  <option key={section.id} value={section.id}>
+                    {section.group}: {section.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <nav className="docs-nav-list" aria-label="Reference sections">
               {DOCS_SECTIONS.map((section) => {
                 const isActive = !searching && activeSection === section.id;
@@ -354,10 +615,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
                     type="button"
                     aria-current={isActive ? "page" : undefined}
                     className={`docs-nav-item${isActive ? " active" : ""}`}
-                    onClick={() => {
-                      setQuery("");
-                      setActiveSection(section.id);
-                    }}
+                    onClick={() => selectSection(section.id)}
                   >
                     <span className="docs-nav-group">{section.group}</span>
                     <span className="docs-nav-label">{section.label}</span>
@@ -368,6 +626,145 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
           </aside>
 
           <div className="docs-content">
+            {(showSection("start") || (searching && filteredLessons.length > 0)) && (
+              <section className="docs-lesson-grid" aria-label="First-time code to diagram tutorial">
+                {(!searching || filteredLessons.length > 0) && (
+                  <>
+                    {!searching && (
+                      <div className="docs-tutorial-banner">
+                        <p className="docs-tutorial-intro">
+                          New to diagram-as-code? Work through the lessons below, or open our pre-arranged{" "}
+                          <strong>git-flow sample</strong> (<code>flow.mmd</code> + <code>flow.ctd.json</code>). Need
+                          connector or shape syntax? Open{" "}
+                          <button type="button" className="docs-inline-link" onClick={() => selectSection("syntax")}>
+                            Syntax &amp; Arrows
+                          </button>
+                          .
+                        </p>
+                        <div className="docs-sample-bar">
+                          <button
+                            type="button"
+                            className="home-open-template"
+                            title="Open flow.mmd with flow.ctd.json layout in Studio"
+                            onClick={() => (onOpenSample ? onOpenSample() : onStart("Flowchart"))}
+                          >
+                            <FolderOpen aria-hidden="true" size={13} />
+                            Open git-flow sample (with layout)
+                            <ArrowRight aria-hidden="true" size={13} />
+                          </button>
+                          <a className="docs-asset-link" href="/samples/git-flow/flow.mmd" target="_blank" rel="noreferrer">
+                            <code>flow.mmd</code>
+                          </a>
+                          <a className="docs-asset-link" href="/samples/git-flow/flow.ctd.json" target="_blank" rel="noreferrer">
+                            <code>flow.ctd.json</code>
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    {filteredLessons.map((lesson) => (
+                      <article key={lesson.id} id={lesson.id} className="legal-card docs-lesson-card">
+                        <h3>{lesson.title}</h3>
+                        <p className="docs-lesson-goal">{lesson.goal}</p>
+                        <ol className="docs-lesson-steps">
+                          {lesson.steps.map((step) => (
+                            <li key={step}>{step}</li>
+                          ))}
+                        </ol>
+                        {lesson.snippet && <pre className="docs-lesson-code">{lesson.snippet}</pre>}
+                        <div className="docs-lesson-actions">
+                          <button type="button" className="home-open-template" onClick={() => onStart(lesson.template)}>
+                            Try in editor
+                            <ArrowRight aria-hidden="true" size={13} />
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                    {!searching && (
+                      <>
+                        <article id="coursework-starters" className="legal-card">
+                          <div className="docs-guide-head">
+                            <div>
+                              <h2>Coursework starters</h2>
+                              <p className="docs-lesson-goal">
+                                One-click templates for common CS assignments (all draggable types in{" "}
+                                <button
+                                  type="button"
+                                  className="docs-inline-link"
+                                  onClick={() => scrollToDocAnchor("compatibility-matrix", "formats")}
+                                >
+                                  Supported Formats → Full Studio
+                                </button>
+                                ).
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="home-open-template"
+                              onClick={() => (onOpenSample ? onOpenSample() : onStart("Flowchart"))}
+                            >
+                              Open git-flow sample
+                              <ArrowRight aria-hidden="true" size={13} />
+                            </button>
+                          </div>
+                          <div className="docs-template-grid">
+                            {COURSEWORK_TEMPLATES.map((name) => (
+                              <article key={name} className="docs-template-card">
+                                <div className="docs-template-head">
+                                  <h3>{name}</h3>
+                                  <button type="button" className="home-open-template" onClick={() => onStart(name)}>
+                                    Open
+                                    <ArrowRight aria-hidden="true" size={13} />
+                                  </button>
+                                </div>
+                                <pre className="docs-template-code">{TEMPLATES[name]}</pre>
+                              </article>
+                            ))}
+                          </div>
+                        </article>
+                        <article id="common-errors" className="legal-card">
+                          <h2>When code fails (Common syntax fixes)</h2>
+                          <ul className="docs-list">
+                            <li>
+                              <strong>Flowchart arrows:</strong> Use <code>A --&gt; B</code> (two dashes) or{" "}
+                              <code>A -.-&gt; B</code> in flowcharts, not single-dash <code>A -&gt; B</code>.
+                            </li>
+                            <li>
+                              <strong>Decisions &amp; brackets:</strong> Decisions use braces{" "}
+                              <code>Valid&#123;Is x &gt; 0?&#125;</code>; wrap labels containing parentheses or quotes in
+                              double quotes (e.g. <code>Step[&quot;Call fn(x)&quot;]</code>).
+                            </li>
+                            <li>
+                              <strong>One diagram header on line 1:</strong> Start with{" "}
+                              <code>flowchart TD</code>, <code>classDiagram</code>, <code>erDiagram</code>, or{" "}
+                              <code>stateDiagram-v2</code> and place each node/edge on its own line.
+                            </li>
+                            <li>
+                              <strong>Non-Mermaid subsets:</strong> SQL DDL supports <code>CREATE TABLE</code> +{" "}
+                              <code>PRIMARY KEY</code> / <code>REFERENCES</code>; PlantUML requires{" "}
+                              <code>@startuml … @enduml</code>. See{" "}
+                              <button
+                                type="button"
+                                className="docs-inline-link"
+                                onClick={() => scrollToDocAnchor("compatibility-matrix", "formats")}
+                              >
+                                Supported Formats
+                              </button>
+                              .
+                            </li>
+                          </ul>
+                        </article>
+                        <p className="docs-callout" role="note">
+                          <strong>Draggable vs render-only:</strong> Flowchart, class, ER, state, requirement, and C4
+                          diagrams show the <strong>Draggable</strong> badge and support node/line dragging. Sequence,
+                          gantt, mindmap, pie, journey, and gitGraph show <strong>Render-only</strong> (auto-layout only).
+                        </p>
+                      </>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+
             {(showSection("syntax") || (searching && (filteredArrows.length > 0 || filteredShapes.length > 0))) && (
               <>
                 <section className="docs-grid" aria-label="Arrows and shapes reference">
@@ -512,13 +909,52 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
             )}
 
             {(showSection("formats") || (searching && filteredFormats.length > 0)) && (
-              <article className="legal-card">
-                <h2>Supported Formats (7)</h2>
+              <article id="compatibility-matrix" className="legal-card">
+                <h2>Supported Formats (7) &amp; Compatibility Matrix</h2>
                 <p>
                   CTD Studio auto-detects the input format as you type, compiles non-Mermaid formats
                   into Mermaid, and converts between formats via <strong>Convert to…</strong> or{" "}
-                  <code>ctd-mcp</code>.
+                  <code>ctd-mcp</code>. The preview toolbar badge indicates <strong>Draggable</strong> vs{" "}
+                  <strong>Render-only</strong>.
                 </p>
+                <div className="docs-table-wrap">
+                  <table className="docs-table">
+                    <thead>
+                      <tr>
+                        <th>Tier / Badge</th>
+                        <th>Diagram Types / Formats</th>
+                        <th>Capabilities</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><strong>Full Studio (Draggable)</strong></td>
+                        <td>
+                          <code>flowchart</code>, <code>classDiagram</code>, <code>stateDiagram-v2</code>,{" "}
+                          <code>erDiagram</code>, <code>requirementDiagram</code>,{" "}
+                          <code>C4Context</code> / <code>C4Container</code> / <code>C4Component</code> /{" "}
+                          <code>C4Dynamic</code> / <code>C4Deployment</code>
+                        </td>
+                        <td>Draggable nodes, 3-point connector handles, context menu, and <code>*.ctd.json</code> sidecar persistence.</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Auto-Layout Only (Render-only)</strong></td>
+                        <td>
+                          <code>sequenceDiagram</code>, <code>gantt</code>, <code>mindmap</code>,{" "}
+                          <code>pie</code>, <code>journey</code>, <code>gitGraph</code>
+                        </td>
+                        <td>Local Mermaid v12.3.0 rendering, themes, and SVG/PNG export (auto-layout; no manual box dragging).</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Client-Side Translators → Mermaid</strong></td>
+                        <td>
+                          Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, XML (Draw.io, BPMN, generic XML)
+                        </td>
+                        <td>Parsed locally in browser or <code>ctd-mcp</code> into Mermaid; supported subsets listed below.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
                 <div className="docs-table-wrap">
                   <table className="docs-table">
                     <thead>
@@ -542,25 +978,39 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
               </article>
             )}
 
-            {showSection("workbench") && (
-              <article className="legal-card">
-                <h2>Workbench &amp; Shortcuts</h2>
+            {(showSection("workbench") || (searching && filteredWorkbench.length > 0)) && (
+              <article id="workbench-sidecar" className="legal-card">
+                <h2>Workbench, Sidecar Persistence &amp; Trust Model</h2>
+                <p className="docs-lesson-goal">
+                  Git/agent workflow: <code>docs/GIT_AND_AGENT_WORKFLOW.md</code> · Sidecar JSON Schema:{" "}
+                  <a href="/schema/ctd-sidecar.v1.json" target="_blank" rel="noreferrer">
+                    <code>/schema/ctd-sidecar.v1.json</code>
+                  </a>{" "}
+                  · LLM context:{" "}
+                  <a href="/llms.txt" target="_blank" rel="noreferrer">
+                    <code>/llms.txt</code>
+                  </a>{" "}
+                  · First-time tutorial:{" "}
+                  <button type="button" className="docs-inline-link" onClick={() => selectSection("start")}>
+                    First time: code → diagram
+                  </button>
+                  .
+                </p>
                 <ul className="docs-list">
-                  <li><strong>Drag boxes &amp; lines:</strong> Move (<code>V</code>) drags nodes or connector segments in flowchart, class, state, and ER diagrams; <strong>Shift+click</strong> or <strong>Shift+drag</strong> box-selects multiple nodes; Pan (<code>H</code>) moves the canvas.</li>
-                  <li><strong>Right-click canvas menu:</strong> Right-click a node or edge to edit its label, change node shape, hide class members, add a connected item, jump to code, or reset its position; right-click empty canvas to add items or auto-arrange.</li>
-                  <li><strong>Grid snap &amp; arrange:</strong> Toggle grid snapping, nudge selected boxes with arrow keys, or click <strong>Arrange nodes in grid</strong>.</li>
-                  <li><strong>BYOK AI assistant:</strong> Configure OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, Groq, or custom endpoints in Settings (stored in IndexedDB), with model auto-detect and <strong>Low / Medium / High / Max</strong> usage levels.</li>
-                  <li><strong>Share live:</strong> <strong>Share live</strong> starts a 5-device PeerJS room (never includes API keys).</li>
-                  <li><strong>Export:</strong> Export full-bounds <strong>SVG</strong> or <strong>PNG</strong>, with an opt-in palette toggle for colorized boxes and classes.</li>
+                  {filteredWorkbench.map((item) => (
+                    <li key={item.id}>
+                      <strong>{item.title}:</strong> {item.detail}
+                    </li>
+                  ))}
                 </ul>
               </article>
             )}
 
             {(showSection("mcp") || (searching && filteredMcpTools.length > 0)) && (
-              <article className="legal-card">
+              <article id="mcp-tools" className="legal-card">
                 <div className="docs-guide-head">
                   <div>
-                    <h2>MCP Server (<code>ctd-mcp</code>)</h2>
+                    <h2>MCP Server (<code>ctd-mcp</code> v1.3.0)</h2>
                     <p>Stdio MCP API for Claude Desktop, Cursor, Windsurf, and VS Code.</p>
                   </div>
                   <span className="home-hero-mcp-badge">
@@ -624,26 +1074,73 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
             )}
 
             {searching &&
+              filteredLessons.length === 0 &&
               filteredArrows.length === 0 &&
               filteredShapes.length === 0 &&
               filteredFormats.length === 0 &&
+              filteredWorkbench.length === 0 &&
               filteredMcpTools.length === 0 &&
               filteredTemplates.length === 0 && (
                 <article className="legal-card">
                   <h2>No matches for &ldquo;{query}&rdquo;</h2>
-                  <p>Try searching for a format (<code>dot</code>, <code>sql</code>, <code>bpmn</code>), an arrow (<code>-.-&gt;</code>), or an MCP tool (<code>to_mermaid</code>).</p>
+                  <p>
+                    Try searching for a lesson (<code>Loop Trace</code>, <code>coursework</code>), a format (
+                    <code>dot</code>, <code>sql</code>, <code>bpmn</code>), an arrow (<code>-.-&gt;</code>), or an MCP
+                    tool (<code>to_mermaid</code>, <code>regen_preserve_layout</code>).
+                  </p>
                 </article>
               )}
           </div>
           <aside className="docs-toc" aria-label="On this page">
             <span className="docs-toc-title">On this page</span>
             <nav className="docs-toc-list">
+              {showSection("start") && !searching && (
+                <>
+                  {TUTORIAL_LESSONS.map((lesson) => (
+                    <button
+                      key={lesson.id}
+                      type="button"
+                      className="docs-toc-link"
+                      onClick={() => scrollToDocAnchor(lesson.id)}
+                    >
+                      {lesson.title}
+                    </button>
+                  ))}
+                  <button type="button" className="docs-toc-link" onClick={() => scrollToDocAnchor("coursework-starters")}>
+                    Coursework starters
+                  </button>
+                  <button type="button" className="docs-toc-link" onClick={() => scrollToDocAnchor("common-errors")}>
+                    When code fails
+                  </button>
+                </>
+              )}
               {showSection("syntax") && !searching && (
                 <>
-                  <a className="docs-toc-link" href="#arrows-connectors">Arrows &amp; Connectors</a>
-                  <a className="docs-toc-link" href="#flowchart-shapes">Flowchart Shapes</a>
-                  <a className="docs-toc-link" href="#format-guides">Syntax by Format (7 Languages)</a>
+                  <button type="button" className="docs-toc-link" onClick={() => scrollToDocAnchor("arrows-connectors")}>
+                    Arrows &amp; Connectors
+                  </button>
+                  <button type="button" className="docs-toc-link" onClick={() => scrollToDocAnchor("flowchart-shapes")}>
+                    Flowchart Shapes
+                  </button>
+                  <button type="button" className="docs-toc-link" onClick={() => scrollToDocAnchor("format-guides")}>
+                    Syntax by Format (7 Languages)
+                  </button>
                 </>
+              )}
+              {showSection("formats") && !searching && (
+                <button type="button" className="docs-toc-link" onClick={() => scrollToDocAnchor("compatibility-matrix")}>
+                  Compatibility Matrix
+                </button>
+              )}
+              {showSection("workbench") && !searching && (
+                <button type="button" className="docs-toc-link" onClick={() => scrollToDocAnchor("workbench-sidecar")}>
+                  Workbench &amp; Sidecars
+                </button>
+              )}
+              {showSection("mcp") && !searching && (
+                <button type="button" className="docs-toc-link" onClick={() => scrollToDocAnchor("mcp-tools")}>
+                  MCP Tools (ctd-mcp)
+                </button>
               )}
               <span className="docs-toc-subhead">7 Supported Formats</span>
               {FORMAT_GUIDES.map((guide) => (
@@ -655,6 +1152,11 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
                     setQuery("");
                     setActiveSection("syntax");
                     setActiveGuideId(guide.id);
+                    if (window.location.pathname.replace(/\/+$/, "") !== "/docs") {
+                      window.history.replaceState(null, "", "/docs#format-guides");
+                    } else {
+                      window.history.replaceState(null, "", `${window.location.pathname}#format-guides`);
+                    }
                     requestAnimationFrame(() => {
                       document.getElementById("format-guides")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
                     });
@@ -682,6 +1184,7 @@ export function DocsPage({ onBack, onStart, onLegal }: DocsPageProps) {
           </a>
         </div>
       </footer>
+      <AppTooltip />
     </div>
   );
 }

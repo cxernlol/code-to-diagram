@@ -472,6 +472,53 @@ stop
   App2 --> Primary
   Primary -->|async replication| Replica[(Read Replica)]
   App1 --> Bucket[(Object Storage)]`,
+
+  "Loop Trace": `flowchart TD
+  Start([Start]) --> Init[i = 0]
+  Init --> Cond{i < n?}
+  Cond -->|Yes| Body[Process item i]
+  Body --> Inc[i = i + 1]
+  Inc --> Cond
+  Cond -->|No| End([Done])`,
+
+  "Intro OOP": `classDiagram
+  class Shape {
+    +String color
+    +draw() void
+  }
+  class Circle {
+    +int radius
+  }
+  class Rectangle {
+    +int width
+    +int height
+  }
+  Shape <|-- Circle
+  Shape <|-- Rectangle`,
+
+  "Student ER Lab": `erDiagram
+  STUDENT ||--o{ ENROLLMENT : has
+  COURSE ||--o{ ENROLLMENT : includes
+  STUDENT {
+    int id PK
+    string name
+  }
+  COURSE {
+    int id PK
+    string title
+  }
+  ENROLLMENT {
+    int student_id FK
+    int course_id FK
+    date enrolled_on
+  }`,
+
+  "Vending Machine": `stateDiagram-v2
+  [*] --> Idle
+  Idle --> Selecting : insert coin
+  Selecting --> Dispensing : valid choice
+  Selecting --> Idle : cancel
+  Dispensing --> Idle : item delivered`,
 };
 
 export function createDocument(

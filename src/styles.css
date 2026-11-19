@@ -3995,6 +3995,89 @@ html[data-theme="dark"] .explain-pop {
   line-height: 1.55;
 }
 
+.docs-tutorial-intro {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 62ch;
+}
+
+.docs-lesson-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.docs-lesson-card {
+  display: grid;
+  gap: 10px;
+}
+
+.docs-lesson-card h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.docs-lesson-goal {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.docs-lesson-steps {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.docs-lesson-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.docs-lesson-code {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.docs-callout {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.docs-inline-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 .docs-templates {
   display: grid;
   gap: 14px;
@@ -4208,4 +4291,258 @@ html[data-theme="dark"] .explain-pop {
   white-space: nowrap;
   font-family: var(--mono);
   font-size: 11px;
+}
+
+.diagram-capability-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.diagram-capability-badge.is-draggable {
+  border-color: #b7d7c5;
+  color: #1f5c3d;
+  background: #eaf5ee;
+}
+
+.diagram-capability-badge.is-render-only {
+  border-color: var(--border-strong);
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+html[data-theme="dark"] .diagram-capability-badge.is-draggable {
+  border-color: #2d6247;
+  color: #9ce0b9;
+  background: #142c21;
+}
+
+.canvas-status {
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.canvas-status-primary {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.first-drag-explainer,
+.studio-coachmark {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-inline-size: 0;
+  white-space: nowrap;
+}
+
+.first-drag-copy {
+  color: var(--ink);
+  font-size: 10px;
+}
+
+.canvas-status-btn {
+  padding: 2px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--accent);
+  background: var(--surface);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.canvas-status-btn:hover {
+  border-color: var(--accent);
+}
+
+.canvas-status-dismiss {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 18px;
+  block-size: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.canvas-status-dismiss:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.new-diagram-lanes-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 8px;
+}
+
+.new-diagram-lane-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lane-filter-pill {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lane-filter-pill.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface-2);
+}
+
+.new-diagram-lane-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.new-diagram-lane-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.new-diagram-lane-card.active {
+  border-color: var(--accent);
+}
+
+.new-diagram-lane-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.lane-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.lane-card-badge {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 9.5px;
+}
+
+.lane-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.lane-action-btn,
+.lane-action-link {
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lane-action-btn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.docs-mobile-jump-wrap {
+  display: none;
+}
+
+.docs-mobile-jump {
+  inline-size: 100%;
+  min-block-size: 34px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--editor-bg);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.docs-tutorial-banner {
+  display: grid;
+  gap: 10px;
+}
+
+.docs-sample-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.docs-asset-link {
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.docs-asset-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 860px) {
+  .docs-mobile-jump-wrap {
+    display: block;
+  }
+
+  .new-diagram-lane-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .preview-pane-label,
+  .first-drag-copy {
+    display: none;
+  }
+
+  .diagram-capability-badge {
+    padding: 2px 5px;
+    font-size: 8.5px;
+  }
 }

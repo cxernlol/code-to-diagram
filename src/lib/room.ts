@@ -1,10 +1,9 @@
 import Peer, { type DataConnection } from "peerjs";
 import type { Position } from "../types";
 import { MAX_SOURCE_CHARS } from "./formats";
+import { parseLayoutRecord } from "./sidecar";
 
 export const MAX_ROOM_DEVICES = 5;
-const MAX_ROOM_LAYOUT_ENTRIES = 5000;
-const MAX_ROOM_LAYOUT_COORD = 100_000;
 const MAX_ROOM_NAME_CHARS = 200;
 const HEARTBEAT_MS = 2000;
 const GUEST_TIMEOUT_MS = 6500;
@@ -13,38 +12,6 @@ const HOST_TIMEOUT_MS = 6500;
 function validateRoomCode(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.length > MAX_SOURCE_CHARS) return null;
   return raw;
-}
-
-function sanitizeRoomLayout(raw: unknown): Record<string, Position> | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const out: Record<string, Position> = {};
-  let count = 0;
-  for (const [id, pos] of Object.entries(raw)) {
-    if (count >= MAX_ROOM_LAYOUT_ENTRIES) break;
-    if (
-      !id ||
-      id.length > 256 ||
-      id === "__proto__" ||
-      id === "constructor" ||
-      id === "prototype"
-    ) {
-      continue;
-    }
-    if (!pos || typeof pos !== "object" || Array.isArray(pos)) continue;
-    const { x, y } = pos as { x?: unknown; y?: unknown };
-    if (
-      typeof x === "number" &&
-      Number.isFinite(x) &&
-      Math.abs(x) <= MAX_ROOM_LAYOUT_COORD &&
-      typeof y === "number" &&
-      Number.isFinite(y) &&
-      Math.abs(y) <= MAX_ROOM_LAYOUT_COORD
-    ) {
-      out[id] = { x, y };
-      count += 1;
-    }
-  }
-  return out;
 }
 
 export interface RoomPayload {
@@ -215,7 +182,7 @@ export function startHostRoom(
 
     if (msg.type === "edit" && typeof msg.deviceId === "string" && guests.has(msg.deviceId)) {
       const code = validateRoomCode(msg.code);
-      const layout = sanitizeRoomLayout(msg.layout);
+      const layout = parseLayoutRecord(msg.layout);
       if (code === null || layout === null) return;
       const existing = guests.get(msg.deviceId);
       if (existing) existing.lastSeen = Date.now();
@@ -312,7 +279,7 @@ export function startHostRoom(
         type: "sync",
         name: payload.name.slice(0, MAX_ROOM_NAME_CHARS),
         code: payload.code,
-        layout: sanitizeRoomLayout(payload.layout) ?? {},
+        layout: parseLayoutRecord(payload.layout) ?? {},
         devices: 1 + guests.size,
       });
     },
@@ -386,7 +353,7 @@ export function joinHostRoom(
         return;
       }
       const code = validateRoomCode(msg.code);
-      const layout = sanitizeRoomLayout(msg.layout);
+      const layout = parseLayoutRecord(msg.layout);
       if (code === null || layout === null) return;
       joined = true;
       lastHostSeen = Date.now();
@@ -398,7 +365,7 @@ export function joinHostRoom(
       callbacks.onSync({ name, code, layout }, devices);
     } else if (msg.type === "sync") {
       const code = validateRoomCode(msg.code);
-      const layout = sanitizeRoomLayout(msg.layout);
+      const layout = parseLayoutRecord(msg.layout);
       if (code === null || layout === null) return;
       joined = true;
       lastHostSeen = Date.now();
@@ -477,7 +444,7 @@ export function joinHostRoom(
     roomId,
     sendEdit(code, layout) {
       if (!closed && joined && code.length <= MAX_SOURCE_CHARS) {
-        sendToHost({ type: "edit", deviceId, code, layout: sanitizeRoomLayout(layout) ?? {} });
+        sendToHost({ type: "edit", deviceId, code, layout: parseLayoutRecord(layout) ?? {} });
       }
     },
     leave() {

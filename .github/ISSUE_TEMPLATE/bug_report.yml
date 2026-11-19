@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug! Please fill out the fields below. For syntax examples, check [Syntax & Template Docs](https://code-to-diagram.vercel.app/#docs).
+        Thanks for reporting a bug! Please fill out the fields below. For syntax examples, check [Docs & tutorial](https://code-to-diagram.vercel.app/docs).
   - type: dropdown
     id: area
     attributes:

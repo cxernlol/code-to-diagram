@@ -62,7 +62,7 @@ import {
 
 import type { CodeEditorHandle } from "./CodeEditor";
 import type { DiagramCanvasHandle } from "./DiagramCanvas";
-import { DocsPage } from "./DocsPage";
+import { COURSEWORK_TEMPLATES, DocsPage } from "./DocsPage";
 import { HomePage } from "./HomePage";
 import { LegalPage, type LegalTab } from "./LegalPage";
 import { AI_USAGE_TOKENS, PROVIDERS, TEMPLATES, THEME_PRESETS, createDocument } from "./constants";
@@ -88,10 +88,19 @@ import {
   translateCodeFormat,
   type CodeFormat,
 } from "./lib/formats";
-import { detectDiagramType, MOVABLE_DIAGRAM_TYPES, renderMermaidPreview, type DiagramType } from "./lib/mermaid";
+import {
+  detectDiagramType,
+  getPedagogicalErrorHint,
+  MOVABLE_DIAGRAM_TYPES,
+  renderMermaidPreview,
+  type DiagramType,
+} from "./lib/mermaid";
 import type { GuestRoomSession, HostRoomSession } from "./lib/room";
+import { parseSidecar, serializeSidecar, sidecarFilename } from "./lib/sidecar";
 
 const MAX_ROOM_DEVICES = 5;
+const FIRST_DRAG_DISMISSED_KEY = "ctd-first-drag-explainer-dismissed";
+const COACHMARK_DISMISSED_KEY = "ctd-coachmark-dismissed";
 
 function getRoomIdFromHash(hash: string): string | undefined {
   if (!hash.startsWith("#room=")) return undefined;
@@ -298,6 +307,22 @@ function App() {
   const [expandedPane, setExpandedPane] = useState<"none" | "code" | "preview">("none");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newDiagramOpen, setNewDiagramOpen] = useState(false);
+  const [newDiagramLane, setNewDiagramLane] = useState<"all" | "coursework" | "project">("all");
+  const [firstDragDismissed, setFirstDragDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(FIRST_DRAG_DISMISSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [firstDragTriggered, setFirstDragTriggered] = useState(false);
+  const [coachmarkDismissed, setCoachmarkDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(COACHMARK_DISMISSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [newDiagramSelection, setNewDiagramSelection] = useState<{
     kind: "template" | "starter";
     label: string;
@@ -420,6 +445,25 @@ function App() {
     [activeDocument, endedRoomDocIds, rememberEdit, updateDocument],
   );
 
+  const dismissFirstDragExplainer = useCallback(() => {
+    setFirstDragDismissed(true);
+    setFirstDragTriggered(false);
+    try {
+      localStorage.setItem(FIRST_DRAG_DISMISSED_KEY, "1");
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const dismissCoachmark = useCallback(() => {
+    setCoachmarkDismissed(true);
+    try {
+      localStorage.setItem(COACHMARK_DISMISSED_KEY, "1");
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
   const changeSettings = useCallback(
     (update: Partial<StudioSettings>) => {
       const current = dataRef.current;
@@ -434,9 +478,15 @@ function App() {
     [changeSettings],
   );
 
-  const announceNodeMoved = useCallback((id: string) => {
-    setAnnouncement(`Moved ${id}.`);
-  }, []);
+  const announceNodeMoved = useCallback(
+    (id: string) => {
+      setAnnouncement(`Moved ${id}.`);
+      if (!firstDragDismissed) {
+        setFirstDragTriggered(true);
+      }
+    },
+    [firstDragDismissed],
+  );
 
   const undo = useCallback(() => {
     if (!activeDocument) return false;
@@ -714,7 +764,19 @@ function App() {
   ]);
 
   useEffect(() => {
+    if (window.location.hash === "#docs") {
+      window.history.replaceState(null, "", "/docs");
+      setView("docs");
+    }
+  }, []);
+
+  useEffect(() => {
     const onRouteChange = () => {
+      if (window.location.hash === "#docs") {
+        window.history.replaceState(null, "", "/docs");
+        setView("docs");
+        return;
+      }
       setView(viewFromLocation(window.location.pathname, window.location.hash));
     };
     window.addEventListener("hashchange", onRouteChange);
@@ -731,10 +793,14 @@ function App() {
     window.scrollTo(0, 0);
   }, []);
 
-  const openDocs = useCallback(() => {
+  const openDocs = useCallback((anchor?: string) => {
+    const cleanAnchor = typeof anchor === "string" ? anchor.replace(/^#/, "").trim() : "";
+    const targetUrl = cleanAnchor ? `/docs#${cleanAnchor}` : "/docs";
     setView("docs");
-    window.location.hash = "#docs";
-    window.scrollTo(0, 0);
+    window.history.pushState(null, "", targetUrl);
+    if (!cleanAnchor) {
+      window.scrollTo(0, 0);
+    }
   }, []);
 
   const openHome = useCallback(() => {
@@ -895,6 +961,55 @@ function App() {
     },
     [createTab],
   );
+
+  const openSampleGitFlow = useCallback(async () => {
+    let sampleCode = [
+      "flowchart TD",
+      '  Client["Client App"] --> Gateway["API Gateway"]',
+      '  Gateway --> Auth["Auth Service"]',
+      '  Gateway --> Worker["Job Worker"]',
+    ].join("\n");
+    let sampleLayout: Record<string, Position> = {
+      Client: { x: 160, y: 90 },
+      Gateway: { x: 160, y: 210 },
+    };
+    try {
+      const [mmdRes, ctdRes] = await Promise.all([
+        fetch("/samples/git-flow/flow.mmd"),
+        fetch("/samples/git-flow/flow.ctd.json"),
+      ]);
+      if (mmdRes.ok) {
+        sampleCode = (await mmdRes.text()).replace(/\r\n/g, "\n").trim();
+      }
+      if (ctdRes.ok) {
+        const parsed = parseSidecar(await ctdRes.text());
+        sampleLayout = parsed.layout;
+      }
+    } catch {
+      // fallback to embedded golden git-flow pair
+    }
+    const current = dataRef.current;
+    if (current) {
+      const created = {
+        ...createDocument("flow", sampleCode, current.documents.length),
+        layout: sampleLayout,
+      };
+      expectedUpdatedAt.current.set(created.id, 0);
+      updateData({
+        ...current,
+        documents: [...current.documents, created],
+        settings: { ...current.settings, activeDocumentId: created.id },
+      });
+      markDirty(created.id);
+      setRenameId("");
+    }
+    setNewDiagramOpen(false);
+    setView("studio");
+    if (!isStudioHash(window.location.hash)) {
+      window.location.hash = "#app";
+    }
+    setNotice("Opened git-flow sample (flow.mmd + flow.ctd.json).");
+  }, [markDirty, updateData]);
 
   const startRename = (document: DiagramDocument) => {
     setRenameId(document.id);
@@ -1165,6 +1280,21 @@ function App() {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
+      const lowerName = file.name.toLowerCase();
+      if (lowerName.endsWith(".ctd.json") || lowerName.endsWith(".json")) {
+        if (!activeDocument) return;
+        if (endedRoomDocIds.has(activeDocument.id)) {
+          setStorageError("This live room has ended; layout is read-only.");
+          return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+          throw new Error("Sidecar file is too large (max 2 MB).");
+        }
+        const sidecar = parseSidecar(await file.text());
+        changeLayout(sidecar.layout);
+        setNotice(`${file.name} layout applied.`);
+        return;
+      }
       const code = getImportedMermaid(await file.text(), file.name);
       const name = file.name.replace(/\.(mmd|mermaid|md)$/i, "") || "Imported diagram";
       createTab(name, code);
@@ -1284,6 +1414,21 @@ function App() {
     setNotice(`${FORMAT_LABELS[format]} file downloaded.`);
   };
 
+  const saveSidecar = () => {
+    if (!activeDocument) return;
+    const format = detectCodeFormat(activeDocument.code);
+    const ext = FORMAT_EXTENSIONS[format];
+    const safeBase = activeDocument.name.replace(/[\\/:*?"<>|]/g, "-").trim() || "diagram";
+    const filename = sidecarFilename(safeBase);
+    const generatedFrom = safeBase.toLowerCase().endsWith(`.${ext}`) ? safeBase : `${safeBase}.${ext}`;
+    const content = serializeSidecar(activeDocument.layout, {
+      generatedFrom,
+      updatedAt: new Date().toISOString(),
+    });
+    downloadText(filename, content, "application/json");
+    setNotice(`${filename} downloaded.`);
+  };
+
   const saveSvg = async () => {
     if (!activeDocument || !data) return;
     try {
@@ -1304,6 +1449,35 @@ function App() {
         `${activeDocument.name.replace(/[\\/:*?"<>|]/g, "-")}.png`,
         data.settings,
       );
+    } catch (error) {
+      setStorageError(errorText(error));
+    } finally {
+      setSaveBusy(false);
+    }
+  };
+
+  const saveSubmission = async () => {
+    if (!activeDocument || !data) return;
+    const format = detectCodeFormat(activeDocument.code);
+    const ext = FORMAT_EXTENSIONS[format];
+    const safeBase = activeDocument.name.replace(/[\\/:*?"<>|]/g, "-").trim() || "diagram";
+    const hasLayout = Object.keys(activeDocument.layout).length > 0;
+    setSaveBusy(true);
+    try {
+      await exportPng(`${safeBase}.png`, data.settings);
+      downloadText(`${safeBase}.${ext}`, activeDocument.code);
+      if (hasLayout) {
+        const filename = sidecarFilename(safeBase);
+        const generatedFrom = safeBase.toLowerCase().endsWith(`.${ext}`) ? safeBase : `${safeBase}.${ext}`;
+        const content = serializeSidecar(activeDocument.layout, {
+          generatedFrom,
+          updatedAt: new Date().toISOString(),
+        });
+        downloadText(filename, content, "application/json");
+        setNotice(`Submission exported: ${safeBase}.png, ${safeBase}.${ext}, and ${filename}.`);
+      } else {
+        setNotice(`Submission exported: ${safeBase}.png and ${safeBase}.${ext}.`);
+      }
     } catch (error) {
       setStorageError(errorText(error));
     } finally {
@@ -1394,6 +1568,7 @@ function App() {
       <DocsPage
         onBack={openHome}
         onStart={openStudio}
+        onOpenSample={() => void openSampleGitFlow()}
         onLegal={openLegal}
       />
     );
@@ -1418,6 +1593,11 @@ function App() {
   const currentDirection = detectDirectionFromCode(activeDocument.code);
   const codeFormat = detectCodeFormat(activeDocument.code);
   const isReadOnlySnapshot = endedRoomDocIds.has(activeDocument.id);
+  const hasCustomLayout = Object.keys(activeDocument.layout).length > 0;
+  const activeErrorText = storageError || renderError?.message || "";
+  const pedagogicalHint = activeErrorText
+    ? getPedagogicalErrorHint(activeDocument.code, activeErrorText)
+    : null;
 
   const clampedSplitPercent = Math.min(50, Math.max(22, data.settings.splitPercent));
   const aiFloatingBar = aiBarVisible ? (
@@ -1511,7 +1691,7 @@ function App() {
           <span className={`save-status ${saveState}`} role="status">
             {saveState === "saving" ? "Saving" : saveState === "error" ? "Not saved" : `Saved ${timeLabel(lastSavedAt)}`}
           </span>
-          <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,text/plain,text/markdown,application/xml" onChange={(event) => void importFile(event)} />
+          <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,.ctd.json,.json,text/plain,text/markdown,application/xml,application/json" onChange={(event) => void importFile(event)} />
           <button
             className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
             type="button"
@@ -1551,6 +1731,26 @@ function App() {
                 <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); fileInput.current?.click(); }}>
                   <FolderOpen aria-hidden="true" size={15} /> Open file…
                 </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); fileInput.current?.click(); }}>
+                  <LayoutGrid aria-hidden="true" size={15} /> Import layout (.ctd.json)…
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); saveSidecar(); }}>
+                  <Download aria-hidden="true" size={15} /> Export layout (.ctd.json)
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={saveBusy}
+                  onClick={() => {
+                    setStudioMenuOpen(false);
+                    void saveSubmission();
+                  }}
+                >
+                  <ImageDown aria-hidden="true" size={15} />{" "}
+                  {hasCustomLayout
+                    ? "Submission export (PNG + .mmd + .ctd.json)"
+                    : "Submission export (PNG + .mmd)"}
+                </button>
                 <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); void copyCode(); }}>
                   <Copy aria-hidden="true" size={15} /> Copy source
                 </button>
@@ -1572,7 +1772,7 @@ function App() {
                   </span>
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); openDocs(); }}>
-                  <BookOpen aria-hidden="true" size={15} /> Syntax &amp; Template Docs
+                  <BookOpen aria-hidden="true" size={15} /> Docs &amp; tutorial
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); openHome(); }}>
                   <GitBranch aria-hidden="true" size={15} /> Back to home
@@ -1799,7 +1999,10 @@ function App() {
         )}
         {(storageError || renderError) && (
           <section className="error-banner" role="alert">
-            <span title={storageError || renderError?.message}>{storageError || renderError?.message}</span>
+            <span title={pedagogicalHint ? `${activeErrorText} — ${pedagogicalHint.hint}` : activeErrorText}>
+              {activeErrorText}
+              {pedagogicalHint ? ` — ${pedagogicalHint.hint}` : ""}
+            </span>
             {renderError?.line && (
               <button
                 type="button"
@@ -1810,6 +2013,16 @@ function App() {
                 }}
               >
                 Line {renderError.line}
+              </button>
+            )}
+            {pedagogicalHint && (
+              <button
+                type="button"
+                className="error-docs-link"
+                title={`${pedagogicalHint.hint} Open /docs#${pedagogicalHint.anchor}`}
+                onClick={() => openDocs(pedagogicalHint.anchor)}
+              >
+                {pedagogicalHint.label}
               </button>
             )}
             <button type="button" aria-label="Dismiss error" onClick={() => { setStorageError(""); setRenderError(undefined); }}>
@@ -1954,8 +2167,21 @@ function App() {
               >
                 <PanelRight aria-hidden="true" size={15} />
               </button>
-              <span>Preview</span>
+              <span className="preview-pane-label">Preview</span>
               <span className={`diagram-kind ${supportedMovement ? "movable" : ""}`}>{diagramType}</span>
+              <button
+                type="button"
+                className={`diagram-capability-badge ${supportedMovement ? "is-draggable" : "is-render-only"}`}
+                aria-label={`${supportedMovement ? "Draggable" : "Render-only"} diagram type — view compatibility matrix in docs`}
+                title={
+                  supportedMovement
+                    ? "Draggable (Full Studio): drag nodes and 3-point lines, export .ctd.json sidecar. Click for format matrix in /docs."
+                    : "Render-only (Auto-layout): rendered by Mermaid without manual box dragging. Click for format matrix in /docs."
+                }
+                onClick={() => openDocs("compatibility-matrix")}
+              >
+                {supportedMovement ? "Draggable" : "Render-only"}
+              </button>
             </div>
             <div className="preview-actions">
               <div className="direction-menu-wrap">
@@ -2055,11 +2281,55 @@ function App() {
             </div>
           </div>
           <div className="canvas-status">
-            {isReadOnlySnapshot
-              ? "Room ended by host. Read-only snapshot: export SVG, PNG, or source."
-              : supportedMovement
-                ? <span id="node-movement-help">V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Arrow keys: nudge a box. Alt: bypass grid.</span>
-                : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
+            <span className="canvas-status-primary">
+              {isReadOnlySnapshot
+                ? "Room ended by host. Read-only snapshot: export SVG, PNG, or source."
+                : supportedMovement
+                  ? <span id="node-movement-help">V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Arrow keys: nudge a box. Alt: bypass grid.</span>
+                  : `${diagramType} diagrams use automatic layout; individual node movement is unavailable.`}
+            </span>
+            {!isReadOnlySnapshot && firstDragTriggered && !firstDragDismissed ? (
+              <span className="first-drag-explainer" role="status" aria-label="First-drag sidecar hint">
+                <span className="first-drag-copy">Layout set: save <code>.ctd.json</code> sidecar or bundle</span>
+                <button
+                  type="button"
+                  className="canvas-status-btn"
+                  title="Export PNG + source (.mmd) + layout (.ctd.json)"
+                  onClick={() => void saveSubmission()}
+                >
+                  Export bundle
+                </button>
+                <button
+                  type="button"
+                  className="canvas-status-dismiss"
+                  aria-label="Dismiss sidecar hint"
+                  title="Dismiss sidecar layout hint"
+                  onClick={dismissFirstDragExplainer}
+                >
+                  <X aria-hidden="true" size={11} />
+                </button>
+              </span>
+            ) : !isReadOnlySnapshot && !coachmarkDismissed ? (
+              <span className="studio-coachmark" role="region" aria-label="First-run guide">
+                <button
+                  type="button"
+                  className="canvas-status-btn"
+                  title="Open 5-minute first-time code-to-diagram tutorial in /docs"
+                  onClick={() => openDocs()}
+                >
+                  First time? Tutorial (/docs)
+                </button>
+                <button
+                  type="button"
+                  className="canvas-status-dismiss"
+                  aria-label="Dismiss quick start hint"
+                  title="Dismiss first-run hint"
+                  onClick={dismissCoachmark}
+                >
+                  <X aria-hidden="true" size={11} />
+                </button>
+              </span>
+            ) : null}
           </div>
           <div className="canvas-stage">
             <Suspense fallback={null}>
@@ -2225,256 +2495,261 @@ function App() {
         </div>
         <div className="settings-content">
           {settingsTab === "appearance" ? (
-          <fieldset className="settings-card">
-            <legend>Diagram appearance</legend>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={data.settings.theme === "dark"}
-              className="theme-switch-row settings-dark-row"
-              onClick={() => {
-                const nextTheme = data.settings.theme === "dark" ? "default" : "dark";
-                changeSettings({ theme: nextTheme, ...THEME_PRESETS[nextTheme] });
-              }}
-            >
-              <span className="theme-switch-label">
-                {data.settings.theme === "dark" ? <Moon aria-hidden="true" size={15} /> : <Sun aria-hidden="true" size={15} />}
-                <span>Dark mode</span>
-              </span>
-              <span className={`theme-switch-track${data.settings.theme === "dark" ? " is-on" : ""}`} aria-hidden="true">
-                <span className="theme-switch-thumb">
-                  {data.settings.theme === "dark" ? <Moon size={11} /> : <Sun size={11} />}
-                </span>
-              </span>
-            </button>
-            <div
-              className="settings-preview-swatch"
-              data-look={data.settings.look}
-              aria-hidden="true"
-              style={{ backgroundColor: data.settings.canvasColor }}
-            >
-              <div
-                className="swatch-node"
-                style={{
-                  backgroundColor: data.settings.primaryColor,
-                  borderColor: data.settings.lineColor,
-                  color: data.settings.textColor,
-                  fontFamily: data.settings.font,
+            <fieldset className="settings-card">
+              <legend>Diagram appearance</legend>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={data.settings.theme === "dark"}
+                className="theme-switch-row settings-dark-row"
+                onClick={() => {
+                  const nextTheme = data.settings.theme === "dark" ? "default" : "dark";
+                  changeSettings({ theme: nextTheme, ...THEME_PRESETS[nextTheme] });
                 }}
               >
-                Node A
-              </div>
-              <svg width="44" height="16" viewBox="0 0 44 16">
-                <line x1="2" y1="8" x2="36" y2="8" stroke={data.settings.lineColor} strokeWidth="1.8" />
-                <polygon points="34,3 42,8 34,13" fill={data.settings.lineColor} />
-              </svg>
+                <span className="theme-switch-label">
+                  {data.settings.theme === "dark" ? <Moon aria-hidden="true" size={15} /> : <Sun aria-hidden="true" size={15} />}
+                  <span>Dark mode</span>
+                </span>
+                <span className={`theme-switch-track${data.settings.theme === "dark" ? " is-on" : ""}`} aria-hidden="true">
+                  <span className="theme-switch-thumb">
+                    {data.settings.theme === "dark" ? <Moon size={11} /> : <Sun size={11} />}
+                  </span>
+                </span>
+              </button>
               <div
-                className="swatch-node"
-                style={{
-                  backgroundColor: data.settings.primaryColor,
-                  borderColor: data.settings.lineColor,
-                  color: data.settings.textColor,
-                  fontFamily: data.settings.font,
-                }}
+                className="settings-preview-swatch"
+                data-look={data.settings.look}
+                aria-hidden="true"
+                style={{ backgroundColor: data.settings.canvasColor }}
               >
-                Node B
+                <div
+                  className="swatch-node"
+                  style={{
+                    backgroundColor: data.settings.primaryColor,
+                    borderColor: data.settings.lineColor,
+                    color: data.settings.textColor,
+                    fontFamily: data.settings.font,
+                  }}
+                >
+                  Node A
+                </div>
+                <svg width="44" height="16" viewBox="0 0 44 16">
+                  <line x1="2" y1="8" x2="36" y2="8" stroke={data.settings.lineColor} strokeWidth="1.8" />
+                  <polygon points="34,3 42,8 34,13" fill={data.settings.lineColor} />
+                </svg>
+                <div
+                  className="swatch-node"
+                  style={{
+                    backgroundColor: data.settings.primaryColor,
+                    borderColor: data.settings.lineColor,
+                    color: data.settings.textColor,
+                    fontFamily: data.settings.font,
+                  }}
+                >
+                  Node B
+                </div>
               </div>
-            </div>
-            <div className="settings-grid">
-              <label>Theme
-                <select
-                  value={data.settings.theme}
-                  onChange={(event) => {
-                    const theme = event.target.value;
-                    const preset = THEME_PRESETS[theme];
-                    changeSettings(preset ? { theme, ...preset } : { theme });
-                  }}
-                >
-                  {["default", "dark", "forest", "neutral"].map((theme) => <option key={theme}>{theme}</option>)}
-                </select>
-              </label>
-              <label>Look
-                <select value={data.settings.look} onChange={(event) => changeSettings({ look: event.target.value })}>
-                  <option value="classic">Classic</option><option value="handDrawn">Hand drawn</option>
-                </select>
-              </label>
-              <label>Primary color
-                <span className="color-input-row">
-                  <input type="color" value={data.settings.primaryColor} onChange={(event) => changeSettings({ primaryColor: event.target.value })} />
-                  <code>{data.settings.primaryColor}</code>
-                </span>
-              </label>
-              <label>Node text
-                <span className="color-input-row">
-                  <input type="color" value={data.settings.textColor} onChange={(event) => changeSettings({ textColor: event.target.value })} />
-                  <code>{data.settings.textColor}</code>
-                </span>
-              </label>
-              <label>Connectors
-                <span className="color-input-row">
-                  <input type="color" value={data.settings.lineColor} onChange={(event) => changeSettings({ lineColor: event.target.value })} />
-                  <code>{data.settings.lineColor}</code>
-                </span>
-              </label>
-              <label>Canvas
-                <span className="color-input-row">
-                  <input type="color" value={data.settings.canvasColor} onChange={(event) => changeSettings({ canvasColor: event.target.value })} />
-                  <code>{data.settings.canvasColor}</code>
-                </span>
-              </label>
-              <label className="wide-field">
-                Diagram font
-                <select
-                  value={data.settings.font}
-                  onChange={(event) => changeSettings({ font: event.target.value })}
-                >
-                  {[
-                    { label: "Inter / Sans (Default)", value: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-                    { label: "System UI", value: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
-                    { label: "JetBrains Mono (Code)", value: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" },
-                    { label: "Fira Code (Monospace)", value: "'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace" },
-                    { label: "Georgia (Serif)", value: "Georgia, Cambria, 'Times New Roman', Times, serif" },
-                    { label: "Trebuchet MS", value: "'Trebuchet MS', Verdana, Arial, sans-serif" },
-                    { label: "Verdana", value: "Verdana, Geneva, Tahoma, sans-serif" },
-                    { label: "Comic Sans MS (Handwritten)", value: "'Comic Sans MS', 'Segoe Print', cursive, sans-serif" },
-                    ...(
-                      [
-                        "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                        "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-                        "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        "'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace",
-                        "Georgia, Cambria, 'Times New Roman', Times, serif",
-                        "'Trebuchet MS', Verdana, Arial, sans-serif",
-                        "Verdana, Geneva, Tahoma, sans-serif",
-                        "'Comic Sans MS', 'Segoe Print', cursive, sans-serif",
-                      ].includes(data.settings.font)
-                        ? []
-                        : [{ label: `Custom (${data.settings.font})`, value: data.settings.font }]
-                    ),
-                  ].map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="wide-field settings-toggle-row">
-                <input
-                  type="checkbox"
-                  checked={Boolean(data.settings.colorizeBoxes)}
-                  onChange={(event) => changeSettings({ colorizeBoxes: event.target.checked })}
-                />
-                <span className="settings-toggle-copy">
-                  <strong>Colorize boxes &amp; classes on export</strong>
-                  <span>Apply distinct palette colors to flowchart shapes and class boxes in SVG/PNG exports.</span>
-                </span>
-              </label>
-            </div>
-          </fieldset>
-          ) : (
-          <fieldset className="settings-card">
-            <legend>AI provider</legend>
-            <div className="settings-grid">
-              <label>Provider
-                <select
-                  value={data.settings.provider.provider}
-                  onChange={(event) => {
-                    const provider = event.target.value as ProviderId;
-                    const preset = PROVIDERS[provider];
-                    const oldPreset = PROVIDERS[data.settings.provider.provider];
-                    const model = data.settings.provider.model === oldPreset.model
-                      ? preset.model
-                      : data.settings.provider.model;
-                    const nextProvider: ProviderSettings = {
-                      ...data.settings.provider,
-                      provider,
-                      baseUrl: preset.baseUrl,
-                      model,
-                    };
-                    setDetectedModels([]);
-                    setTestStatus("");
-                    changeSettings({ provider: nextProvider });
-                    if (preset.baseUrl && (data.credentials.apiKey.trim() || provider === "ollama" || provider === "lmstudio")) {
-                      void detectModels(nextProvider, true);
-                    }
-                  }}
-                >
-                  {Object.entries(PROVIDERS).map(([id, provider]) => <option key={id} value={id}>{provider.label}</option>)}
-                </select>
-              </label>
-              <label>Model
-                <span className="password-input-row">
-                  <input
-                    list="ai-model-options"
-                    value={data.settings.provider.model}
-                    placeholder="Select or type model ID"
-                    onChange={(event) => changeSettings({ provider: { ...data.settings.provider, model: event.target.value } })}
-                  />
-                  <button
-                    type="button"
-                    className="button secondary compact"
-                    onClick={() => void detectModels()}
-                  >
-                    Detect
-                  </button>
-                </span>
-                <datalist id="ai-model-options">
-                  {Array.from(
-                    new Set([...detectedModels, ...(PROVIDERS[data.settings.provider.provider]?.models ?? [])]),
-                  ).map((id) => (
-                    <option key={id} value={id} />
-                  ))}
-                </datalist>
-              </label>
-              <label className="wide-field">
-                {PROVIDERS[data.settings.provider.provider]?.protocol === "anthropic"
-                  ? "Anthropic API base URL"
-                  : "Compatible API base URL"}
-                <input type="url" value={data.settings.provider.baseUrl} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, baseUrl: event.target.value } })} />
-              </label>
-              <label className="wide-field">API key
-                <span className="password-input-row">
-                  <input
-                    type={showApiKey ? "text" : "password"}
-                    autoComplete="off"
-                    placeholder={
-                      PROVIDERS[data.settings.provider.provider]?.protocol === "anthropic" ? "sk-ant-..." : "sk-..."
-                    }
-                    value={data.credentials.apiKey}
+              <div className="settings-grid">
+                <label>Theme
+                  <select
+                    value={data.settings.theme}
                     onChange={(event) => {
-                      const current = dataRef.current;
-                      if (current) updateData({ ...current, credentials: { apiKey: event.target.value } });
+                      const theme = event.target.value;
+                      const preset = THEME_PRESETS[theme];
+                      changeSettings(preset ? { theme, ...preset } : { theme });
                     }}
-                  />
-                  <button
-                    type="button"
-                    className="icon-button compact"
-                    aria-label={showApiKey ? "Hide API key" : "Show API key"}
-                    onClick={() => setShowApiKey((v) => !v)}
                   >
-                    {showApiKey ? <EyeOff aria-hidden="true" size={14} /> : <Eye aria-hidden="true" size={14} />}
-                  </button>
-                </span>
-              </label>
-              <label>Usage
-                <select
-                  value={data.settings.provider.usage ?? "medium"}
-                  onChange={(event) =>
-                    changeSettings({ provider: { ...data.settings.provider, usage: event.target.value as AiUsageLevel } })
-                  }
-                >
-                  {(Object.entries(AI_USAGE_TOKENS) as Array<[AiUsageLevel, { label: string }]>).map(([level, info]) => (
-                    <option key={level} value={level}>{info.label}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <p id="provider-privacy" className="form-note">AI requests include the diagram, prompt, and API key, and go directly to the selected provider. Some endpoints block browser requests with CORS. Provider charges are separate from CTD Studio.</p>
-            <div className="settings-actions">
-              <button className="button secondary" type="button" onClick={() => void testConnection()}>Test connection</button>
-              <span role="status">{testStatus}</span>
-            </div>
-          </fieldset>
+                    {["default", "dark", "forest", "neutral"].map((theme) => <option key={theme}>{theme}</option>)}
+                  </select>
+                </label>
+                <label>Look
+                  <select value={data.settings.look} onChange={(event) => changeSettings({ look: event.target.value })}>
+                    <option value="classic">Classic</option><option value="handDrawn">Hand drawn</option>
+                  </select>
+                </label>
+                <label>Primary color
+                  <span className="color-input-row">
+                    <input type="color" value={data.settings.primaryColor} onChange={(event) => changeSettings({ primaryColor: event.target.value })} />
+                    <code>{data.settings.primaryColor}</code>
+                  </span>
+                </label>
+                <label>Node text
+                  <span className="color-input-row">
+                    <input type="color" value={data.settings.textColor} onChange={(event) => changeSettings({ textColor: event.target.value })} />
+                    <code>{data.settings.textColor}</code>
+                  </span>
+                </label>
+                <label>Connectors
+                  <span className="color-input-row">
+                    <input type="color" value={data.settings.lineColor} onChange={(event) => changeSettings({ lineColor: event.target.value })} />
+                    <code>{data.settings.lineColor}</code>
+                  </span>
+                </label>
+                <label>Canvas
+                  <span className="color-input-row">
+                    <input type="color" value={data.settings.canvasColor} onChange={(event) => changeSettings({ canvasColor: event.target.value })} />
+                    <code>{data.settings.canvasColor}</code>
+                  </span>
+                </label>
+                <label className="wide-field">
+                  Diagram font
+                  <select
+                    value={data.settings.font}
+                    onChange={(event) => changeSettings({ font: event.target.value })}
+                  >
+                    {[
+                      { label: "Inter / Sans (Default)", value: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+                      { label: "System UI", value: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+                      { label: "JetBrains Mono (Code)", value: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" },
+                      { label: "Fira Code (Monospace)", value: "'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace" },
+                      { label: "Georgia (Serif)", value: "Georgia, Cambria, 'Times New Roman', Times, serif" },
+                      { label: "Trebuchet MS", value: "'Trebuchet MS', Verdana, Arial, sans-serif" },
+                      { label: "Verdana", value: "Verdana, Geneva, Tahoma, sans-serif" },
+                      { label: "Comic Sans MS (Handwritten)", value: "'Comic Sans MS', 'Segoe Print', cursive, sans-serif" },
+                      ...(
+                        [
+                          "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                          "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                          "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                          "'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace",
+                          "Georgia, Cambria, 'Times New Roman', Times, serif",
+                          "'Trebuchet MS', Verdana, Arial, sans-serif",
+                          "Verdana, Geneva, Tahoma, sans-serif",
+                          "'Comic Sans MS', 'Segoe Print', cursive, sans-serif",
+                        ].includes(data.settings.font)
+                          ? []
+                          : [{ label: `Custom (${data.settings.font})`, value: data.settings.font }]
+                      ),
+                    ].map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="wide-field settings-toggle-row">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(data.settings.colorizeBoxes)}
+                    onChange={(event) => changeSettings({ colorizeBoxes: event.target.checked })}
+                  />
+                  <span className="settings-toggle-copy">
+                    <strong>Colorize boxes &amp; classes on export</strong>
+                    <span>Apply distinct palette colors to flowchart shapes and class boxes in SVG/PNG exports.</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+          ) : (
+            <fieldset className="settings-card">
+              <legend>AI provider</legend>
+              <div className="settings-grid">
+                <label>Provider
+                  <select
+                    value={data.settings.provider.provider}
+                    onChange={(event) => {
+                      const provider = event.target.value as ProviderId;
+                      const preset = PROVIDERS[provider];
+                      const oldPreset = PROVIDERS[data.settings.provider.provider];
+                      const model = data.settings.provider.model === oldPreset.model
+                        ? preset.model
+                        : data.settings.provider.model;
+                      const nextProvider: ProviderSettings = {
+                        ...data.settings.provider,
+                        provider,
+                        baseUrl: preset.baseUrl,
+                        model,
+                      };
+                      setDetectedModels([]);
+                      setTestStatus("");
+                      changeSettings({ provider: nextProvider });
+                      if (preset.baseUrl && (data.credentials.apiKey.trim() || provider === "ollama" || provider === "lmstudio")) {
+                        void detectModels(nextProvider, true);
+                      }
+                    }}
+                  >
+                    {Object.entries(PROVIDERS).map(([id, provider]) => <option key={id} value={id}>{provider.label}</option>)}
+                  </select>
+                </label>
+                <label>Model
+                  <span className="password-input-row">
+                    <input
+                      list="ai-model-options"
+                      value={data.settings.provider.model}
+                      placeholder="Select or type model ID"
+                      onChange={(event) => changeSettings({ provider: { ...data.settings.provider, model: event.target.value } })}
+                    />
+                    <button
+                      type="button"
+                      className="button secondary compact"
+                      onClick={() => void detectModels()}
+                    >
+                      Detect
+                    </button>
+                  </span>
+                  <datalist id="ai-model-options">
+                    {Array.from(
+                      new Set([...detectedModels, ...(PROVIDERS[data.settings.provider.provider]?.models ?? [])]),
+                    ).map((id) => (
+                      <option key={id} value={id} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="wide-field">
+                  {PROVIDERS[data.settings.provider.provider]?.protocol === "anthropic"
+                    ? "Anthropic API base URL"
+                    : "Compatible API base URL"}
+                  <input type="url" value={data.settings.provider.baseUrl} onChange={(event) => changeSettings({ provider: { ...data.settings.provider, baseUrl: event.target.value } })} />
+                  {/^http:\/\/(?!localhost\b|127\.0\.0\.1\b|\[::1\])/i.test(data.settings.provider.baseUrl.trim()) && (
+                    <span className="field-hint">
+                      Warning: Use HTTPS for remote endpoints so API keys and diagrams are encrypted in transit.
+                    </span>
+                  )}
+                </label>
+                <label className="wide-field">API key
+                  <span className="password-input-row">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      autoComplete="off"
+                      placeholder={
+                        PROVIDERS[data.settings.provider.provider]?.protocol === "anthropic" ? "sk-ant-..." : "sk-..."
+                      }
+                      value={data.credentials.apiKey}
+                      onChange={(event) => {
+                        const current = dataRef.current;
+                        if (current) updateData({ ...current, credentials: { apiKey: event.target.value } });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="icon-button compact"
+                      aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                      onClick={() => setShowApiKey((v) => !v)}
+                    >
+                      {showApiKey ? <EyeOff aria-hidden="true" size={14} /> : <Eye aria-hidden="true" size={14} />}
+                    </button>
+                  </span>
+                </label>
+                <label>Usage
+                  <select
+                    value={data.settings.provider.usage ?? "medium"}
+                    onChange={(event) =>
+                      changeSettings({ provider: { ...data.settings.provider, usage: event.target.value as AiUsageLevel } })
+                    }
+                  >
+                    {(Object.entries(AI_USAGE_TOKENS) as Array<[AiUsageLevel, { label: string }]>).map(([level, info]) => (
+                      <option key={level} value={level}>{info.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <p id="provider-privacy" className="form-note">AI requests include the diagram, prompt, and API key, and go directly to the selected provider. Some endpoints block browser requests with CORS. Provider charges are separate from CTD Studio.</p>
+              <div className="settings-actions">
+                <button className="button secondary" type="button" onClick={() => void testConnection()}>Test connection</button>
+                <span role="status">{testStatus}</span>
+              </div>
+            </fieldset>
           )}
         </div>
         <div className="dialog-footer">
@@ -2578,22 +2853,145 @@ function App() {
         </div>
         <div className="new-diagram-body">
           <div className="new-diagram-picker">
-            <div className="new-diagram-section">
-              <h3>Templates</h3>
-              <div className="new-diagram-grid">
-                {Object.entries(TEMPLATES).map(([name, code]) => (
+            <div className="new-diagram-section new-diagram-lanes" aria-label="Onboarding lanes">
+              <div className="new-diagram-lanes-head">
+                <h3>Onboarding Lanes</h3>
+                <div className="new-diagram-lane-pills" role="group" aria-label="Filter templates by lane">
                   <button
-                    key={name}
                     type="button"
-                    className="new-diagram-option"
-                    aria-pressed={newDiagramSelection.kind === "template" && newDiagramSelection.label === name}
+                    className={`lane-filter-pill${newDiagramLane === "all" ? " active" : ""}`}
+                    aria-pressed={newDiagramLane === "all"}
+                    onClick={() => setNewDiagramLane("all")}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    className={`lane-filter-pill${newDiagramLane === "coursework" ? " active" : ""}`}
+                    aria-pressed={newDiagramLane === "coursework"}
                     onClick={() => {
-                      setNewDiagramSelection({ kind: "template", label: name, title: name, code });
+                      setNewDiagramLane("coursework");
+                      if (!MOVABLE_DIAGRAM_TYPES.has(detectDiagramType(newDiagramSelection.code))) {
+                        setNewDiagramSelection({
+                          kind: "template",
+                          label: "Flowchart",
+                          title: "Flowchart",
+                          code: TEMPLATES.Flowchart,
+                        });
+                      }
                     }}
                   >
-                    <strong>{name}</strong>
+                    Coursework (Draggable)
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    className={`lane-filter-pill${newDiagramLane === "project" ? " active" : ""}`}
+                    aria-pressed={newDiagramLane === "project"}
+                    onClick={() => setNewDiagramLane("project")}
+                  >
+                    Project &amp; Git
+                  </button>
+                </div>
+              </div>
+              <div className="new-diagram-lane-cards">
+                <article className={`new-diagram-lane-card${newDiagramLane === "coursework" ? " active" : ""}`} data-lane="coursework">
+                  <div className="lane-card-top">
+                    <strong>Coursework</strong>
+                    <span className="lane-card-badge">Draggable types only</span>
+                  </div>
+                  <p>
+                    First-time labs &amp; assignments: edit code, drag nodes with <code>V</code>, and export PNG or
+                    submission bundle.
+                  </p>
+                  <div className="lane-card-actions">
+                    <button
+                      type="button"
+                      className="lane-action-btn"
+                      onClick={() => void openSampleGitFlow()}
+                    >
+                      Open git-flow sample
+                    </button>
+                    <button
+                      type="button"
+                      className="lane-action-link"
+                      onClick={() => {
+                        setNewDiagramOpen(false);
+                        openDocs();
+                      }}
+                    >
+                      Coursework guide (/docs)
+                    </button>
+                  </div>
+                </article>
+                <article className={`new-diagram-lane-card${newDiagramLane === "project" ? " active" : ""}`} data-lane="project">
+                  <div className="lane-card-top">
+                    <strong>Project</strong>
+                    <span className="lane-card-badge">.mmd + .ctd.json</span>
+                  </div>
+                  <p>
+                    Keep <code>&lt;name&gt;.mmd</code> source paired with <code>&lt;name&gt;.ctd.json</code> sidecar
+                    layout in git (<code>docs/GIT_AND_AGENT_WORKFLOW.md</code>).
+                  </p>
+                  <div className="lane-card-actions">
+                    <button
+                      type="button"
+                      className="lane-action-link"
+                      onClick={() => {
+                        setNewDiagramOpen(false);
+                        openDocs("workbench-sidecar");
+                      }}
+                    >
+                      Sidecar &amp; Git workflow (/docs)
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </div>
+            {newDiagramLane !== "project" && (
+              <div className="new-diagram-section" aria-label="Coursework templates">
+                <h3>Coursework Starters (Draggable)</h3>
+                <div className="new-diagram-grid">
+                  {COURSEWORK_TEMPLATES.map((name) => {
+                    const code = TEMPLATES[name]!;
+                    return (
+                      <button
+                        key={`cw-${name}`}
+                        type="button"
+                        className="new-diagram-option"
+                        aria-pressed={newDiagramSelection.kind === "template" && newDiagramSelection.label === name}
+                        onClick={() => {
+                          setNewDiagramSelection({ kind: "template", label: name, title: name, code });
+                        }}
+                      >
+                        <strong>{name}</strong>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="new-diagram-section">
+              <h3>{newDiagramLane === "coursework" ? "Draggable Templates" : "Templates"}</h3>
+              <div className="new-diagram-grid">
+                {Object.entries(TEMPLATES)
+                  .filter(([, code]) =>
+                    newDiagramLane === "coursework"
+                      ? MOVABLE_DIAGRAM_TYPES.has(detectDiagramType(code))
+                      : true,
+                  )
+                  .map(([name, code]) => (
+                    <button
+                      key={name}
+                      type="button"
+                      className="new-diagram-option"
+                      aria-pressed={newDiagramSelection.kind === "template" && newDiagramSelection.label === name}
+                      onClick={() => {
+                        setNewDiagramSelection({ kind: "template", label: name, title: name, code });
+                      }}
+                    >
+                      <strong>{name}</strong>
+                    </button>
+                  ))}
               </div>
             </div>
             <div className="new-diagram-section">

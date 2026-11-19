@@ -1,6 +1,6 @@
 {
   "name": "code-to-diagram",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "CTD Studio: a local-first code-to-diagram editor and MCP server",
   "private": true,
   "engines": {
@@ -16,6 +16,7 @@
     "typecheck": "tsc -b --pretty false && tsc --noEmit -p mcp/tsconfig.json",
     "test": "playwright test",
     "test:parsers": "node --test tests/parsers.test.mjs",
+    "test:sidecar": "node --test tests/sidecar.test.mjs",
     "mcp:build": "vite build --config mcp/vite.config.ts && node -e \"import('node:fs').then(fs => fs.chmodSync('mcp/dist/index.js', 0o755))\"",
     "mcp:test": "node --test mcp/tests/server.test.mjs",
     "prepare": "node -e \"import('node:fs').then(fs => { if (fs.existsSync('node_modules/vite')) { import('node:child_process').then(cp => cp.execSync('npm run mcp:build', { stdio: 'inherit' })); } })\""

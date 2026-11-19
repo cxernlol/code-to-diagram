@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-to-diagram.vercel.app/schema/ctd-sidecar.v1.json",
+  "title": "CTD Studio Sidecar v1",
+  "description": "Layout-only sidecar (<basename>.ctd.json) paired with a canonical diagram source file (e.g. <basename>.mmd). Must never embed BYOK API keys or secrets.",
+  "type": "object",
+  "required": ["version", "layout"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema URI for editor tooling."
+    },
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Sidecar schema version."
+    },
+    "layout": {
+      "type": "object",
+      "maxProperties": 5000,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "not": {
+          "enum": ["__proto__", "constructor", "prototype"]
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/position"
+      },
+      "description": "Map of stable node IDs and edge anchor keys (`${edgeId}::start`, `${edgeId}::end`) to finite { x, y } coordinates."
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional provenance metadata for drift detection and CI.",
+      "properties": {
+        "generatedFrom": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Relative path or filename of the paired diagram source file."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "description": "SHA-256 hex digest of the paired diagram source at last layout save."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the sidecar was last written."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "position": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": -100000,
+          "maximum": 100000
+        },
+        "y": {
+          "type": "number",
+          "minimum": -100000,
+          "maximum": 100000
+        }
+      }
+    }
+  }
+}

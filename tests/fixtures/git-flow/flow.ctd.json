@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "layout": {
+    "Client": {
+      "x": 160,
+      "y": 90
+    },
+    "Gateway": {
+      "x": 160,
+      "y": 210
+    }
+  },
+  "meta": {
+    "generatedFrom": "flow.mmd"
+  }
+}

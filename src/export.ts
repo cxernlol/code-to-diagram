@@ -1,4 +1,5 @@
 import { relativeLuminance, resolveDiagramPalette } from "./lib/mermaid";
+import { parseLayoutRecord } from "./lib/sidecar";
 import type { Position, StudioSettings } from "./types";
 
 interface NodeSwatch {
@@ -268,18 +269,8 @@ export function getSharedPayload(
   const rawLayout = params.get("l");
   if (rawLayout) {
     try {
-      const parsed = JSON.parse(decodeBase64(rawLayout)) as Record<string, unknown>;
-      if (parsed && typeof parsed === "object") {
-        layout = Object.fromEntries(
-          Object.entries(parsed).flatMap(([id, pos]) => {
-            if (!pos || typeof pos !== "object") return [];
-            const { x, y } = pos as { x?: unknown; y?: unknown };
-            return typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y)
-              ? [[id, { x, y }]]
-              : [];
-          }),
-        );
-      }
+      const parsed = JSON.parse(decodeBase64(rawLayout)) as unknown;
+      layout = parseLayoutRecord(parsed) ?? {};
     } catch {
       layout = {};
     }
@@ -293,8 +284,9 @@ export function getSharedCode(hash: string): string | undefined {
 
 export function createShareHash(code: string, layout?: Record<string, Position>): string {
   const base = `#d=${encodeURIComponent(encodeBase64(code))}`;
-  if (layout && Object.keys(layout).length > 0) {
-    return `${base}&l=${encodeURIComponent(encodeBase64(JSON.stringify(layout)))}`;
+  const sanitized = layout ? parseLayoutRecord(layout) : null;
+  if (sanitized && Object.keys(sanitized).length > 0) {
+    return `${base}&l=${encodeURIComponent(encodeBase64(JSON.stringify(sanitized)))}`;
   }
-  return `#d=${encodeBase64(code)}`;
+  return base;
 }

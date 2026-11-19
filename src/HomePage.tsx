@@ -377,7 +377,7 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
           <nav className="home-nav-actions" aria-label="Primary">
             <button type="button" className="home-link" onClick={onDocs}>
               <BookOpen aria-hidden="true" size={14} />
-              <span>Docs</span>
+              <span>Docs &amp; tutorial</span>
             </button>
             <a
               className="home-link"
