@@ -428,17 +428,60 @@ export function getPedagogicalErrorHint(
   if (
     msg.includes("doctype") ||
     msg.includes("entity") ||
-    msg.includes("sidecar") ||
     msg.includes("xml") ||
-    msg.includes("create table") ||
-    msg.includes("@startuml") ||
-    /^(?:digraph|strict\s+digraph|graph\s+[A-Za-z0-9_{]|@startuml|CREATE\s+TABLE|ALTER\s+TABLE|SELECT\s+|<\?xml|<diagram|<definitions|<mxGraphModel)/i.test(
-      firstLine,
-    )
+    /^(?:<\?xml|<diagram|<definitions|<mxGraphModel)/i.test(firstLine)
+  ) {
+    return {
+      id: "format-xml",
+      hint: "Tip: XML imports support Draw.io, BPMN, <diagram>, and generic XML trees without DOCTYPE or ENTITY declarations.",
+      anchor: "formats",
+      label: "XML docs",
+    };
+  }
+
+  if (msg.includes("create table") || /^(?:CREATE\s+TABLE|ALTER\s+TABLE|SELECT\s+)/i.test(firstLine)) {
+    return {
+      id: "format-sql",
+      hint: "Tip: SQL DDL translates CREATE TABLE blocks with PRIMARY KEY and FOREIGN KEY / REFERENCES into ER diagrams.",
+      anchor: "formats",
+      label: "SQL docs",
+    };
+  }
+
+  if (msg.includes("@startuml") || /^@startuml/i.test(firstLine)) {
+    return {
+      id: "format-plantuml",
+      hint: "Tip: PlantUML translates sequence, state, and class blocks wrapped in @startuml … @enduml.",
+      anchor: "formats",
+      label: "PlantUML docs",
+    };
+  }
+
+  if (/^(?:digraph|strict\s+digraph|graph\s+[A-Za-z0-9_{])/i.test(firstLine)) {
+    return {
+      id: "format-dot",
+      hint: "Tip: Graphviz DOT translates digraph/graph blocks with -> or -- edges and [label=\"...\"] attributes.",
+      anchor: "formats",
+      label: "DOT docs",
+    };
+  }
+
+  if (/^(?:export\s+)?(?:interface|class|type)\s+[A-Za-z_]/i.test(firstLine)) {
+    return {
+      id: "format-ts",
+      hint: "Tip: TypeScript translates interface, class, and object type declarations into class diagrams.",
+      anchor: "formats",
+      label: "TypeScript docs",
+    };
+  }
+
+  if (
+    msg.includes("sidecar") ||
+    /^[A-Za-z0-9_.-]+\s*(?:->|<-|<->|--)\s*[A-Za-z0-9_.-]+/.test(firstLine)
   ) {
     return {
       id: "format-subset",
-      hint: "Tip: Non-Mermaid translators support documented subsets (e.g. CREATE TABLE for SQL, @startuml…@enduml for PlantUML, no XML DOCTYPE).",
+      hint: "Tip: Non-Mermaid translators (DOT, PlantUML, D2, SQL, TS, XML) support documented subsets—check the compatibility matrix.",
       anchor: "formats",
       label: "Format docs",
     };

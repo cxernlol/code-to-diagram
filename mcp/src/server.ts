@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { TEMPLATES, THEME_PRESETS } from "../../src/constants";
@@ -389,7 +390,9 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
           "list_orphan_layout",
           "diff_ir",
           "verify_diagram",
+          "verify_against_files",
           "patch_source",
+          "preview_patch",
           "check_drift",
         ],
         formats: CODE_FORMATS.map((id) => ({
@@ -858,6 +861,228 @@ export function createSgsStudioMcpServer(version = "1.0.0"): McpServer {
         changed: patched !== source,
         appliedCount,
         patchedSource: patched,
+        warnings,
+        errors,
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+      };
+    },
+  );
+
+  server.registerTool(
+    "preview_patch",
+    {
+      title: "Preview Diagram Patch",
+      description:
+        "Preview targeted find/replace hunks on diagram source without writing, validate that the patched source parses, and return IR node/edge diffs alongside line changes.",
+      inputSchema: {
+        source: z.string().min(1, "Source must not be empty."),
+        patches: z
+          .array(
+            z.object({
+              find: z.string().min(1),
+              replace: z.string(),
+              all: z.boolean().optional(),
+            }),
+          )
+          .min(1),
+      },
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ source, patches }) => {
+      const warnings: string[] = [];
+      const errors: string[] = [];
+      let patched = source;
+      let appliedCount = 0;
+
+      for (const patch of patches) {
+        if (!patched.includes(patch.find)) {
+          warnings.push(`Patch target not found: ${JSON.stringify(patch.find)}`);
+          continue;
+        }
+        patched = patch.all
+          ? patched.split(patch.find).join(patch.replace)
+          : patched.replace(patch.find, patch.replace);
+        appliedCount += 1;
+      }
+
+      let addedNodes: DiagramIR["nodes"] = [];
+      let removedNodes: DiagramIR["nodes"] = [];
+      let summary = "0 changes";
+
+      try {
+        const { sourceFormat: oldFmt, ir: oldIr } = parseSourceToIR(source);
+        const { sourceFormat: newFmt, ir: newIr } = parseSourceToIR(patched);
+        if (newFmt === "mermaid" && !hasValidMermaidHeader(patched)) {
+          errors.push("Patched source is missing a valid Mermaid diagram header.");
+        }
+        if (oldFmt === "mermaid" && !hasValidMermaidHeader(source)) {
+          warnings.push("Original source was missing a valid Mermaid diagram header.");
+        }
+        const oldIds = new Set(oldIr.nodes.map((n) => n.id));
+        const newIds = new Set(newIr.nodes.map((n) => n.id));
+        addedNodes = newIr.nodes.filter((n) => !oldIds.has(n.id));
+        removedNodes = oldIr.nodes.filter((n) => !newIds.has(n.id));
+        summary = `+${addedNodes.length}/-${removedNodes.length} nodes (${appliedCount} hunk(s) applied)`;
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+
+      const oldLines = source.split(/\r?\n/);
+      const newLines = patched.split(/\r?\n/);
+      const diffLines: string[] = [];
+      const maxLen = Math.max(oldLines.length, newLines.length);
+      for (let i = 0; i < maxLen; i += 1) {
+        const a = oldLines[i];
+        const b = newLines[i];
+        if (a === b) continue;
+        if (a !== undefined) diffLines.push(`- ${a}`);
+        if (b !== undefined) diffLines.push(`+ ${b}`);
+      }
+
+      const result = {
+        ok: errors.length === 0,
+        irVersion: IR_VERSION,
+        dryRun: true as const,
+        changed: patched !== source,
+        appliedCount,
+        patchedSource: patched,
+        diffLines,
+        addedNodes,
+        removedNodes,
+        summary,
+        warnings,
+        errors,
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+      };
+    },
+  );
+
+  server.registerTool(
+    "verify_against_files",
+    {
+      title: "Verify Diagram Against Source / Schema Files",
+      description:
+        "Verify that a diagram parses cleanly and check its node/entity IDs against optional reference code/schema content or disk file paths (SQL DDL tables, TypeScript interfaces/classes/types, or another diagram).",
+      inputSchema: {
+        source: z.string().trim().min(1, "Source must not be empty.").describe("Diagram source to verify."),
+        filePath: z
+          .string()
+          .optional()
+          .describe("Optional local file path (e.g. schema.sql or models.ts) to read and compare against the diagram."),
+        fileContent: z
+          .string()
+          .optional()
+          .describe("Optional inline file content (SQL DDL, TypeScript, or diagram source) to compare when not reading from disk."),
+        sidecar: SidecarInputSchema.optional().describe("Optional .ctd.json sidecar to check for orphaned layout keys."),
+      },
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ source, filePath, fileContent, sidecar }) => {
+      const warnings: string[] = [];
+      const errors: string[] = [];
+      let sourceFormat: CodeFormat | null = null;
+      let diagramKind: DiagramIR["kind"] | null = null;
+      let validSource = false;
+      let ir: DiagramIR | null = null;
+      let referenceFormat: CodeFormat | null = null;
+      let expectedNames: string[] = [];
+      let matchedNames: string[] = [];
+      let missingFromDiagram: string[] = [];
+      let extraInDiagram: string[] = [];
+      let orphanLayoutKeys: string[] = [];
+
+      try {
+        const parsed = parseSourceToIR(source);
+        sourceFormat = parsed.sourceFormat;
+        ir = parsed.ir;
+        diagramKind = ir.kind;
+        if (sourceFormat === "mermaid" && !hasValidMermaidHeader(source)) {
+          errors.push("Unrecognized diagram format or missing Mermaid diagram header.");
+        } else {
+          validSource = true;
+        }
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+
+      if (ir && sidecar !== undefined) {
+        try {
+          const parsedSidecar = parseSidecar(sidecar, { onWarning: (w) => warnings.push(w) });
+          const validKeys = validLayoutKeysFromIR(ir);
+          orphanLayoutKeys = partitionLayoutKeys(parsedSidecar.layout, validKeys).orphaned;
+          if (orphanLayoutKeys.length > 0) {
+            warnings.push(`Found ${orphanLayoutKeys.length} orphaned layout key(s).`);
+          }
+        } catch (error) {
+          errors.push(error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      let refText = fileContent?.trim() ?? "";
+      if (!refText && filePath && filePath.trim().length > 0) {
+        try {
+          refText = (await readFile(filePath.trim(), "utf8")).trim();
+        } catch (error) {
+          errors.push(`Failed to read filePath "${filePath}": ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      if (ir && refText.length > 0) {
+        try {
+          const refParsed = parseSourceToIR(refText);
+          referenceFormat = refParsed.sourceFormat;
+          expectedNames = refParsed.ir.nodes.map((n) => n.id);
+          if (expectedNames.length === 0) {
+            warnings.push("Reference file parsed with 0 identifiable entities/types/nodes.");
+          } else {
+            const diagramMap = new Map(ir.nodes.map((n) => [n.id.toLowerCase(), n.id]));
+            const expectedLower = new Set(expectedNames.map((n) => n.toLowerCase()));
+            for (const name of expectedNames) {
+              if (diagramMap.has(name.toLowerCase())) {
+                matchedNames.push(name);
+              } else {
+                missingFromDiagram.push(name);
+              }
+            }
+            extraInDiagram = ir.nodes
+              .map((n) => n.id)
+              .filter((id) => !expectedLower.has(id.toLowerCase()));
+            if (missingFromDiagram.length > 0) {
+              warnings.push(`Reference entities/types missing from diagram: ${missingFromDiagram.join(", ")}`);
+            }
+          }
+        } catch (error) {
+          errors.push(`Failed to parse reference file content: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      const ok =
+        validSource &&
+        errors.length === 0 &&
+        orphanLayoutKeys.length === 0 &&
+        missingFromDiagram.length === 0;
+      const result = {
+        ok,
+        irVersion: IR_VERSION,
+        validSource,
+        sourceFormat,
+        diagramKind,
+        referenceFormat,
+        expectedNames,
+        matchedNames,
+        missingFromDiagram,
+        extraInDiagram,
+        orphanLayoutKeys,
         warnings,
         errors,
       };

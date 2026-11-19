@@ -343,6 +343,8 @@ test("creates structured tabs only after every Mermaid block validates", async (
     });
   });
   await page.goto("/#app");
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  await page.getByRole("switch", { name: /More tools/i }).click();
   await page.getByRole("button", { name: "AI actions" }).click();
   await page.getByRole("menuitem", { name: "Structure" }).click();
   await expect(page.getByRole("heading", { name: "Structured diagrams" })).toBeVisible();
@@ -640,7 +642,8 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(routingCheck.unclippedLabels).toBe(true);
 
   const svgDownloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export SVG" }).click();
+  await page.getByRole("button", { name: "More export…" }).click();
+  await page.getByRole("menuitem", { name: "Export SVG" }).click();
   const svgDownload = await svgDownloadPromise;
   const svgPath = await svgDownload.path();
   expect(svgPath).toBeTruthy();
@@ -659,7 +662,8 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   await page.getByRole("button", { name: "Studio menu" }).click();
   await page.getByRole("switch", { name: /Colorized export/i }).click();
   const colorSvgPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export SVG" }).click();
+  await page.getByRole("button", { name: "More export…" }).click();
+  await page.getByRole("menuitem", { name: "Export SVG" }).click();
   const colorSvgDownload = await colorSvgPromise;
   const colorSvgPath = await colorSvgDownload.path();
   const colorExportedSvg = await fs.readFile(colorSvgPath!, "utf8");
@@ -667,7 +671,7 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   expect(colorExportedSvg).toContain("rgb(230, 244, 234)");
 
   const pngDownloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export PNG" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
   const pngDownload = await pngDownloadPromise;
   const pngPath = await pngDownload.path();
   expect(pngPath).toBeTruthy();
@@ -682,7 +686,8 @@ test("centers edge labels, supports movable lines, routes multi-class diagrams w
   await openTemplate(page, "Sequence");
   await expect(page.locator(".diagram-graphic svg")).toContainText("DB");
   const seqSvgPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export SVG" }).click();
+  await page.getByRole("button", { name: "More export…" }).click();
+  await page.getByRole("menuitem", { name: "Export SVG" }).click();
   const seqSvgDownload = await seqSvgPromise;
   const seqSvgPath = await seqSvgDownload.path();
   const seqExportedSvg = await fs.readFile(seqSvgPath!, "utf8");
@@ -735,6 +740,8 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await host.goto("/#app");
   await expect(host.locator('[data-sgs-node="Check"]')).toBeVisible();
 
+  await host.getByRole("button", { name: "Studio menu" }).click();
+  await host.getByRole("switch", { name: /More tools/i }).click();
   await host.getByRole("button", { name: "Host live room (max 5 devices)" }).click();
   await expect(host.getByText(/Hosting live room \(1\/5 devices\)/)).toBeVisible();
   const roomUrl = await host.evaluate(() => navigator.clipboard.readText());
@@ -761,8 +768,8 @@ test("hosts a live room via copy link up to 5 devices and ends room when host cl
   await expect(guests[0]!.getByText(/Host closed the browser or ended the room/i)).toBeVisible();
   await expect(guests[0]!.getByRole("button", { name: "Diagram direction" })).toBeDisabled();
   await expect(guests[0]!.getByLabel("Convert code format")).toBeDisabled();
-  await expect(guests[0]!.getByRole("button", { name: "Export SVG" })).toBeEnabled();
-  await expect(guests[0]!.getByRole("button", { name: "Export PNG" })).toBeEnabled();
+  await expect(guests[0]!.getByRole("button", { name: "More export…" })).toBeEnabled();
+  await expect(guests[0]!.getByRole("button", { name: "Download PNG" })).toBeEnabled();
 });
 
 test("multi-selects nodes with Shift+click and box-select and drags them together", async ({ page }) => {
@@ -862,7 +869,6 @@ test("canvas context menu edits node and edge labels across diagram types and ad
   await expect(page.locator("g.edgeLabel", { hasText: "approved" })).toBeVisible();
 
   // Canvas right-click -> Add node, then right-click Node1 -> Change shape
-  await expect(page.getByRole("button", { name: "Copy share link" })).toHaveCount(0);
   await page.locator(".diagram-viewport").click({ button: "right", position: { x: 16, y: 16 } });
   await expect(menu).toBeVisible();
   await menu.getByRole("menuitem", { name: "Add node" }).click();
@@ -1017,6 +1023,8 @@ test("sanitizes live-room XSS payloads and enforces 512 KB and layout bounds", a
   await host.goto("/#app");
   await expect(host.locator('[data-sgs-node="Check"]')).toBeVisible();
 
+  await host.getByRole("button", { name: "Studio menu" }).click();
+  await host.getByRole("switch", { name: /More tools/i }).click();
   await host.getByRole("button", { name: "Host live room (max 5 devices)" }).click();
   await expect(host.getByText(/Hosting live room \(1\/5 devices\)/)).toBeVisible();
   const roomUrl = await host.evaluate(() => navigator.clipboard.readText());
@@ -1487,7 +1495,7 @@ test("imports and exports .ctd.json sidecar layout with golden git-flow fixture"
   await expect(page.locator(".toast")).toContainText("flow.ctd.json layout applied.");
   await expect.poll(() => clientNode.getAttribute("transform")).not.toBe(initialTransform);
 
-  await page.getByRole("button", { name: "Studio menu" }).click();
+  await page.getByRole("button", { name: "More export…" }).click();
   const sidecarDownloadPromise = page.waitForEvent("download");
   await page.getByRole("menuitem", { name: "Export layout (.ctd.json)" }).click();
   const sidecarDownload = await sidecarDownloadPromise;
@@ -1627,8 +1635,8 @@ test("F3, F4, F5, F10: first-run coachmark, first-drag sidecar explainer + submi
   await expect(dragExplainer).toBeHidden();
   expect(await page.evaluate(() => localStorage.getItem("ctd-first-drag-explainer-dismissed"))).toBe("1");
 
-  // F3: Submission export in Studio menu downloads PNG + .mmd + .ctd.json when layout is set
-  await page.getByRole("button", { name: "Studio menu" }).click();
+  // F3 / C3: Submission export in More export… menu downloads PNG + .mmd + .ctd.json when layout is set
+  await page.getByRole("button", { name: "More export…" }).click();
   const submissionItem = page.getByRole("menuitem", { name: /Submission export \(PNG \+ \.mmd \+ \.ctd\.json\)/i });
   await expect(submissionItem).toBeVisible();
   const downloads: string[] = [];
@@ -1665,4 +1673,151 @@ test("F3, F4, F5, F10: first-run coachmark, first-drag sidecar explainer + submi
   await expect(banner).toContainText(/Start line 1 with one diagram keyword/i);
   await banner.getByRole("button", { name: "Syntax docs" }).click();
   await expect(page).toHaveURL(/\/docs#syntax$/);
+});
+
+test("home beginner CTAs, featured templates, dev fold, and casual smoke flow (C1, C5, M3, L19)", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("No account. Free in the browser.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start drawing" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "5‑min tutorial" })).toBeVisible();
+
+  // C5: Featured templates + M3 git-flow sample
+  const templatesSection = page.locator("#home-templates");
+  await expect(templatesSection).toBeVisible();
+  await expect(templatesSection.getByRole("button", { name: /Open git-flow sample/i })).toBeVisible();
+
+  // C1: MCP / BYOK collapsed under For developers by default
+  const devFold = page.locator("#home-mcp-section");
+  await expect(devFold).toBeVisible();
+  await expect(devFold).not.toHaveAttribute("open", "");
+  await devFold.locator("summary").click();
+  await expect(devFold).toHaveAttribute("open", "");
+
+  // 5-min tutorial navigates to /docs
+  await page.getByRole("button", { name: "5‑min tutorial" }).click();
+  await expect(page).toHaveURL(/\/docs$/);
+
+  // L19: Casual smoke E2E: home -> Start drawing -> Flowchart -> Download PNG
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start drawing" }).click();
+  await expect(page).toHaveURL(/#app$/);
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
+  const pngPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PNG" }).click();
+  const pngDl = await pngPromise;
+  expect(pngDl.suggestedFilename()).toMatch(/\.png$/);
+});
+
+test("simple mode persistence, storage nudge, copy share link, and mobile #d= note (C2, C3, C4, H6, M12, M20)", async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#app");
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
+
+  // C2: Simple mode hides AI bar and Host live room by default
+  await expect(page.getByRole("button", { name: "Host live room (max 5 devices)" })).toBeHidden();
+  await expect(page.locator(".studio-coachmark")).toContainText(/Right-click to edit/i);
+
+  // H6: Dismiss first-run coachmark so storage nudge appears, then dismiss storage nudge
+  await page.getByRole("button", { name: "Dismiss quick start hint" }).click();
+  const storageNudge = page.locator(".storage-nudge");
+  await expect(storageNudge).toContainText(/Saved locally/i);
+  await storageNudge.getByRole("button", { name: "Dismiss storage reminder" }).click();
+  await expect(storageNudge).toBeHidden();
+
+  // C3 + M12: Copy share link copies #d= URL
+  await page.getByRole("button", { name: "Copy share link" }).click();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toMatch(/#d=/);
+
+  // C2: Toggle More tools ON and verify persistence across reload
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  await page.getByRole("switch", { name: /More tools/i }).click();
+  await expect(page.getByRole("button", { name: "Host live room (max 5 devices)" })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("ctd-simple-mode"))).toBe("false");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Host live room (max 5 devices)" })).toBeVisible();
+
+  // M20: Mobile viewport opened via #d= shows Shared preview note
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(copied);
+  await expect(page.getByText(/Shared preview · Best edited on desktop/i)).toBeVisible();
+});
+
+test("non-Mermaid translator error hints link to /docs#formats (H5)", async ({ page }) => {
+  await page.goto("/#app");
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
+  await page.getByLabel("Code format").selectOption("sql");
+  const editor = page.locator(".cm-content");
+  await editor.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText("SELECT * FROM users;");
+  const banner = page.locator(".error-banner");
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText(/CREATE TABLE/i);
+  await banner.getByRole("button", { name: "SQL docs" }).click();
+  await expect(page).toHaveURL(/\/docs#formats$/);
+});
+
+test("new diagram picker shows 3 featured templates and See all (GAP4)", async ({ page }) => {
+  await page.goto("/#app");
+  await page.getByRole("button", { name: "New diagram" }).click();
+  const featured = page.locator('.new-diagram-section[aria-label="Featured templates"]');
+  await expect(featured).toBeVisible();
+  await expect(featured.getByRole("button", { name: /Flowchart/ })).toBeVisible();
+  await expect(featured.getByRole("button", { name: /Loop Trace/ })).toBeVisible();
+  await expect(featured.getByRole("button", { name: /SQL Schema/ })).toBeVisible();
+  await expect(featured.getByRole("button", { name: "See all" })).toBeVisible();
+  await featured.getByRole("button", { name: /Loop Trace/ }).click();
+  await page.locator(".new-diagram-dialog").getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Loop Trace" })).toBeVisible();
+});
+
+test("quick entry URLs (?mode=quick and ?simple=1) open Flowchart in simple mode reversibly (I1)", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("ctd-simple-mode", "false");
+  });
+  await page.goto("/?mode=quick");
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Diagram preview" }).getByText("flowchart", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Host live room (max 5 devices)" })).toBeHidden();
+
+  await page.getByRole("button", { name: "Studio menu" }).click();
+  const moreToolsSwitch = page.getByRole("switch", { name: /More tools/i });
+  await expect(moreToolsSwitch).toHaveAttribute("aria-checked", "false");
+  await moreToolsSwitch.click();
+  await expect(page.getByRole("button", { name: "Host live room (max 5 devices)" })).toBeVisible();
+
+  await page.goto("/app?simple=1");
+  await expect(page.locator(".diagram-graphic svg")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Host live room (max 5 devices)" })).toBeHidden();
+
+  await page.getByRole("button", { name: "CTD Studio Home" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("button", { name: /Start drawing/i })).toBeVisible();
+
+  await page.goto("/docs?mode=quick");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/First time|Documentation|CTD/i);
+});
+
+test("flowchart node context menu inserts a connected step (I4)", async ({ page }) => {
+  await page.goto("/#app");
+  const processNode = page.locator('[data-sgs-node="Process"]');
+  await expect(processNode).toBeVisible();
+  await processNode.click({ button: "right" });
+  const menu = page.locator(".canvas-context-menu");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Add connected node" }).click();
+  await expect(page.locator('[data-sgs-node="Node1"]')).toBeVisible();
+  await expect(page.locator(".cm-content")).toContainText('Process --> Node1["New node"]');
+});
+
+test("home learner line under CTAs links to /docs (I5)", async ({ page }) => {
+  await page.goto("/");
+  const subline = page.locator(".home-cta-subline");
+  await expect(subline).toBeVisible();
+  await subline.getByRole("button", { name: /5‑min guide/i }).click();
+  await expect(page).toHaveURL(/\/docs\/?$/);
 });

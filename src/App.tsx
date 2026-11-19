@@ -9,6 +9,7 @@ import {
   ArrowUp,
   BookOpen,
   Check,
+  ChevronDown,
   Code2,
   Copy,
   Download,
@@ -35,6 +36,7 @@ import {
   Scan,
   Settings,
   Settings2,
+  Share2,
   StopCircle,
   Sun,
   Trash2,
@@ -75,6 +77,7 @@ import {
 } from "./ai";
 
 import {
+  createShareHash,
   exportPng,
   exportSvg,
   getImportedMermaid,
@@ -101,6 +104,8 @@ import { parseSidecar, serializeSidecar, sidecarFilename } from "./lib/sidecar";
 const MAX_ROOM_DEVICES = 5;
 const FIRST_DRAG_DISMISSED_KEY = "ctd-first-drag-explainer-dismissed";
 const COACHMARK_DISMISSED_KEY = "ctd-coachmark-dismissed";
+const SIMPLE_MODE_KEY = "ctd-simple-mode";
+const STORAGE_NUDGE_KEY = "ctd-storage-nudge-dismissed";
 
 function getRoomIdFromHash(hash: string): string | undefined {
   if (!hash.startsWith("#room=")) return undefined;
@@ -259,13 +264,18 @@ function applyDiagramDirection(source: string, dir: "TD" | "BT" | "LR" | "RL"): 
   return source;
 }
 
-function viewFromLocation(pathname: string, hash: string): AppView {
+function isQuickEntry(search: string): boolean {
+  const params = new URLSearchParams(search);
+  return params.get("mode") === "quick" || params.get("simple") === "1";
+}
+
+function viewFromLocation(pathname: string, hash: string, search = ""): AppView {
   if (isStudioHash(hash)) return "studio";
   if (hash === "#docs") return "docs";
   if (hash === "#privacy") return "privacy";
   if (hash === "#terms") return "terms";
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  if (normalizedPath === "/") return "home";
+  if (normalizedPath === "/") return isQuickEntry(search) ? "studio" : "home";
   if (normalizedPath === "/app") return "studio";
   if (normalizedPath === "/docs") return "docs";
   if (normalizedPath === "/privacy") return "privacy";
@@ -276,7 +286,7 @@ function viewFromLocation(pathname: string, hash: string): AppView {
 function App() {
   const reduceMotion = useReducedMotion();
   const [view, setView] = useState<AppView>(() =>
-    viewFromLocation(window.location.pathname, window.location.hash),
+    viewFromLocation(window.location.pathname, window.location.hash, window.location.search),
   );
   const [data, setData] = useState<StudioData | null>(null);
   const dataRef = useRef<StudioData | null>(null);
@@ -323,6 +333,26 @@ function App() {
       return false;
     }
   });
+  const [simpleMode, setSimpleMode] = useState(() => {
+    if (typeof window !== "undefined" && isQuickEntry(window.location.search)) return true;
+    try {
+      return localStorage.getItem(SIMPLE_MODE_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const [storageNudgeDismissed, setStorageNudgeDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_NUDGE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [hasSuccessfulRender, setHasSuccessfulRender] = useState(false);
+  const [openedFromShareLink, setOpenedFromShareLink] = useState(() =>
+    typeof window !== "undefined" ? Boolean(getSharedPayload(window.location.hash)) : false,
+  );
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [newDiagramSelection, setNewDiagramSelection] = useState<{
     kind: "template" | "starter";
     label: string;
@@ -464,6 +494,29 @@ function App() {
     }
   }, []);
 
+  const toggleSimpleMode = useCallback((next: boolean) => {
+    setSimpleMode(next);
+    try {
+      localStorage.setItem(SIMPLE_MODE_KEY, next ? "true" : "false");
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const dismissStorageNudge = useCallback(() => {
+    setStorageNudgeDismissed(true);
+    try {
+      localStorage.setItem(STORAGE_NUDGE_KEY, "1");
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const handleRenderError = useCallback((err?: { message: string; line?: number }) => {
+    setRenderError(err);
+    if (!err) setHasSuccessfulRender(true);
+  }, []);
+
   const changeSettings = useCallback(
     (update: Partial<StudioSettings>) => {
       const current = dataRef.current;
@@ -567,6 +620,21 @@ function App() {
           history.replaceState(null, "", `${window.location.pathname}${window.location.search}#app`);
           expectedUpdatedAt.current.set(shared.id, 0);
           setDirtyIds((current) => new Set(current).add(shared.id));
+        } else if (isQuickEntry(window.location.search)) {
+          const currentActive =
+            loaded.documents.find((d) => d.id === loaded.settings.activeDocumentId) ?? loaded.documents[0];
+          if (!currentActive || !/^\s*(?:flowchart|graph)\b/i.test(currentActive.code)) {
+            const existingFlowchart = loaded.documents.find((d) => /^\s*(?:flowchart|graph)\b/i.test(d.code));
+            if (existingFlowchart) {
+              loaded.settings = { ...loaded.settings, activeDocumentId: existingFlowchart.id };
+            } else {
+              const quickDoc = createDocument("Flowchart", TEMPLATES.Flowchart, loaded.documents.length);
+              loaded.documents = [...loaded.documents, quickDoc];
+              loaded.settings = { ...loaded.settings, activeDocumentId: quickDoc.id };
+              expectedUpdatedAt.current.set(quickDoc.id, 0);
+              setDirtyIds((current) => new Set(current).add(quickDoc.id));
+            }
+          }
         }
       } catch (error) {
         setStorageError(`The share link could not be opened: ${errorText(error)}`);
@@ -680,6 +748,7 @@ function App() {
 
   const closeAllMenus = useCallback((keepDetails?: HTMLDetailsElement | null) => {
     setStudioMenuOpen(false);
+    setExportMenuOpen(false);
     setTabMenuOpen(false);
     setTabContextMenu(null);
     setDirectionMenuOpen(false);
@@ -694,6 +763,7 @@ function App() {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (studioMenuOpen && !target?.closest(".studio-menu-wrap")) setStudioMenuOpen(false);
+      if (exportMenuOpen && !target?.closest(".export-menu-wrap")) setExportMenuOpen(false);
       if (tabMenuOpen && !target?.closest(".tab-actions-wrap")) setTabMenuOpen(false);
       if (tabContextMenu && !target?.closest(".tab-context-menu")) setTabContextMenu(null);
       if (directionMenuOpen && !target?.closest(".direction-menu-wrap")) setDirectionMenuOpen(false);
@@ -713,7 +783,7 @@ function App() {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [studioMenuOpen, tabMenuOpen, tabContextMenu, directionMenuOpen, aiMenuOpen, closeAllMenus]);
+  }, [studioMenuOpen, exportMenuOpen, tabMenuOpen, tabContextMenu, directionMenuOpen, aiMenuOpen, closeAllMenus]);
 
   useEffect(() => {
     if (!newDiagramOpen || !data) return;
@@ -777,7 +847,10 @@ function App() {
         setView("docs");
         return;
       }
-      setView(viewFromLocation(window.location.pathname, window.location.hash));
+      if (getSharedPayload(window.location.hash)) {
+        setOpenedFromShareLink(true);
+      }
+      setView(viewFromLocation(window.location.pathname, window.location.hash, window.location.search));
     };
     window.addEventListener("hashchange", onRouteChange);
     window.addEventListener("popstate", onRouteChange);
@@ -805,8 +878,10 @@ function App() {
 
   const openHome = useCallback(() => {
     setView("home");
-    if (window.location.hash || window.location.pathname !== "/") {
-      history.pushState(null, "", `/${window.location.search}`);
+    const quick = isQuickEntry(window.location.search);
+    if (window.location.hash || window.location.pathname !== "/" || quick) {
+      const nextSearch = quick ? "" : window.location.search;
+      history.pushState(null, "", `/${nextSearch}`);
     }
     window.scrollTo(0, 0);
   }, []);
@@ -1490,6 +1565,19 @@ function App() {
     }
   };
 
+  const copyShareLink = async () => {
+    if (!activeDocument) return;
+    const hash = createShareHash(activeDocument.code, activeDocument.layout);
+    const url = `${window.location.origin}/${hash}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice("Share link copied. Send this link to view the diagram.");
+    } catch {
+      window.location.hash = hash;
+      setNotice("Share link updated in the address bar. Copy the URL to share.");
+    }
+  };
+
   const handleTabKey = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
     const tabs = Array.from(
       event.currentTarget.closest('[role="tablist"]')?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [],
@@ -1554,7 +1642,14 @@ function App() {
   }
 
   if (view === "home") {
-    return <HomePage onStart={openStudio} onDocs={openDocs} onLegal={openLegal} />;
+    return (
+      <HomePage
+        onStart={openStudio}
+        onDocs={openDocs}
+        onOpenSample={() => void openSampleGitFlow()}
+        onLegal={openLegal}
+      />
+    );
   }
 
   if (view === "notFound") {
@@ -1605,7 +1700,7 @@ function App() {
     : null;
 
   const clampedSplitPercent = Math.min(50, Math.max(22, data.settings.splitPercent));
-  const aiFloatingBar = aiBarVisible ? (
+  const aiFloatingBar = !simpleMode && aiBarVisible ? (
     <div className="ai-floating-wrap">
       {aiMenuOpen && (
         <div className="ai-actions-popover" role="menu">
@@ -1697,22 +1792,83 @@ function App() {
             {saveState === "saving" ? "Saving" : saveState === "error" ? "Not saved" : `Saved ${timeLabel(lastSavedAt)}`}
           </span>
           <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,.ctd.json,.json,text/plain,text/markdown,application/xml,application/json" onChange={(event) => void importFile(event)} />
+          {!simpleMode && (
+            <button
+              className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
+              type="button"
+              title={roomMode === "host" ? `Live room (${roomDevices}/${MAX_ROOM_DEVICES} devices)` : "Host live room (max 5 devices)"}
+              aria-label={roomMode === "host" ? "Copy live room link" : "Host live room (max 5 devices)"}
+              onClick={() => void startLiveRoom()}
+            >
+              <Users aria-hidden="true" size={15} />
+              <span>{roomMode === "none" ? "Share live" : `Live ${roomDevices}/${MAX_ROOM_DEVICES}`}</span>
+            </button>
+          )}
           <button
-            className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
+            className="button primary compact topbar-png-btn"
             type="button"
-            title={roomMode === "host" ? `Live room (${roomDevices}/${MAX_ROOM_DEVICES} devices)` : "Host live room (max 5 devices)"}
-            aria-label={roomMode === "host" ? "Copy live room link" : "Host live room (max 5 devices)"}
-            onClick={() => void startLiveRoom()}
+            title="Download PNG"
+            aria-label="Download PNG"
+            disabled={saveBusy}
+            onClick={() => void savePng()}
           >
-            <Users aria-hidden="true" size={15} />
-            <span>{roomMode === "none" ? "Share live" : `Live ${roomDevices}/${MAX_ROOM_DEVICES}`}</span>
+            <ImageDown aria-hidden="true" size={15} />
+            <span>Download PNG</span>
           </button>
-          <button className="icon-button" title="Export SVG" aria-label="Export SVG" onClick={saveSvg}>
-            <FileCode2 aria-hidden="true" size={17} />
+          <button
+            className="icon-button"
+            type="button"
+            title="Send this link to view the diagram."
+            aria-label="Copy share link"
+            onClick={() => void copyShareLink()}
+          >
+            <Share2 aria-hidden="true" size={16} />
           </button>
-          <button className="icon-button" title="Export PNG" aria-label="Export PNG" disabled={saveBusy} onClick={() => void savePng()}>
-            <ImageDown aria-hidden="true" size={17} />
-          </button>
+          <div className="export-menu-wrap">
+            <button
+              className="button secondary compact"
+              type="button"
+              title="More export options"
+              aria-label="More export…"
+              aria-expanded={exportMenuOpen}
+              onClick={() => {
+                const next = !exportMenuOpen;
+                closeAllMenus();
+                setExportMenuOpen(next);
+              }}
+            >
+              <span>More export…</span>
+              <ChevronDown aria-hidden="true" size={14} />
+            </button>
+            {exportMenuOpen && (
+              <div className="studio-menu-popover export-menu-popover" role="menu">
+                <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); saveSvg(); }}>
+                  <FileCode2 aria-hidden="true" size={15} /> Export SVG
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); void copyCode(); }}>
+                  <Copy aria-hidden="true" size={15} /> Copy source
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); saveSidecar(); }}>
+                  <Download aria-hidden="true" size={15} /> Export layout (.ctd.json)
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={saveBusy}
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void saveSubmission();
+                  }}
+                >
+                  <ImageDown aria-hidden="true" size={15} />{" "}
+                  {hasCustomLayout
+                    ? `Submission export (PNG + .${FORMAT_EXTENSIONS[codeFormat]} + .ctd.json)`
+                    : `Submission export (PNG + .${FORMAT_EXTENSIONS[codeFormat]})`}
+                </button>
+                <span className="menu-hint-line">Share link: send the URL to view the diagram.</span>
+              </div>
+            )}
+          </div>
           <button className="icon-button settings-trigger" title="Settings" aria-label="Open settings" onClick={() => setSettingsOpen(true)}>
             <Settings aria-hidden="true" size={17} />
           </button>
@@ -1736,28 +1892,32 @@ function App() {
                 <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); fileInput.current?.click(); }}>
                   <FolderOpen aria-hidden="true" size={15} /> Open file…
                 </button>
-                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); fileInput.current?.click(); }}>
-                  <LayoutGrid aria-hidden="true" size={15} /> Import layout (.ctd.json)…
-                </button>
-                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); saveSidecar(); }}>
-                  <Download aria-hidden="true" size={15} /> Export layout (.ctd.json)
-                </button>
+                {!simpleMode && (
+                  <>
+                    <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); fileInput.current?.click(); }}>
+                      <LayoutGrid aria-hidden="true" size={15} /> Import layout (.ctd.json)…
+                    </button>
+                    <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); saveSidecar(); }}>
+                      <Download aria-hidden="true" size={15} /> Export layout (.ctd.json)
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
-                  role="menuitem"
-                  disabled={saveBusy}
-                  onClick={() => {
-                    setStudioMenuOpen(false);
-                    void saveSubmission();
-                  }}
+                  role="switch"
+                  aria-checked={!simpleMode}
+                  className="theme-switch-row"
+                  onClick={() => toggleSimpleMode(!simpleMode)}
                 >
-                  <ImageDown aria-hidden="true" size={15} />{" "}
-                  {hasCustomLayout
-                    ? "Submission export (PNG + .mmd + .ctd.json)"
-                    : "Submission export (PNG + .mmd)"}
-                </button>
-                <button type="button" role="menuitem" onClick={() => { setStudioMenuOpen(false); void copyCode(); }}>
-                  <Copy aria-hidden="true" size={15} /> Copy source
+                  <span className="theme-switch-label">
+                    <Wand2 aria-hidden="true" size={15} />
+                    <span>More tools</span>
+                  </span>
+                  <span className={`theme-switch-track${!simpleMode ? " is-on" : ""}`} aria-hidden="true">
+                    <span className="theme-switch-thumb">
+                      <Wand2 size={11} />
+                    </span>
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -2316,6 +2476,9 @@ function App() {
               </span>
             ) : !isReadOnlySnapshot && !coachmarkDismissed ? (
               <span className="studio-coachmark" role="region" aria-label="First-run guide">
+                <span className="coachmark-text">
+                  Right-click to edit · Saved in this browser — export PNG or copy link
+                </span>
                 <button
                   type="button"
                   className="canvas-status-btn"
@@ -2334,7 +2497,24 @@ function App() {
                   <X aria-hidden="true" size={11} />
                 </button>
               </span>
+            ) : !isReadOnlySnapshot && hasSuccessfulRender && !storageNudgeDismissed ? (
+              <span className="studio-coachmark storage-nudge" role="status" aria-label="Local storage reminder">
+                <span className="coachmark-text">Saved locally — export PNG or copy share link to keep a copy.</span>
+                <button
+                  type="button"
+                  className="canvas-status-dismiss"
+                  aria-label="Dismiss storage reminder"
+                  onClick={dismissStorageNudge}
+                >
+                  <X aria-hidden="true" size={11} />
+                </button>
+              </span>
             ) : null}
+            {openedFromShareLink && (
+              <span className="mobile-share-hint" role="note">
+                Shared preview · Best edited on desktop
+              </span>
+            )}
           </div>
           <div className="canvas-stage">
             <Suspense fallback={null}>
@@ -2352,7 +2532,7 @@ function App() {
                   editorRef.current?.focusNode(id);
                 }}
                 onToolChange={setCanvasTool}
-                onRenderError={setRenderError}
+                onRenderError={handleRenderError}
                 onTypeChange={setDiagramType}
               />
             </Suspense>
@@ -2952,6 +3132,45 @@ function App() {
                 </article>
               </div>
             </div>
+            <div className="new-diagram-section" aria-label="Featured templates">
+              <div className="home-templates-head">
+                <h3>Featured templates</h3>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => {
+                    document.getElementById("new-diagram-all-templates")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  See all
+                </button>
+              </div>
+              <div className="new-diagram-grid">
+                {(
+                  [
+                    { name: "Flowchart", desc: "Start-to-finish steps & decisions" },
+                    { name: "Loop Trace", desc: "While / loop trace for coursework" },
+                    { name: "SQL Schema", desc: "Paste DDL tables → ER diagram" },
+                  ] as const
+                ).map(({ name, desc }) => {
+                  const code = TEMPLATES[name]!;
+                  return (
+                    <button
+                      key={`feat-${name}`}
+                      type="button"
+                      className="new-diagram-option"
+                      aria-pressed={newDiagramSelection.kind === "template" && newDiagramSelection.label === name}
+                      onClick={() => {
+                        setNewDiagramSelection({ kind: "template", label: name, title: name, code });
+                      }}
+                    >
+                      <strong>{name}</strong>
+                      <span className="menu-hint-line">{desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             {newDiagramLane !== "project" && (
               <div className="new-diagram-section" aria-label="Coursework templates">
                 <h3>Coursework Starters (Draggable)</h3>
@@ -2975,7 +3194,7 @@ function App() {
                 </div>
               </div>
             )}
-            <div className="new-diagram-section">
+            <div id="new-diagram-all-templates" className="new-diagram-section">
               <h3>{newDiagramLane === "coursework" ? "Draggable Templates" : "Templates"}</h3>
               <div className="new-diagram-grid">
                 {Object.entries(TEMPLATES)
@@ -2999,7 +3218,7 @@ function App() {
                   ))}
               </div>
             </div>
-            <div className="new-diagram-section">
+            <div id="new-diagram-all-templates" className="new-diagram-section">
               <h3>Quick Nodes &amp; Shapes</h3>
               <div className="new-diagram-grid">
                 {[

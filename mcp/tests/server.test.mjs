@@ -54,9 +54,11 @@ test("lists expected tools, resources, resource templates, and prompts", async (
     "list_templates",
     "parse_diagram_ir",
     "patch_source",
+    "preview_patch",
     "regen_preserve_layout",
     "to_mermaid",
     "translate_format",
+    "verify_against_files",
     "verify_diagram",
   ]);
 
@@ -343,6 +345,8 @@ test("get_studio_info reports irVersion, sidecarVersion, and Phase 2 capabilitie
   assert.ok(Array.isArray(info.capabilities));
   assert.ok(info.capabilities.includes("regen_preserve_layout"));
   assert.ok(info.capabilities.includes("verify_diagram"));
+  assert.ok(info.capabilities.includes("verify_against_files"));
+  assert.ok(info.capabilities.includes("preview_patch"));
   assert.ok(info.capabilities.includes("check_drift"));
 });
 
@@ -492,4 +496,53 @@ test("diff_ir, verify_diagram, patch_source, and check_drift work end-to-end", a
   });
   assert.equal(patchBrokenHeader.structuredContent.ok, false);
   assert.ok(patchBrokenHeader.structuredContent.errors.length > 0);
+
+  // M5: preview_patch returns dryRun, diffLines, addedNodes/removedNodes without mutating
+  const previewRes = await client.callTool({
+    name: "preview_patch",
+    arguments: {
+      source: oldSource,
+      patches: [{ find: "B[End]", replace: "B[End]\n  B[End] --> C[Done]" }],
+    },
+  });
+  assert.notEqual(previewRes.isError, true);
+  assert.equal(previewRes.structuredContent.ok, true);
+  assert.equal(previewRes.structuredContent.dryRun, true);
+  assert.equal(previewRes.structuredContent.changed, true);
+  assert.equal(previewRes.structuredContent.addedNodes.map((n) => n.id).join(","), "C");
+  assert.ok(Array.isArray(previewRes.structuredContent.diffLines));
+  assert.ok(previewRes.structuredContent.diffLines.some((l) => l.includes("+   B[End] --> C[Done]")));
+
+  // H8: verify_against_files checks diagram against inline SQL/TS or disk filePath
+  const verifyTsOk = await client.callTool({
+    name: "verify_against_files",
+    arguments: {
+      source: "classDiagram\n  class User\n  class Diagram\n  Diagram --> User",
+      fileContent: "export interface User { id: string; }\nexport interface Diagram { id: string; owner: User; }",
+    },
+  });
+  assert.equal(verifyTsOk.structuredContent.ok, true);
+  assert.equal(verifyTsOk.structuredContent.referenceFormat, "typescript");
+  assert.deepEqual(verifyTsOk.structuredContent.missingFromDiagram, []);
+
+  const verifyTsMissing = await client.callTool({
+    name: "verify_against_files",
+    arguments: {
+      source: "classDiagram\n  class User",
+      fileContent: "export interface User { id: string; }\nexport interface Workspace { id: string; }",
+    },
+  });
+  assert.equal(verifyTsMissing.structuredContent.ok, false);
+  assert.deepEqual(verifyTsMissing.structuredContent.missingFromDiagram, ["Workspace"]);
+
+  const fixtureFlowPath = resolve(import.meta.dirname, "../../tests/fixtures/git-flow/flow.mmd");
+  const verifyDiskFile = await client.callTool({
+    name: "verify_against_files",
+    arguments: {
+      source: "flowchart TD\n  Client --> Gateway\n  Gateway --> Auth\n  Gateway --> Worker",
+      filePath: fixtureFlowPath,
+    },
+  });
+  assert.equal(verifyDiskFile.structuredContent.ok, true);
+  assert.deepEqual(verifyDiskFile.structuredContent.missingFromDiagram, []);
 });

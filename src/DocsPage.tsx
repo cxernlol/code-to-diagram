@@ -390,6 +390,8 @@ const MCP_TOOLS = [
   { name: "list_orphan_layout", params: "source, sidecar", returns: "Layout keys with no matching node/edge id" },
   { name: "diff_ir", params: "sourceA, sourceB", returns: "Added, removed, changed nodes/edges between IRs" },
   { name: "verify_diagram", params: "source, sidecar?", returns: "Parse/layout validity + warnings" },
+  { name: "verify_against_files", params: "source, filePath?, fileContent?, sidecar?", returns: "Diagram vs SQL/TS/diagram reference parity + missing entities" },
+  { name: "preview_patch", params: "source, patch", returns: "Non-mutating unified diff + IR delta + orphan-key preview" },
   { name: "patch_source", params: "source, patch", returns: "Patched diagram source" },
   { name: "check_drift", params: "sidecar, source?", returns: "Whether meta.sha256 matches source" },
   { name: "get_studio_info", params: "—", returns: "capabilities, irVersion, formats, themes" },
