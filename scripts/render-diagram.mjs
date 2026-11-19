@@ -117,7 +117,8 @@ async function main() {
     if (svgOut) {
       await mkdir(path.dirname(svgOut), { recursive: true });
       const downloadPromise = page.waitForEvent("download");
-      await page.getByRole("button", { name: "Export SVG" }).click();
+      await page.getByRole("button", { name: "More export…" }).click();
+      await page.getByRole("menuitem", { name: "Export SVG" }).click();
       const download = await downloadPromise;
       const tmpPath = await download.path();
       if (!tmpPath) throw new Error("SVG download failed.");
@@ -128,7 +129,7 @@ async function main() {
     if (pngOut) {
       await mkdir(path.dirname(pngOut), { recursive: true });
       const downloadPromise = page.waitForEvent("download");
-      await page.getByRole("button", { name: "Export PNG" }).click();
+      await page.getByRole("button", { name: "Download PNG" }).click();
       const download = await downloadPromise;
       const tmpPath = await download.path();
       if (!tmpPath) throw new Error("PNG download failed.");

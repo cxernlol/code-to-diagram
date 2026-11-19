@@ -1,6 +1,6 @@
 # ctd-mcp
 
-Model Context Protocol (MCP) server for **CTD Studio** (`code-to-diagram`) — detect, parse, convert, and translate diagrams across **Mermaid (v12.3.0)**, **Graphviz DOT**, **PlantUML**, **D2**, **SQL DDL**, **TypeScript**, and **XML** (including Draw.io `mxGraphModel`, BPMN, and generic XML trees).
+Model Context Protocol (MCP) server for **CTD Studio** (`code-to-diagram` v1.3.0) — detect, parse, convert, translate, and verify diagrams alongside portable **`*.ctd.json` sidecar layouts** across **Mermaid (v12.3.0)**, **Graphviz DOT**, **PlantUML**, **D2**, **SQL DDL**, **TypeScript**, and **XML** (including Draw.io `mxGraphModel`, BPMN, and generic XML trees).
 
 ## Quick Start (`npx`)
 
@@ -55,8 +55,16 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, or `mc
 | `parse_diagram_ir` | Parse any supported format into structured `DiagramIR` (`kind`, `direction`, `nodes`, `edges`). |
 | `emit_from_ir` | Emit diagram/code in any target format from a structured `DiagramIR` object. |
 | `list_templates` | List built-in CTD Studio templates or fetch one by name. |
-| `get_studio_info` | Return supported formats, extensions, themes, and app metadata. |
+| `get_studio_info` | Return supported formats, extensions, themes, `irVersion`, `sidecarVersion`, and full `capabilities` list. |
 | `configure_mermaid_diagram` | Update layout direction (`TD`/`TB`/`BT`/`LR`/`RL`), toggle node suppression (`%% sgs-hide`), or add class/ER members. |
+| `regen_preserve_layout` | Preserve matching `.ctd.json` sidecar layout keys across diagram source edits and report orphaned/renamed node IDs. |
+| `list_orphan_layout` | List `.ctd.json` sidecar layout keys whose node or edge IDs no longer exist in the diagram source. |
+| `diff_ir` | Compare two diagram sources at the `DiagramIR` level and return added, removed, and changed nodes/edges. |
+| `verify_diagram` | Verify diagram parse validity, optional `.ctd.json` sidecar layout key subset, and optional SQL DDL table coverage. |
+| `verify_against_files` | Verify a diagram against reference source/schema files (or inline `fileContent`) such as SQL DDL or TypeScript types. |
+| `patch_source` | Apply targeted find/replace hunks to diagram source and validate that the patched result still parses. |
+| `preview_patch` | Preview text patch hunks without writing, returning line diffs, IR node diffs, and parse validation. |
+| `check_drift` | Compare diagram source SHA-256 against `.ctd.json` sidecar `meta.sha256` and report orphaned layout keys. |
 
 ## Resources & Prompts
 

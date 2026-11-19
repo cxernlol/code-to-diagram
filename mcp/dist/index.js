@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import "dompurify";
@@ -573,6 +574,11 @@ function parseMermaidToIR(mermaid) {
 			const blockStart = line.match(/^(?:class\s+)?([A-Za-z_]\w*)\s*\{$/);
 			if (blockStart) {
 				currentBlock = ensureNode(blockStart[1]);
+				continue;
+			}
+			const standaloneClass = isClass ? line.match(/^class\s+([A-Za-z_]\w*)$/) : null;
+			if (standaloneClass) {
+				ensureNode(standaloneClass[1]);
 				continue;
 			}
 			const rel = isEr ? line.match(/^([A-Za-z_]\w*)\s+([|}{o.-]+)\s+([A-Za-z_]\w*)(?:\s*:\s*(.+))?$/) : line.match(/^([A-Za-z_]\w*)(?:\s+"[^"]*")?\s*(<\|--|--\|>|\*--|--\*|o--|--o|-->|<--|\.\.>|--)\s*(?:"[^"]*"\s+)?([A-Za-z_]\w*)(?:\s*:\s*(.+))?$/);
@@ -1798,7 +1804,9 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 				"list_orphan_layout",
 				"diff_ir",
 				"verify_diagram",
+				"verify_against_files",
 				"patch_source",
+				"preview_patch",
 				"check_drift"
 			],
 			formats: CODE_FORMATS.map((id) => ({
@@ -2178,6 +2186,166 @@ function createSgsStudioMcpServer(version = "1.0.0") {
 			changed: patched !== source,
 			appliedCount,
 			patchedSource: patched,
+			warnings,
+			errors
+		};
+		return {
+			content: [{
+				type: "text",
+				text: JSON.stringify(result, null, 2)
+			}],
+			structuredContent: result
+		};
+	});
+	server.registerTool("preview_patch", {
+		title: "Preview Diagram Patch",
+		description: "Preview targeted find/replace hunks on diagram source without writing, validate that the patched source parses, and return IR node/edge diffs alongside line changes.",
+		inputSchema: {
+			source: z.string().min(1, "Source must not be empty."),
+			patches: z.array(z.object({
+				find: z.string().min(1),
+				replace: z.string(),
+				all: z.boolean().optional()
+			})).min(1)
+		},
+		annotations: { readOnlyHint: true }
+	}, async ({ source, patches }) => {
+		const warnings = [];
+		const errors = [];
+		let patched = source;
+		let appliedCount = 0;
+		for (const patch of patches) {
+			if (!patched.includes(patch.find)) {
+				warnings.push(`Patch target not found: ${JSON.stringify(patch.find)}`);
+				continue;
+			}
+			patched = patch.all ? patched.split(patch.find).join(patch.replace) : patched.replace(patch.find, patch.replace);
+			appliedCount += 1;
+		}
+		let addedNodes = [];
+		let removedNodes = [];
+		let summary = "0 changes";
+		try {
+			const { sourceFormat: oldFmt, ir: oldIr } = parseSourceToIR(source);
+			const { sourceFormat: newFmt, ir: newIr } = parseSourceToIR(patched);
+			if (newFmt === "mermaid" && !hasValidMermaidHeader(patched)) errors.push("Patched source is missing a valid Mermaid diagram header.");
+			if (oldFmt === "mermaid" && !hasValidMermaidHeader(source)) warnings.push("Original source was missing a valid Mermaid diagram header.");
+			const oldIds = new Set(oldIr.nodes.map((n) => n.id));
+			const newIds = new Set(newIr.nodes.map((n) => n.id));
+			addedNodes = newIr.nodes.filter((n) => !oldIds.has(n.id));
+			removedNodes = oldIr.nodes.filter((n) => !newIds.has(n.id));
+			summary = `+${addedNodes.length}/-${removedNodes.length} nodes (${appliedCount} hunk(s) applied)`;
+		} catch (error) {
+			errors.push(error instanceof Error ? error.message : String(error));
+		}
+		const oldLines = source.split(/\r?\n/);
+		const newLines = patched.split(/\r?\n/);
+		const diffLines = [];
+		const maxLen = Math.max(oldLines.length, newLines.length);
+		for (let i = 0; i < maxLen; i += 1) {
+			const a = oldLines[i];
+			const b = newLines[i];
+			if (a === b) continue;
+			if (a !== void 0) diffLines.push(`- ${a}`);
+			if (b !== void 0) diffLines.push(`+ ${b}`);
+		}
+		const result = {
+			ok: errors.length === 0,
+			irVersion: 1,
+			dryRun: true,
+			changed: patched !== source,
+			appliedCount,
+			patchedSource: patched,
+			diffLines,
+			addedNodes,
+			removedNodes,
+			summary,
+			warnings,
+			errors
+		};
+		return {
+			content: [{
+				type: "text",
+				text: JSON.stringify(result, null, 2)
+			}],
+			structuredContent: result
+		};
+	});
+	server.registerTool("verify_against_files", {
+		title: "Verify Diagram Against Source / Schema Files",
+		description: "Verify that a diagram parses cleanly and check its node/entity IDs against optional reference code/schema content or disk file paths (SQL DDL tables, TypeScript interfaces/classes/types, or another diagram).",
+		inputSchema: {
+			source: z.string().trim().min(1, "Source must not be empty.").describe("Diagram source to verify."),
+			filePath: z.string().optional().describe("Optional local file path (e.g. schema.sql or models.ts) to read and compare against the diagram."),
+			fileContent: z.string().optional().describe("Optional inline file content (SQL DDL, TypeScript, or diagram source) to compare when not reading from disk."),
+			sidecar: SidecarInputSchema.optional().describe("Optional .ctd.json sidecar to check for orphaned layout keys.")
+		},
+		annotations: { readOnlyHint: true }
+	}, async ({ source, filePath, fileContent, sidecar }) => {
+		const warnings = [];
+		const errors = [];
+		let sourceFormat = null;
+		let diagramKind = null;
+		let validSource = false;
+		let ir = null;
+		let referenceFormat = null;
+		let expectedNames = [];
+		let matchedNames = [];
+		let missingFromDiagram = [];
+		let extraInDiagram = [];
+		let orphanLayoutKeys = [];
+		try {
+			const parsed = parseSourceToIR(source);
+			sourceFormat = parsed.sourceFormat;
+			ir = parsed.ir;
+			diagramKind = ir.kind;
+			if (sourceFormat === "mermaid" && !hasValidMermaidHeader(source)) errors.push("Unrecognized diagram format or missing Mermaid diagram header.");
+			else validSource = true;
+		} catch (error) {
+			errors.push(error instanceof Error ? error.message : String(error));
+		}
+		if (ir && sidecar !== void 0) try {
+			const parsedSidecar = parseSidecar(sidecar, { onWarning: (w) => warnings.push(w) });
+			const validKeys = validLayoutKeysFromIR(ir);
+			orphanLayoutKeys = partitionLayoutKeys(parsedSidecar.layout, validKeys).orphaned;
+			if (orphanLayoutKeys.length > 0) warnings.push(`Found ${orphanLayoutKeys.length} orphaned layout key(s).`);
+		} catch (error) {
+			errors.push(error instanceof Error ? error.message : String(error));
+		}
+		let refText = fileContent?.trim() ?? "";
+		if (!refText && filePath && filePath.trim().length > 0) try {
+			refText = (await readFile(filePath.trim(), "utf8")).trim();
+		} catch (error) {
+			errors.push(`Failed to read filePath "${filePath}": ${error instanceof Error ? error.message : String(error)}`);
+		}
+		if (ir && refText.length > 0) try {
+			const refParsed = parseSourceToIR(refText);
+			referenceFormat = refParsed.sourceFormat;
+			expectedNames = refParsed.ir.nodes.map((n) => n.id);
+			if (expectedNames.length === 0) warnings.push("Reference file parsed with 0 identifiable entities/types/nodes.");
+			else {
+				const diagramMap = new Map(ir.nodes.map((n) => [n.id.toLowerCase(), n.id]));
+				const expectedLower = new Set(expectedNames.map((n) => n.toLowerCase()));
+				for (const name of expectedNames) if (diagramMap.has(name.toLowerCase())) matchedNames.push(name);
+				else missingFromDiagram.push(name);
+				extraInDiagram = ir.nodes.map((n) => n.id).filter((id) => !expectedLower.has(id.toLowerCase()));
+				if (missingFromDiagram.length > 0) warnings.push(`Reference entities/types missing from diagram: ${missingFromDiagram.join(", ")}`);
+			}
+		} catch (error) {
+			errors.push(`Failed to parse reference file content: ${error instanceof Error ? error.message : String(error)}`);
+		}
+		const result = {
+			ok: validSource && errors.length === 0 && orphanLayoutKeys.length === 0 && missingFromDiagram.length === 0,
+			irVersion: 1,
+			validSource,
+			sourceFormat,
+			diagramKind,
+			referenceFormat,
+			expectedNames,
+			matchedNames,
+			missingFromDiagram,
+			extraInDiagram,
+			orphanLayoutKeys,
 			warnings,
 			errors
 		};

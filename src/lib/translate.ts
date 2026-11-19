@@ -275,6 +275,11 @@ export function parseMermaidToIR(mermaid: string): DiagramIR {
         currentBlock = ensureNode(blockStart[1]!);
         continue;
       }
+      const standaloneClass = isClass ? line.match(/^class\s+([A-Za-z_]\w*)$/) : null;
+      if (standaloneClass) {
+        ensureNode(standaloneClass[1]!);
+        continue;
+      }
       const rel = isEr
         ? line.match(/^([A-Za-z_]\w*)\s+([|}{o.-]+)\s+([A-Za-z_]\w*)(?:\s*:\s*(.+))?$/)
         : line.match(

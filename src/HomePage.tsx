@@ -43,6 +43,7 @@ const MCP_SNIPPETS = [
 interface HomePageProps {
   onStart: (templateName?: string) => void;
   onDocs: () => void;
+  onOpenSample?: () => void;
   onLegal: (tab: "privacy" | "terms") => void;
 }
 
@@ -277,7 +278,7 @@ Canvas -> Export: SVG/PNG`,
   },
 ];
 
-export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
+export function HomePage({ onStart, onDocs, onOpenSample, onLegal }: HomePageProps) {
   const reduceMotion = useReducedMotion();
   const previewCanvasRef = useRef<HTMLDivElement>(null);
   const [activeFormat, setActiveFormat] = useState(FORMAT_DEMOS[0]!);
@@ -409,48 +410,27 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
               your dragged layout survives code edits.
             </p>
             <div className="home-cta-row">
-              <button className="button primary home-cta-start" type="button" onClick={() => onStart()}>
-                Start
+              <button className="button primary home-cta-start" type="button" onClick={() => onStart("Flowchart")}>
+                Start drawing
                 <ArrowRight aria-hidden="true" size={16} />
               </button>
-              <a
-                className="button secondary home-cta-github"
-                href={GITHUB_URL}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Star aria-hidden="true" size={15} className="home-star-icon" />
-                <span>Star on GitHub</span>
-                {stars !== null && <span className="home-star-count">{stars}</span>}
-              </a>
-            </div>
-            <div className="home-hero-mcp" role="group" aria-label="Install MCP server">
-              <span className="home-hero-mcp-badge">
-                <Terminal aria-hidden="true" size={13} />
-                MCP Ready
-              </span>
-              <code className="home-hero-mcp-cmd">npx -y ctd-mcp</code>
-              <button
-                type="button"
-                className="home-open-template"
-                onClick={() => void copyHeroMcp()}
-              >
-                {heroMcpStatus === "copied" ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
-                <span>
-                  {heroMcpStatus === "copied"
-                    ? "Copied"
-                    : heroMcpStatus === "failed"
-                      ? "Copy failed"
-                      : "Copy install command"}
-                </span>
+              <button className="button secondary home-cta-tutorial" type="button" onClick={onDocs}>
+                <BookOpen aria-hidden="true" size={15} />
+                <span>5‑min tutorial</span>
               </button>
             </div>
+            <p className="home-cta-subline">
+              No account. Free in the browser. New to diagrams?{" "}
+              <button type="button" className="docs-inline-link" onClick={onDocs}>
+                Start with the 5‑min guide
+              </button>
+              .
+            </p>
             <ul className="home-trust-strip" aria-label="Highlights">
               <li>Mermaid v12.3.0</li>
               <li>7 code formats</li>
               <li>Right-click edits</li>
-              <li>SVG &amp; PNG export</li>
-              <li>5-device live rooms</li>
+              <li>PNG &amp; SVG export</li>
             </ul>
           </motion.div>
 
@@ -513,6 +493,44 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
           </motion.div>
         </section>
 
+        <section id="home-templates" className="home-templates" aria-label="Featured templates">
+          <div className="home-templates-head">
+            <div>
+              <h2>Featured templates</h2>
+              <p>Pick a starter diagram and start dragging boxes right away.</p>
+            </div>
+            <div className="home-templates-actions">
+              {onOpenSample && (
+                <button type="button" className="home-open-template" onClick={onOpenSample}>
+                  <GitBranch aria-hidden="true" size={13} />
+                  <span>Open git-flow sample</span>
+                </button>
+              )}
+              <button type="button" className="home-open-template" onClick={() => onStart()}>
+                <span>See all</span>
+                <ArrowRight aria-hidden="true" size={13} />
+              </button>
+            </div>
+          </div>
+          <div className="home-templates-grid">
+            {[
+              { name: "Flowchart", desc: "Steps, decisions, and branches." },
+              { name: "Loop Trace", desc: "Trace while-loops step by step." },
+              { name: "SQL Schema", desc: "Tables and foreign keys to ER." },
+            ].map((item) => (
+              <button
+                key={item.name}
+                type="button"
+                className="home-template-card"
+                onClick={() => onStart(item.name)}
+              >
+                <strong>{item.name}</strong>
+                <span>{item.desc}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
         <section className="home-features" aria-label="Capabilities">
           <motion.article
             className="home-feature"
@@ -552,7 +570,13 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
           </motion.article>
         </section>
 
-        <section id="home-mcp-section" className="home-mcp" aria-label="MCP integration">
+        <details id="home-mcp-section" className="home-dev-fold">
+          <summary className="home-dev-summary">
+            <span>
+              <Terminal aria-hidden="true" size={14} /> For developers — MCP server (<code>npx -y ctd-mcp</code>) &amp; BYOK AI
+            </span>
+          </summary>
+          <div className="home-mcp" aria-label="MCP integration">
           <div className="home-mcp-copy">
             <span className="home-eyebrow">
               <Terminal aria-hidden="true" size={13} /> CTD Studio MCP (ctd-mcp)
@@ -563,6 +587,23 @@ export function HomePage({ onStart, onDocs, onLegal }: HomePageProps) {
               <strong>Claude Desktop</strong>, <strong>Cursor</strong>, <strong>Windsurf</strong>,{" "}
               <strong>VS Code</strong>, or <strong>Claude Code</strong> via <code>npx</code>.
             </p>
+            <div className="home-hero-mcp" role="group" aria-label="Install MCP server">
+              <code className="home-hero-mcp-cmd">npx -y ctd-mcp</code>
+              <button
+                type="button"
+                className="home-open-template"
+                onClick={() => void copyHeroMcp()}
+              >
+                {heroMcpStatus === "copied" ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
+                <span>
+                  {heroMcpStatus === "copied"
+                    ? "Copied"
+                    : heroMcpStatus === "failed"
+                      ? "Copy failed"
+                      : "Copy install command"}
+                </span>
+              </button>
+            </div>
             <div className="home-mcp-tools" aria-label="Exposed MCP tools">
               {[
                 "detect_format",
@@ -680,7 +721,8 @@ CREATE TABLE diagrams (id INT PRIMARY KEY, user_id INT REFERENCES users(id), tit
               </div>
             </div>
           </div>
-        </section>
+          </div>
+        </details>
       </main>
 
       <footer className="home-footer">

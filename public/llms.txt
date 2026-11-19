@@ -17,4 +17,4 @@
 - **Onboarding Lanes & Coursework Starters:** First-time tutorial (`/docs`) and coursework templates (`Flowchart`, `Loop Trace`, `Intro OOP`, `Student ER Lab`, `Vending Machine`, `SQL Schema`) alongside Project git + sidecar (`*.mmd` + `*.ctd.json`) workflows.
 - **Interactive Canvas:** Drag boxes, adjust 3-point connector handles (start, middle, end/arrow), snap to grid, switch themes/looks (`classic` / `handDrawn`), and export SVG, PNG, or submission bundle (PNG + `.mmd` + `.ctd.json`).
 - **Local-First Privacy:** Zero cookies, IndexedDB local storage (`sgs-studio`), and optional client-side BYOK AI refinement.
-- **MCP Server (`ctd-mcp` v1.3.0):** `npx -y ctd-mcp` — convert/translate/IR plus layout tools (`regen_preserve_layout`, `list_orphan_layout`, `diff_ir`, `verify_diagram`, `patch_source`, `check_drift`, `get_studio_info` with capabilities).
+- **MCP Server (`ctd-mcp` v1.3.0):** `npx -y ctd-mcp` — convert/translate/IR plus layout and verification tools (`regen_preserve_layout`, `list_orphan_layout`, `diff_ir`, `verify_diagram`, `verify_against_files`, `preview_patch`, `patch_source`, `check_drift`, `get_studio_info` with capabilities).

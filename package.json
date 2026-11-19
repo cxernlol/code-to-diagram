@@ -17,6 +17,7 @@
     "test": "playwright test",
     "test:parsers": "node --test tests/parsers.test.mjs",
     "test:sidecar": "node --test tests/sidecar.test.mjs",
+    "test:render": "node scripts/render-diagram.mjs --input tests/fixtures/sequence-golden/auth.mmd --out test-results/sequence-golden.svg",
     "mcp:build": "vite build --config mcp/vite.config.ts && node -e \"import('node:fs').then(fs => fs.chmodSync('mcp/dist/index.js', 0o755))\"",
     "mcp:test": "node --test mcp/tests/server.test.mjs",
     "prepare": "node -e \"import('node:fs').then(fs => { if (fs.existsSync('node_modules/vite')) { import('node:child_process').then(cp => cp.execSync('npm run mcp:build', { stdio: 'inherit' })); } })\""

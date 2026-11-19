@@ -1,0 +1,10 @@
+sequenceDiagram
+  autonumber
+  actor User
+  participant App as CTD Studio
+  participant DB as IndexedDB
+
+  User->>App: Edit diagram code
+  App->>DB: Save document + layout
+  DB-->>App: Persisted locally
+  App-->>User: Render SVG / PNG
