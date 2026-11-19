@@ -6,7 +6,7 @@
 
 Write diagram code, drag it into shape, export. No account, no server.
 
-**[Open the app ->](https://code-to-diagram.vercel.app/)** · **[Syntax & Template Docs ->](https://code-to-diagram.vercel.app/#docs)**
+**[Open the app ->](https://code-to-diagram.vercel.app/)** · **[Docs & tutorial ->](https://code-to-diagram.vercel.app/docs)**
 
 Supports Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN). Your diagrams stay in your browser.
 
@@ -21,7 +21,7 @@ Supports Mermaid, Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw
 - **5-device live rooms:** share a live PeerJS session link to collaborate in real time
 - **Export** full-bounds SVG/PNG, or restore/share diagrams with manual layout via `#d=` URLs
 - **Optional BYOK AI:** 14 providers (OpenAI, Anthropic, Google Gemini, DeepSeek, OpenRouter, Groq, xAI, Mistral, Together, Fireworks, Ollama, LM Studio, Anthropic-compatible, or custom), model auto-detect, `low`/`medium`/`high`/`max` usage presets, and a toggleable floating AI bar
-- **Syntax & template docs:** 3-column Mermaid-style reference for arrows (`-->`, `-.->`, `==>`), shapes, all 7 input formats, and starter templates at [`#docs`](https://code-to-diagram.vercel.app/#docs)
+- **Docs & first-time tutorial:** In-app **First time: code → diagram** lessons plus syntax reference at [`/docs`](https://code-to-diagram.vercel.app/docs) · repo guide [docs/FIRST_TIME_CODE_TO_DIAGRAM.md](docs/FIRST_TIME_CODE_TO_DIAGRAM.md)
 
 ## Supported Syntax
 

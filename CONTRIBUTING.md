@@ -21,14 +21,19 @@ Thank you for contributing. To keep the web editor, parsers, and `ctd-mcp` stabl
 
 Run these from the repository root (`code-to-diagram/`):
 
+### Minimal tier (scoped changes)
+
+- **Docs / CI-only changes:** Verify Markdown links and YAML syntax; no build required if no code changed.
+- **Sidecar / parser / `mcp/`-only changes:**
+  ```bash
+  npm run build && npm run test:parsers && npm run test:sidecar && npm run mcp:test
+  ```
+
+### Full pre-push tier (required when changing `src/`, `index.html`, `public/`, or before pushing)
+
 ```bash
-# Always required (typecheck + web build + MCP build)
 npm run build
-
-# Required when changing mcp/ or shared src/lib/ parsers
-npm run test:parsers && npm run mcp:test
-
-# Required when changing web app files (src/, index.html, public/)
+npm run test:parsers && npm run test:sidecar && npm run mcp:test
 npx playwright test --workers=1
 ```
 
