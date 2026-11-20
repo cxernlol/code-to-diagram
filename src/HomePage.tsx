@@ -506,9 +506,9 @@ export function HomePage({ onStart, onDocs, onOpenSample, onLegal }: HomePagePro
                   <span>Open git-flow sample</span>
                 </button>
               )}
-              <button type="button" className="home-open-template" onClick={() => onStart()}>
-                <span>See all</span>
-                <ArrowRight aria-hidden="true" size={13} />
+              <button type="button" className="button secondary see-all-btn" onClick={() => onStart()}>
+                All templates
+                <ArrowRight aria-hidden="true" size={14} />
               </button>
             </div>
           </div>

@@ -83,6 +83,10 @@ npm run mcp:build
 npm run mcp:test
 ```
 
+## Security
+
+`ctd-mcp` runs locally over **stdio** (no CTD network APIs in the tool path). Diagram source is capped at **512 KB** per request. Full threat model: [`docs/SECURITY.md`](../docs/SECURITY.md#ctd-mcp). Report vulnerabilities via [private advisory](https://github.com/cxernlol/code-to-diagram/security/advisories/new) ([`SECURITY.md`](../SECURITY.md)).
+
 ## License
 
 - **Individual & internal use (free forever):** [Elastic License 2.0 (ELv2)](https://github.com/cxernlol/code-to-diagram/blob/main/LICENSE)

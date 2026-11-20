@@ -20,8 +20,9 @@ import {
   keymap,
   lineNumbers,
 } from "@codemirror/view";
-import type { Diagnostic } from "@codemirror/lint";
-import { setDiagnostics } from "@codemirror/lint";
+import { forceLinting, linter } from "@codemirror/lint";
+import type { CodeFormat } from "./lib/formats";
+import { FORMAT_LABELS } from "./lib/formats";
 
 const MERMAID_OPERATORS = ["-->", "---", "==>", "-.->", "--x", "--o", "<|--", "*--", "o--"] as const;
 
@@ -45,6 +46,49 @@ const mermaidLanguage = StreamLanguage.define({
     return null;
   },
 });
+
+const OTHER_KEYWORDS: Record<Exclude<CodeFormat, "mermaid">, RegExp> = {
+  dot: /\b(?:digraph|strict|subgraph|node|edge)\b/,
+  plantuml: /(?:@startuml|@enduml|@startmindmap|@endmindmap|\b(?:class|interface|actor|participant|package|state)\b)/i,
+  d2: /\b(?:shape|style|direction|classes|label)\b/,
+  sql: /\b(?:CREATE|TABLE|ALTER|PRIMARY|FOREIGN|KEY|REFERENCES|CONSTRAINT|NOT|NULL)\b/i,
+  typescript: /\b(?:interface|class|type|extends|implements|export|import)\b/,
+  xml: /<\/?[A-Za-z_][\w:.-]*/,
+};
+
+function keywordLanguage(pattern: RegExp) {
+  return StreamLanguage.define({
+    startState: () => ({}),
+    token(stream) {
+      if (stream.match(/^\s+/)) return null;
+      if (stream.match(/\/\*[\s\S]*?\*\/|\/\/.*|-- .*/)) return "comment";
+      if (stream.match(/"(?:\\[\s\S]|[^\\"])*"|'(?:\\[\s\S]|[^\\'])*'/)) return "string";
+      if (stream.match(pattern)) return "keyword";
+      stream.next();
+      return null;
+    },
+  });
+}
+
+const otherLanguages = {
+  dot: keywordLanguage(OTHER_KEYWORDS.dot),
+  plantuml: keywordLanguage(OTHER_KEYWORDS.plantuml),
+  d2: keywordLanguage(OTHER_KEYWORDS.d2),
+  sql: keywordLanguage(OTHER_KEYWORDS.sql),
+  typescript: keywordLanguage(OTHER_KEYWORDS.typescript),
+  xml: keywordLanguage(OTHER_KEYWORDS.xml),
+} satisfies Record<Exclude<CodeFormat, "mermaid">, ReturnType<typeof keywordLanguage>>;
+
+function languageFor(format: CodeFormat) {
+  return format === "mermaid" ? mermaidLanguage : otherLanguages[format];
+}
+
+function sourceLabel(format: CodeFormat) {
+  return EditorView.contentAttributes.of({
+    "aria-label": `${FORMAT_LABELS[format]} diagram source`,
+    spellcheck: "false",
+  });
+}
 
 const headerCompletions = [
   { label: "flowchart TD", type: "keyword", apply: "flowchart TD\n  A[Start] --> B[End]" },
@@ -99,6 +143,7 @@ const darkHighlightStyle = HighlightStyle.define([
 
 export interface CodeEditorProps {
   value: string;
+  format?: CodeFormat;
   readOnly?: boolean;
   darkMode?: boolean;
   error?: { message: string; line?: number };
@@ -108,14 +153,20 @@ export interface CodeEditorProps {
 }
 
 export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor(
-  { value, readOnly = false, darkMode = false, error, onChange, onUndo, onRedo },
+  { value, format = "mermaid", readOnly = false, darkMode = false, error, onChange, onUndo, onRedo },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const readOnlyCompartment = useRef(new Compartment());
   const highlightCompartment = useRef(new Compartment());
+  const languageCompartment = useRef(new Compartment());
+  const labelCompartment = useRef(new Compartment());
   const readOnlyRef = useRef(readOnly);
+  const formatRef = useRef(format);
+  const errorRef = useRef(error);
+  formatRef.current = format;
+  errorRef.current = error;
   const callbackRef = useRef({ onChange, onUndo, onRedo });
   const suppressChange = useRef(false);
   const valueRef = useRef(value);
@@ -183,11 +234,20 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
           highlightCompartment.current.of(
             syntaxHighlighting(darkMode ? darkHighlightStyle : defaultHighlightStyle, { fallback: true }),
           ),
-          mermaidLanguage,
+          languageCompartment.current.of(languageFor(formatRef.current)),
+          labelCompartment.current.of(sourceLabel(formatRef.current)),
+          linter((view) => {
+            const current = errorRef.current;
+            if (!current?.line) return [];
+            const lineNumber = Math.min(current.line, view.state.doc.lines);
+            const line = view.state.doc.line(Math.max(1, lineNumber));
+            return [{ from: line.from, to: line.to, severity: "error", message: current.message }];
+          }),
           autocompletion({
             activateOnTyping: true,
             override: [
               (context) => {
+                if (formatRef.current !== "mermaid") return null;
                 const word = context.matchBefore(/[\w-]*/);
                 if ((!word || word.from === word.to) && !context.explicit) return null;
                 const line = context.state.doc.lineAt(context.pos);
@@ -215,10 +275,6 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
             ...completionKeymap,
             ...defaultKeymap,
           ]),
-          EditorView.contentAttributes.of({
-            "aria-label": "Mermaid diagram source",
-            spellcheck: "false",
-          }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged && !suppressChange.current) {
               callbackRef.current.onChange(update.state.doc.toString());
@@ -270,6 +326,17 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
+      effects: [
+        languageCompartment.current.reconfigure(languageFor(format)),
+        labelCompartment.current.reconfigure(sourceLabel(format)),
+      ],
+    });
+  }, [format]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
       effects: readOnlyCompartment.current.reconfigure([
         EditorState.readOnly.of(readOnly),
         EditorView.editable.of(!readOnly),
@@ -304,20 +371,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view) return;
-    const diagnostics: Diagnostic[] = error?.line
-      ? (() => {
-          const lineNumber = Math.min(error.line, view.state.doc.lines);
-          const line = view.state.doc.line(Math.max(1, lineNumber));
-          return [{
-            from: line.from,
-            to: line.to,
-            severity: "error",
-            message: error.message,
-          }];
-        })()
-      : [];
-    view.dispatch(setDiagnostics(view.state, diagnostics));
+    if (view) forceLinting(view);
   }, [error]);
 
   return <div className="code-editor" ref={hostRef} />;

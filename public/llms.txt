@@ -3,14 +3,16 @@
 > Local-first browser diagram editor and MCP server (`ctd-mcp` v1.3.0) supporting Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io `mxGraphModel`, BPMN, generic XML).
 
 ## Canonical Pages & Static Assets
-- Home: https://code-to-diagram.vercel.app/
-- Interactive Studio Workbench: https://code-to-diagram.vercel.app/app
+- Home: https://ctdstudio.dev/ (same build as https://code-to-diagram.vercel.app/)
+- Interactive Studio Workbench: https://ctdstudio.dev/app
 - Docs & tutorial: https://code-to-diagram.vercel.app/docs
 - Sidecar JSON Schema (v1): https://code-to-diagram.vercel.app/schema/ctd-sidecar.v1.json
 - Git-flow sample pair: https://code-to-diagram.vercel.app/samples/git-flow/flow.mmd and https://code-to-diagram.vercel.app/samples/git-flow/flow.ctd.json
 - Privacy & Cookies: https://code-to-diagram.vercel.app/privacy
 - Terms of Use (Elastic License 2.0): https://code-to-diagram.vercel.app/terms
 - Repository: https://github.com/cxernlol/code-to-diagram
+- Security & threat model: https://github.com/cxernlol/code-to-diagram/blob/main/docs/SECURITY.md
+- Report vulnerabilities (private): https://github.com/cxernlol/code-to-diagram/security/advisories/new
 
 ## Key Capabilities
 - **7 Input Formats:** Mermaid (v12.3.0), Graphviz DOT, PlantUML, D2, SQL DDL, TypeScript, and XML (Draw.io, BPMN, generic XML).

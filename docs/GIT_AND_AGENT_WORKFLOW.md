@@ -2,6 +2,8 @@
 
 Keep diagrams versioned alongside your code using canonical source files (`<basename>.mmd`, `.dot`, `.puml`, `.d2`, `.sql`, `.ts`, `.xml`) paired with layout-only sidecars (`<basename>.ctd.json`).
 
+**Security:** Share links, IndexedDB, rooms, and sidecar limits — [Security, Privacy & Threat Model](SECURITY.md).
+
 ## 1. Recommended File Layout
 
 ```text

@@ -10,7 +10,7 @@ This guide is **Studio-only**. You do not need `ctd-mcp`, git, or a sidecar file
 
 ## 5-minute path
 
-1. **Open the app** — [CTD Studio workbench](https://code-to-diagram.vercel.app/app) or run `npm run dev` locally and go to `/app`.
+1. **Open the app** — [CTD Studio workbench](https://ctdstudio.dev/app) (same build as the [Vercel mirror](https://code-to-diagram.vercel.app/app)) or run `npm run dev` locally and go to `/app`.
 2. **Start from a template** — Click **Start**, pick **Flowchart** (or open **Docs → First time: code → diagram** and use **Try in editor** on a lesson).
 3. **Edit one line** — Change a node label in the code (e.g. `Process` → `Validate input`). The diagram re-renders after you pause typing.
 4. **Drag a box** — On flowcharts, class, ER, state, C4, and requirement diagrams, press **V** (Move), then drag a node. Sequence and gantt diagrams **render only** (no dragging)—see the compatibility matrix in the app docs.
