@@ -1,8 +1,9 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { Code2, Eye, EyeOff, Pencil, Plus, RotateCcw, Scan, Shapes, Trash2 } from "lucide-react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import type { DiagramDocument, Position, StudioSettings } from "./types";
+import { GRID_SIZE } from "./constants";
 import { colorizeExportedNodes } from "./export";
 import { trimLayoutToValidKeys, validLayoutKeySet } from "./lib/layoutKeys";
 import {
@@ -477,6 +478,36 @@ function readTranslation(transform: string | null): Position {
 
 function cssTransform(transform: ZoomTransform): string {
   return `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`;
+}
+
+function interpolateView(start: ZoomTransform, target: ZoomTransform, eased: number): ZoomTransform {
+  if (Math.abs(target.k - start.k) < 1e-4) {
+    return zoomIdentity
+      .translate(start.x + (target.x - start.x) * eased, start.y + (target.y - start.y) * eased)
+      .scale(start.k);
+  }
+  const k = Math.exp(Math.log(start.k) + (Math.log(target.k) - Math.log(start.k)) * eased);
+  const endRatio = target.k / start.k;
+  const denom = 1 - endRatio;
+  const anchorX = (target.x - start.x * endRatio) / denom;
+  const anchorY = (target.y - start.y * endRatio) / denom;
+  const ratio = k / start.k;
+  return zoomIdentity
+    .translate(anchorX - (anchorX - start.x) * ratio, anchorY - (anchorY - start.y) * ratio)
+    .scale(k);
+}
+
+function viewAtScale(current: ZoomTransform, scale: number, point: [number, number]): ZoomTransform {
+  const next = Math.min(5, Math.max(0.1, scale));
+  const from = Math.max(current.k, 0.1);
+  const ratio = next / from;
+  return zoomIdentity
+    .translate(point[0] - (point[0] - current.x) * ratio, point[1] - (point[1] - current.y) * ratio)
+    .scale(next);
+}
+
+function isTrackpadScroll(event: WheelEvent): boolean {
+  return event.deltaMode === WheelEvent.DOM_DELTA_PIXEL && (event.deltaX !== 0 || Math.abs(event.deltaY) < 40);
 }
 
 export function stableNodeId(id: string): string {
@@ -1243,9 +1274,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const toolModeRef = useRef<"move" | "hand">("move");
   const pendingFitRef = useRef(false);
   const lastValidByDocRef = useRef(new Map<string, { svg: string; type: DiagramType }>());
+  const zoomReadoutRef = useRef<HTMLButtonElement>(null);
   const [rendered, setRendered] = useState<{ id: string; svg: string }>({ id: "", svg: "" });
   const [rendering, setRendering] = useState(true);
-  const [viewTransform, setViewTransform] = useState(zoomIdentity);
   const [toolMode, setToolMode] = useState<"move" | "hand">("move");
   const selectedIdsRef = useRef<Set<string>>(new Set());
   const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -1262,20 +1293,74 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   onLayoutChangeRef.current = onLayoutChange;
   onNodeMovedRef.current = onNodeMoved;
   onNodeSelectRef.current = onNodeSelect;
-  const applyTransform = useCallback((transform: ZoomTransform) => {
+  const paintView = useCallback((transform: ZoomTransform) => {
     transformRef.current = transform;
-    if (graphicRef.current) {
-      graphicRef.current.style.transform = cssTransform(transform);
+    if (graphicRef.current) graphicRef.current.style.transform = cssTransform(transform);
+    if (zoomReadoutRef.current) zoomReadoutRef.current.textContent = `${Math.round(transform.k * 100)}%`;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const gridSize = GRID_SIZE * transform.k;
+    if (gridSize > 0) {
+      const x = ((transform.x % gridSize) + gridSize) % gridSize;
+      const y = ((transform.y % gridSize) + gridSize) % gridSize;
+      viewport.style.backgroundImage = "";
+      viewport.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+      viewport.style.backgroundPosition = `${x}px ${y}px`;
+    } else {
+      viewport.style.backgroundImage = "none";
+      viewport.style.backgroundSize = "";
+      viewport.style.backgroundPosition = "";
     }
-    setViewTransform(transform);
   }, []);
+  useLayoutEffect(() => {
+    paintView(transformRef.current);
+  }, [paintView]);
+  const applyTransform = useCallback((transform: ZoomTransform) => {
+    paintView(transform);
+  }, [paintView]);
   const activateTool = useCallback((mode: "move" | "hand") => {
     toolModeRef.current = mode;
     setToolMode(mode);
     onToolChange?.(mode);
   }, [onToolChange]);
 
-  const fit = useCallback(() => {
+  const animateTransform = useCallback((target: ZoomTransform) => {
+    const viewport = viewportRef.current;
+    const behavior = zoomRef.current;
+    if (!viewport || !behavior) return;
+    if (zoomFrameRef.current) cancelAnimationFrame(zoomFrameRef.current);
+    if (!settingsRef.current.smoothZoom) {
+      select(viewport).call(behavior.transform, target);
+      return;
+    }
+    const start = transformRef.current;
+    const startedAt = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / 180);
+      const eased = 1 - (1 - progress) ** 3;
+      select(viewport).call(behavior.transform, interpolateView(start, target, eased));
+      if (progress < 1) zoomFrameRef.current = requestAnimationFrame(step);
+      else zoomFrameRef.current = undefined;
+    };
+    zoomFrameRef.current = requestAnimationFrame(step);
+  }, []);
+
+  const commitTransform = useCallback((transform: ZoomTransform, animate: boolean) => {
+    const viewport = viewportRef.current;
+    const behavior = zoomRef.current;
+    if (!viewport || !behavior) {
+      paintView(transform);
+      return;
+    }
+    if (animate && settingsRef.current.smoothZoom) animateTransform(transform);
+    else {
+      if (zoomFrameRef.current) cancelAnimationFrame(zoomFrameRef.current);
+      zoomFrameRef.current = undefined;
+      select(viewport).call(behavior.transform, transform);
+    }
+  }, [animateTransform, paintView]);
+
+  const fit = useCallback((animate = false) => {
     const viewport = viewportRef.current;
     const graphic = graphicRef.current;
     const svg = graphic?.querySelector("svg");
@@ -1292,74 +1377,43 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     );
     const x = (vw - box.width * scale) / 2 - box.x * scale;
     const y = (vh - box.height * scale) / 2 - box.y * scale;
-    const transform = zoomIdentity.translate(x, y).scale(scale);
-    if (zoomRef.current) select(viewport).call(zoomRef.current.transform, transform);
-    else applyTransform(transform);
-  }, [applyTransform]);
+    commitTransform(zoomIdentity.translate(x, y).scale(scale), animate);
+  }, [commitTransform]);
 
-  const reset = useCallback(() => {
+  const reset = useCallback((animate = false) => {
     const viewport = viewportRef.current;
     const svg = graphicRef.current?.querySelector("svg");
     if (!viewport || !zoomRef.current) return;
     if (!svg) {
-      select(viewport).call(zoomRef.current.transform, zoomIdentity);
+      commitTransform(zoomIdentity, animate);
       return;
     }
     const box = getDiagramBounds(svg);
     if (!box.width || !box.height) {
-      select(viewport).call(zoomRef.current.transform, zoomIdentity);
+      commitTransform(zoomIdentity, animate);
       return;
     }
     const vw = viewport.clientWidth || 640;
     const vh = viewport.clientHeight || 480;
     const x = (vw - box.width) / 2 - box.x;
     const y = (vh - box.height) / 2 - box.y;
-    select(viewport).call(zoomRef.current.transform, zoomIdentity.translate(x, y).scale(1));
-  }, []);
-
-  const animateTransform = useCallback((target: ZoomTransform) => {
-    const viewport = viewportRef.current;
-    const behavior = zoomRef.current;
-    if (!viewport || !behavior) return;
-    if (zoomFrameRef.current) cancelAnimationFrame(zoomFrameRef.current);
-    if (!settingsRef.current.smoothZoom) {
-      select(viewport).call(behavior.transform, target);
-      return;
-    }
-    const start = transformRef.current;
-    const startedAt = performance.now();
-    const step = (now: number) => {
-      const progress = Math.min(1, (now - startedAt) / 160);
-      const eased = 1 - (1 - progress) ** 3;
-      const current = zoomIdentity
-        .translate(start.x + (target.x - start.x) * eased, start.y + (target.y - start.y) * eased)
-        .scale(start.k + (target.k - start.k) * eased);
-      select(viewport).call(behavior.transform, current);
-      if (progress < 1) zoomFrameRef.current = requestAnimationFrame(step);
-    };
-    zoomFrameRef.current = requestAnimationFrame(step);
-  }, []);
+    commitTransform(zoomIdentity.translate(x, y).scale(1), animate);
+  }, [commitTransform]);
 
   const zoomBy = useCallback((factor: number, center?: [number, number]) => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const current = transformRef.current;
     const point = center ?? [viewport.clientWidth / 2, viewport.clientHeight / 2];
-    const scale = Math.min(5, Math.max(0.1, current.k * factor));
-    const ratio = scale / current.k;
-    animateTransform(
-      zoomIdentity
-        .translate(point[0] - (point[0] - current.x) * ratio, point[1] - (point[1] - current.y) * ratio)
-        .scale(scale),
-    );
-  }, [animateTransform]);
+    commitTransform(viewAtScale(current, current.k * factor, point), true);
+  }, [commitTransform]);
 
   const arrangeGrid = useCallback(() => {
     const svg = graphicRef.current?.querySelector("svg");
     if (!svg) return;
     const wrappers = Array.from(svg.querySelectorAll<SVGGElement>("[data-sgs-node]"));
     if (!wrappers.length) return;
-    const size = Math.max(4, settingsRef.current.snapSize);
+    const size = Math.max(4, GRID_SIZE);
     const snapVal = (v: number) => Math.round(v / size) * size;
     const items = wrappers.map((wrapper) => {
       const id = wrapper.dataset.sgsNode ?? "";
@@ -1550,12 +1604,18 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     }
     pendingFitRef.current = true;
     onLayoutChange(next);
-    requestAnimationFrame(() => fit());
+    requestAnimationFrame(() => fit(true));
   }, [document.code, fit, onLayoutChange]);
 
   useImperativeHandle(
     ref,
-    () => ({ zoomBy, fit, reset, arrangeGrid, setTool: activateTool }),
+    () => ({
+      zoomBy,
+      fit: () => fit(true),
+      reset: () => reset(true),
+      arrangeGrid,
+      setTool: activateTool,
+    }),
     [activateTool, arrangeGrid, fit, reset, zoomBy],
   );
 
@@ -1575,29 +1635,48 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
         return false;
       })
-      .on("zoom", (event) => applyTransform(event.transform));
+      .on("start", (event) => {
+        const source = event.sourceEvent as Event | null;
+        if (source && (source.type === "mousedown" || source.type === "touchstart")) {
+          viewport.dataset.panning = "true";
+        }
+      })
+      .on("zoom", (event) => applyTransform(event.transform))
+      .on("end", () => {
+        if (!spaceDown.current) delete viewport.dataset.panning;
+      });
     zoomRef.current = behavior;
     select(viewport).call(behavior).on("dblclick.zoom", null);
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
+      if (zoomFrameRef.current) cancelAnimationFrame(zoomFrameRef.current);
+      zoomFrameRef.current = undefined;
       const currentSettings = settingsRef.current;
       const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE
         ? 16
         : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
           ? viewport.clientHeight
           : 1;
+      const direction = currentSettings.invertScroll ? -1 : 1;
+      const pinch = event.ctrlKey || event.metaKey;
+      const panGesture = !pinch && (currentSettings.scrollMode === "pan" || isTrackpadScroll(event));
+      if (!panGesture) {
+        const deltaY = event.deltaY * unit;
+        const factor = Math.exp(-deltaY * 0.0022 * currentSettings.zoomSpeed * direction);
+        const bounds = viewport.getBoundingClientRect();
+        const target = viewAtScale(
+          transformRef.current,
+          transformRef.current.k * factor,
+          [event.clientX - bounds.left, event.clientY - bounds.top],
+        );
+        select(viewport).call(behavior.transform, target);
+        return;
+      }
       const deltaX = event.deltaX * unit * currentSettings.panSpeed;
       const deltaY = event.deltaY * unit * currentSettings.panSpeed;
-      const direction = currentSettings.invertScroll ? -1 : 1;
-      if (event.ctrlKey || currentSettings.scrollMode === "zoom") {
-        const scaleDelta = Math.exp(-deltaY * 0.002 * currentSettings.zoomSpeed * direction);
-        const bounds = viewport.getBoundingClientRect();
-        zoomBy(scaleDelta, [event.clientX - bounds.left, event.clientY - bounds.top]);
-      } else {
-        const scale = Math.max(transformRef.current.k, 0.1);
-        select(viewport).call(behavior.translateBy, (-deltaX * direction) / scale, (-deltaY * direction) / scale);
-      }
+      const scale = Math.max(transformRef.current.k, 0.1);
+      select(viewport).call(behavior.translateBy, (-deltaX * direction) / scale, (-deltaY * direction) / scale);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       const element = event.target instanceof Element ? event.target : undefined;
@@ -1629,7 +1708,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
       } else if (event.shiftKey && event.code === "Digit1") {
         event.preventDefault();
-        fit();
+        fit(true);
       } else if (event.key === "+" || event.code === "NumpadAdd") {
         event.preventDefault();
         zoomBy(1.15);
@@ -2461,7 +2540,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         let dx = ((event.clientX - pointerStart.x) / zoomScale) * speed;
         let dy = ((event.clientY - pointerStart.y) / zoomScale) * speed;
         if (settingsRef.current.snapEnabled && !event.altKey) {
-          const step = Math.max(4, settingsRef.current.snapSize / 2);
+          const step = Math.max(4, GRID_SIZE / 2);
           dx = Math.round(dx / step) * step;
           dy = Math.round(dy / step) * step;
         }
@@ -2494,7 +2573,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
         event.preventDefault();
         const step = settingsRef.current.snapEnabled && !event.altKey
-          ? Math.max(4, settingsRef.current.snapSize / 2)
+          ? Math.max(4, GRID_SIZE / 2)
           : 4;
         const distance = event.shiftKey ? step * 4 : step;
         const next = { ...edge.manualOffset };
@@ -2622,7 +2701,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         let x = pointerStart.position.x + ((event.clientX - pointerStart.x) / zoomScale) * speed;
         let y = pointerStart.position.y + ((event.clientY - pointerStart.y) / zoomScale) * speed;
         if (settingsRef.current.snapEnabled && !event.altKey) {
-          const size = Math.max(4, settingsRef.current.snapSize);
+          const size = Math.max(4, GRID_SIZE);
           x = Math.round(x / size) * size;
           y = Math.round(y / size) * size;
         } else if (!event.altKey) {
@@ -2668,7 +2747,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
         event.preventDefault();
         const snap = settingsRef.current.snapEnabled && !event.altKey;
-        const size = Math.max(4, settingsRef.current.snapSize);
+        const size = Math.max(4, GRID_SIZE);
         const step = snap ? size : 4;
         const distance = event.shiftKey ? step * 5 : step;
         const next = { ...node.position };
@@ -2732,7 +2811,6 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     };
   }, [rendered, document.id, document.code, document.layout, fit, settings.colorizeBoxes]);
 
-  const gridSize = settings.snapSize > 0 ? Math.min(100, settings.snapSize) * viewTransform.k : 0;
   const resolvedPalette = resolveDiagramPalette(settings);
 
   const handleViewportPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -2854,12 +2932,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       data-tool={toolMode}
       onPointerDown={handleViewportPointerDown}
       onContextMenu={handleContextMenu}
-      style={{
-        backgroundColor: resolvedPalette.canvasColor,
-        backgroundImage: gridSize > 0 ? undefined : "none",
-        backgroundSize: gridSize > 0 ? `${gridSize}px ${gridSize}px` : undefined,
-        backgroundPosition: gridSize > 0 ? `${viewTransform.x % gridSize}px ${viewTransform.y % gridSize}px` : undefined,
-      }}
+      style={{ backgroundColor: resolvedPalette.canvasColor }}
       role="group"
       aria-describedby="node-movement-help"
       aria-label={`Diagram preview. ${toolMode === "hand" ? "Hand tool" : "Move tool"}. Press H for hand, V for move, or Space while dragging to pan.`}
@@ -2867,8 +2940,19 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       <div
         className="diagram-graphic"
         ref={graphicRef}
-        style={{ fontFamily: settings.font, transform: cssTransform(viewTransform) }}
+        style={{ fontFamily: settings.font }}
       />
+      <button
+        ref={zoomReadoutRef}
+        className="zoom-readout"
+        type="button"
+        title="Fit diagram"
+        aria-label="Zoom level. Click to fit the diagram."
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={() => fit(true)}
+      >
+        100%
+      </button>
       {rendering && <div className="render-indicator" aria-live="polite">Rendering…</div>}
       {!rendered.svg && !rendering && (
         <div className="render-empty" role="status">Enter valid Mermaid syntax to preview.</div>
@@ -3191,7 +3275,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  fit();
+                  fit(true);
                   setContextMenu(null);
                 }}
               >
@@ -3202,7 +3286,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  reset();
+                  reset(true);
                   setContextMenu(null);
                 }}
               >
