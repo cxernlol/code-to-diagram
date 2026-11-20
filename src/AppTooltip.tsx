@@ -38,8 +38,6 @@ export function AppTooltip() {
       if (
         el.getAttribute("aria-expanded") === "true" ||
         el.closest("details[open]") ||
-        el.closest("dialog[open]") ||
-        el.matches("input, select, textarea") ||
         (el instanceof HTMLSelectElement && document.activeElement === el)
       ) {
         clear();

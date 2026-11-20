@@ -1286,6 +1286,16 @@ test("studio buttons show styled hover tooltip and dismiss on Escape", async ({ 
   await expect(tooltip).toBeHidden();
 });
 
+test("grid size input clamps values between 0 and 100", async ({ page }) => {
+  await page.goto("/#app");
+  await page.locator('summary[aria-label="Pan and zoom settings"]').click();
+  const gridInput = page.getByLabel("Grid size");
+  await gridInput.fill("9999999");
+  await expect(gridInput).toHaveValue("100");
+  await gridInput.fill("-5");
+  await expect(gridInput).toHaveValue("0");
+});
+
 test("diagram actions menu duplicates and renames, and direction menu updates flowchart flow", async ({ page }) => {
   await page.goto("/#app");
   await page.getByRole("button", { name: "Diagram actions" }).click();
@@ -1590,7 +1600,7 @@ test("F3, F4, F5, F10: first-run coachmark, first-drag sidecar explainer + submi
   // F10: First-run coachmark visible once per profile and dismissible via localStorage
   const coachmark = page.getByRole("region", { name: "First-run guide" });
   await expect(coachmark).toBeVisible();
-  await expect(coachmark.getByRole("button", { name: "Next" })).toBeVisible();
+  await expect(coachmark.getByRole("button", { name: /First time\? Tutorial \(\/docs\)/i })).toBeVisible();
   await coachmark.getByRole("button", { name: "Dismiss quick start hint" }).click();
   await expect(coachmark).toBeHidden();
   expect(await page.evaluate(() => localStorage.getItem("ctd-coachmark-dismissed"))).toBe("1");
@@ -1708,7 +1718,7 @@ test("simple mode persistence, storage nudge, copy share link, and mobile #d= no
 
   // C2: Simple mode hides AI bar and Host live room by default
   await expect(page.getByRole("button", { name: "Host live room (max 5 devices)" })).toBeHidden();
-  await expect(page.locator(".studio-coachmark")).toContainText(/Start on the canvas/i);
+  await expect(page.locator(".studio-coachmark")).toContainText(/Right-click to edit/i);
 
   // H6: Dismiss first-run coachmark so storage nudge appears, then dismiss storage nudge
   await page.getByRole("button", { name: "Dismiss quick start hint" }).click();
@@ -1759,7 +1769,7 @@ test("new diagram picker shows 3 featured templates and See all (GAP4)", async (
   await expect(featured.getByRole("button", { name: /Flowchart/ })).toBeVisible();
   await expect(featured.getByRole("button", { name: /Loop Trace/ })).toBeVisible();
   await expect(featured.getByRole("button", { name: /SQL Schema/ })).toBeVisible();
-  await expect(featured.getByRole("button", { name: "All templates" })).toBeVisible();
+  await expect(featured.getByRole("button", { name: "See all" })).toBeVisible();
   await featured.getByRole("button", { name: /Loop Trace/ }).click();
   await page.locator(".new-diagram-dialog").getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Loop Trace" })).toBeVisible();

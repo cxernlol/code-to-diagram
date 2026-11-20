@@ -330,23 +330,11 @@ export function parseMermaidToIR(mermaid: string): DiagramIR {
       /^(.+?)\s*(-->|-\.->|==>|---|<-->)\s*(?:\|([^|]+)\|\s*)?(.+)$/,
     );
     const parseEndpoint = (token: string) => {
-      const m = token.trim().match(/^([A-Za-z_][\w-]*|\[\*\])(?:\(\((.+?)\)\)|\(\[(.+?)\]\)|\[\((.+?)\)\]|\[\/(.+?)\/\]|\[\\(.+?)\\\]|\[(.+?)\]|\{(.+?)\}|\((.+?)\))?$/);
+      const m = token.trim().match(/^([A-Za-z_][\w-]*|\[\*\])(?:\(\((.+?)\)\)|\(\[(.+?)\]\)|\[\((.+?)\)\]|\[(.+?)\]|\{(.+?)\})?$/);
       if (!m) return { id: safeId(token), label: cleanText(token), shape: undefined };
       const rawId = m[1] === "[*]" ? "start_end" : m[1]!;
-      const label = m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6] ?? m[7] ?? m[8] ?? m[9] ?? rawId;
-      const shape = m[2]
-        ? "circle"
-        : m[3]
-          ? "stadium"
-          : m[4]
-            ? "cylinder"
-            : m[5] || m[6]
-              ? "parallelogram"
-              : m[8]
-                ? "diamond"
-                : m[9]
-                  ? "rounded"
-                  : undefined;
+      const label = m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6] ?? rawId;
+      const shape = m[2] ? "circle" : m[4] ? "cylinder" : m[6] ? "diamond" : undefined;
       return { id: ensureNode(rawId, label, shape), label: cleanText(label), shape };
     };
 
@@ -411,15 +399,9 @@ export function emitFromIR(ir: DiagramIR, target: CodeFormat): string {
             ? `${n.id}{${lbl}}`
             : n.shape === "circle"
               ? `${n.id}((${lbl}))`
-              : n.shape === "stadium"
-                ? `${n.id}([${lbl}])`
-                : n.shape === "rounded"
-                  ? `${n.id}(${lbl})`
-                  : n.shape === "cylinder"
-                    ? `${n.id}[(${lbl})]`
-                    : n.shape === "parallelogram"
-                      ? `${n.id}[/${lbl}/]`
-                      : `${n.id}[${lbl}]`;
+              : n.shape === "cylinder"
+                ? `${n.id}[(${lbl})]`
+                : `${n.id}[${lbl}]`;
         out.push(`  ${shaped}`);
       }
       for (const e of ir.edges) {
@@ -480,45 +462,14 @@ export function emitFromIR(ir: DiagramIR, target: CodeFormat): string {
     }
 
     case "sql": {
-      const outgoing = new Map<string, string[]>();
-      const indeg = new Map<string, number>(ir.nodes.map((n) => [n.id, 0]));
-      for (const e of ir.edges) {
-        const list = outgoing.get(e.from) ?? [];
-        list.push(e.to);
-        outgoing.set(e.from, list);
-        indeg.set(e.to, (indeg.get(e.to) ?? 0) + 1);
-      }
-      let roots = ir.nodes.filter((n) => (indeg.get(n.id) ?? 0) === 0);
-      if (!roots.length) {
-        const start = ir.nodes.find((n) => n.shape === "stadium" || /^start$/i.test(n.id)) ?? ir.nodes[0];
-        if (start) roots = [start];
-      }
-      const depth = new Map(roots.map((n) => [n.id, 0]));
-      const queue = roots.map((n) => n.id);
-      while (queue.length) {
-        const cur = queue.shift()!;
-        for (const next of outgoing.get(cur) ?? []) {
-          if (depth.has(next)) continue;
-          depth.set(next, (depth.get(cur) ?? 0) + 1);
-          queue.push(next);
-        }
-      }
       const incoming = new Map<string, string[]>();
       for (const e of ir.edges) {
-        const fromDepth = depth.get(e.from) ?? Number.POSITIVE_INFINITY;
-        const toDepth = depth.get(e.to) ?? Number.POSITIVE_INFINITY;
-        if (toDepth < fromDepth) continue;
         const list = incoming.get(e.to) ?? [];
         list.push(e.from);
         incoming.set(e.to, list);
       }
       const out: string[] = [];
-      const tables = [...ir.nodes].sort((a, b) => {
-        const da = depth.get(a.id) ?? Number.POSITIVE_INFINITY;
-        const db = depth.get(b.id) ?? Number.POSITIVE_INFINITY;
-        return da - db;
-      });
-      for (const n of tables) {
+      for (const n of ir.nodes) {
         const cols: string[] = [];
         if (n.fields?.length) {
           for (const f of n.fields) {
