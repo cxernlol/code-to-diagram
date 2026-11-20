@@ -3,3 +3,6 @@ contact_links:
   - name: Syntax & Template Docs
     url: https://code-to-diagram.vercel.app/docs
     about: Check supported arrows, shapes, and format syntax before filing a parser issue.
+  - name: Report a security issue
+    url: https://github.com/cxernlol/code-to-diagram/security/advisories/new
+    about: Do not open a public issue for vulnerabilities — use GitHub private security advisories.

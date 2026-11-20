@@ -12,7 +12,7 @@ export function NotFoundPage({ path, onHome, onStart, onDocs }: NotFoundPageProp
     <div className="home-page">
       <header className="home-nav">
         <div className="home-nav-inner">
-          <button className="brand-home-button" type="button" onClick={onHome}>
+          <button className="home-brand home-brand-btn" type="button" onClick={onHome}>
             <span className="brand-mark"><GitBranch aria-hidden="true" size={17} /></span>
             <span className="home-brand-name">CTD Studio</span>
           </button>

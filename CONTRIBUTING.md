@@ -1,44 +1,58 @@
-# Contributing to CTD Studio (`code-to-diagram`)
+# Contributing to CTD Studio
 
-Thank you for contributing. To keep the web editor, parsers, and `ctd-mcp` stable, all contributions must follow these rules.
+**Local-first, no tracking, small PRs.** Fork → branch → run checks → open PR to `main`.
 
-## Pull Request Policy
+## Quick start
 
-- **No direct pushes to `main`.** Open a branch (`feat/...`, `fix/...`, `docs/...`, `ci/...`) and submit a Pull Request against `main`.
-- **One concern per PR.** Keep changes small and focused. Do not mix unrelated UI, parser, MCP, or workflow edits in the same PR.
-- **Do not touch the web app** (`src/App.tsx`, `src/HomePage.tsx`, `src/DocsPage.tsx`, `src/styles.css`, `index.html`, `public/`, `vercel.json`) in PRs scoped to docs, CI, or `mcp/`-only changes.
-- **Do not touch `mcp/`** or CI/release workflows unless your PR specifically targets them and includes the matching tests.
+```bash
+git clone https://github.com/cxernlol/code-to-diagram.git
+cd code-to-diagram
+npm install   # Node ≥22
+npm run dev
+```
 
-## Non-Negotiable Architecture Rules
+## Pull requests
 
-- **Local-first & zero tracking:** Never add analytics, tracking cookies, or server-side diagram/key storage.
-- **API key isolation:** BYOK AI credentials must stay in browser IndexedDB and must **never** be serialized into share URLs (`createShareHash`) or logged.
-- **Preserve user data & selectors:** Do not rename `DATABASE_NAME` (`sgs-studio`), `CHANNEL_NAME` (`sgs-studio-updates`), the `mstudio2` migration path, or `[data-sgs-node]` / `[data-sgs-edge]` DOM attributes without an explicit migration plan.
-- **Keep `mcp/dist/index.js` synced and executable:** If you edit `mcp/src/`, `src/constants.ts`, `src/lib/formats.ts`, `src/lib/mermaid.ts`, or `src/lib/translate.ts`, run `npm run mcp:build` so `mcp/dist/index.js` stays updated with `100755` permissions and LF line endings (`.gitattributes`).
-- **No weakened checks:** Do not disable TypeScript strictness, skip Playwright/MCP assertions, or silence lint/type errors with `any` or `@ts-ignore`.
+| Rule | |
+| :--- | :--- |
+| **Branch** | `feat/`, `fix/`, `docs/`, `ci/` — **no direct push to `main`** |
+| **Scope** | **One concern per PR** — don’t mix UI, parsers, MCP, and CI in one diff |
+| **Docs/CI only** | Don’t touch `src/`, `public/`, or `mcp/` unless the PR is for those |
+| **MCP/CI only** | Don’t touch the web app unless the PR is for those |
+| **Commits** | `feat:`, `fix:`, `docs:`, `ci:`, `chore:` |
+| **Merge** | Green [CI](.github/workflows/ci.yml) on GitHub |
 
-## Required Checks Before Opening a PR
+## Architecture (non‑negotiable)
 
-Run these from the repository root (`code-to-diagram/`):
+- **Local-first** — No analytics, tracking cookies, or server-side storage of diagrams or API keys.
+- **BYOK** — Keys stay in IndexedDB only; **never** in `#d=` share URLs or logs.
+- **Stable IDs** — Don’t rename `sgs-studio`, `mstudio2` migration, or `[data-sgs-node]` / `[data-sgs-edge]` without a migration plan.
+- **MCP bundle** — After `mcp/src/` or shared parser changes: `npm run mcp:build` (keep `mcp/dist/index.js` in sync, executable).
+- **No weakened gates** — No `@ts-ignore`, skipped tests, or relaxed strictness to land a PR.
 
-### Minimal tier (scoped changes)
+## Verify before you push
 
-- **Docs / CI-only changes:** Verify Markdown links and YAML syntax; no build required if no code changed.
-- **Sidecar / parser / `mcp/`-only changes:**
-  ```bash
-  npm run build && npm run test:parsers && npm run test:sidecar && npm run mcp:test
-  ```
-
-### Full pre-push tier (required when changing `src/`, `index.html`, `public/`, or before pushing)
+**Scoped** (parser / sidecar / `mcp/` only):
 
 ```bash
 npm run build
 npm run test:parsers && npm run test:sidecar && npm run mcp:test
-npx playwright test --workers=1
 ```
 
-## Opening a PR
+**Full** (anything under `src/`, `index.html`, `public/`, or UI):
 
-1. Use clear commit prefixes: `feat:`, `fix:`, `docs:`, `ci:`, `chore:`.
-2. Fill out the PR checklist confirming which checks ran locally.
-3. Wait for GitHub Actions **CI** (`.github/workflows/ci.yml`) to pass before merging.
+```bash
+npm run build
+npm run test:parsers && npm run test:sidecar && npm run test:render && npm run mcp:test
+npm test   # Playwright, 49 tests — use --workers=1 locally
+```
+
+Docs-only: check links and spelling; no build unless you changed code.
+
+## PR checklist
+
+GitHub pre-fills **[`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)** — use those boxes when you open a PR (scope, rules, security, verification tier).
+
+**Security:** Trust boundaries and contributor checks — [`docs/SECURITY.md`](docs/SECURITY.md). Vulnerability reports (not public issues) — [`SECURITY.md`](SECURITY.md).
+
+Questions: [GitHub issues](https://github.com/cxernlol/code-to-diagram/issues) or the PR thread.

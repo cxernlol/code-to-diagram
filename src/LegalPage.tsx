@@ -14,24 +14,14 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
     <div className="home-page">
       <header className="home-nav">
         <div className="home-nav-inner">
-          <button className="brand-home-button" type="button" onClick={onBack}>
+          <button className="home-brand home-brand-btn" type="button" onClick={onBack}>
             <span className="brand-mark"><GitBranch aria-hidden="true" size={17} /></span>
             <span className="home-brand-name">CTD Studio</span>
           </button>
           <nav className="home-nav-actions" aria-label="Legal navigation">
-            <button
-              className={`home-link legal-nav-btn${tab === "privacy" ? " active" : ""}`}
-              type="button"
-              onClick={() => onSwitch("privacy")}
-            >
-              Privacy &amp; Cookies
-            </button>
-            <button
-              className={`home-link legal-nav-btn${tab === "terms" ? " active" : ""}`}
-              type="button"
-              onClick={() => onSwitch("terms")}
-            >
-              Terms
+            <button className="home-link" type="button" onClick={onBack}>
+              <ArrowLeft aria-hidden="true" size={14} />
+              <span>Home</span>
             </button>
             <button className="button primary home-nav-start" type="button" onClick={onStart}>
               Open Studio
@@ -41,10 +31,20 @@ export function LegalPage({ tab, onSwitch, onBack, onStart }: LegalPageProps) {
       </header>
 
       <main className="legal-main">
-        <button className="legal-back" type="button" onClick={onBack}>
-          <ArrowLeft aria-hidden="true" size={15} />
-          Back to home
-        </button>
+        <div className="legal-toolbar">
+          <button className="legal-back" type="button" onClick={onBack}>
+            <ArrowLeft aria-hidden="true" size={15} />
+            Back to home
+          </button>
+          <div className="legal-switch" role="tablist" aria-label="Privacy and terms">
+            <button type="button" role="tab" aria-selected={tab === "privacy"} onClick={() => onSwitch("privacy")}>
+              Privacy
+            </button>
+            <button type="button" role="tab" aria-selected={tab === "terms"} onClick={() => onSwitch("terms")}>
+              Terms
+            </button>
+          </div>
+        </div>
 
         {tab === "privacy" ? (
           <article className="legal-card">
