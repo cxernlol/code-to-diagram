@@ -69,6 +69,34 @@ test("PlantUML multiplicity quotes convert to Mermaid classDiagram", () => {
   assert.match(mermaid, /Workspace "0\.\.\*" o-- "1" Member : contains/);
 });
 
+test("flowchart stadium start/end round-trip and SQL drops loop back-edges", () => {
+  const source = `flowchart TD
+  Start([Start]) --> Check{Valid?}
+  Check -->|Yes| Process[Process]
+  Check -->|No| Fix[Fix Inputs]
+  Fix --> Check
+  Process --> Output[/Output/]
+  Output --> Done([Done])`;
+  const ir = translate.parseMermaidToIR(source);
+  const start = ir.nodes.find((n) => n.id === "Start");
+  const done = ir.nodes.find((n) => n.id === "Done");
+  const output = ir.nodes.find((n) => n.id === "Output");
+  assert.equal(start?.shape, "stadium");
+  assert.equal(done?.shape, "stadium");
+  assert.equal(output?.shape, "parallelogram");
+  const mermaid = translate.emitFromIR(ir, "mermaid");
+  assert.match(mermaid, /Start\(\["Start"\]\)/);
+  assert.match(mermaid, /Done\(\["Done"\]\)/);
+  assert.match(mermaid, /Output\[\/"Output"\/\]/);
+  const sql = translate.emitFromIR(ir, "sql");
+  assert.match(sql, /CREATE TABLE Start/);
+  assert.match(sql, /CREATE TABLE Done/);
+  assert.ok(sql.indexOf("CREATE TABLE Start") < sql.indexOf("CREATE TABLE Check"));
+  assert.ok(sql.indexOf("CREATE TABLE Check") < sql.indexOf("CREATE TABLE Done"));
+  assert.match(sql, /start_id INT REFERENCES Start/);
+  assert.doesNotMatch(sql, /fix_id INT REFERENCES Fix/);
+});
+
 test("SQL DDL foreign keys (inline and table-level) convert to Mermaid erDiagram", () => {
   const sql = `
     CREATE TABLE users (

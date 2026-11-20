@@ -107,6 +107,21 @@ const COACHMARK_DISMISSED_KEY = "ctd-coachmark-dismissed";
 const SIMPLE_MODE_KEY = "ctd-simple-mode";
 const STORAGE_NUDGE_KEY = "ctd-storage-nudge-dismissed";
 
+const WORKBENCH_TOUR = [
+  {
+    title: "Start on the canvas",
+    body: "A sample flowchart is already here. Drag a box to move it — you do not have to write code first.",
+  },
+  {
+    title: "Code is optional",
+    body: "The left pane is the source. Change a label there if you want; the preview follows.",
+  },
+  {
+    title: "When you are ready",
+    body: "Convert formats, export PNG, or copy a share link. Everything stays in this browser until you export.",
+  },
+] as const;
+
 function getRoomIdFromHash(hash: string): string | undefined {
   if (!hash.startsWith("#room=")) return undefined;
   try {
@@ -326,6 +341,7 @@ function App() {
     }
   });
   const [firstDragTriggered, setFirstDragTriggered] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
   const [coachmarkDismissed, setCoachmarkDismissed] = useState(() => {
     try {
       return localStorage.getItem(COACHMARK_DISMISSED_KEY) === "1";
@@ -1694,9 +1710,8 @@ function App() {
   const codeFormat = detectCodeFormat(activeDocument.code);
   const isReadOnlySnapshot = endedRoomDocIds.has(activeDocument.id);
   const hasCustomLayout = Object.keys(activeDocument.layout).length > 0;
-  const activeErrorText = storageError || renderError?.message || "";
-  const pedagogicalHint = activeErrorText
-    ? getPedagogicalErrorHint(activeDocument.code, activeErrorText)
+  const pedagogicalHint = renderError?.message
+    ? getPedagogicalErrorHint(activeDocument.code, renderError.message)
     : null;
 
   const clampedSplitPercent = Math.min(50, Math.max(22, data.settings.splitPercent));
@@ -2162,13 +2177,21 @@ function App() {
             </button>
           </section>
         )}
-        {(storageError || renderError) && (
+        {storageError && (
+          <section className="conflict-banner" role="status">
+            <span>{storageError}</span>
+            <button type="button" onClick={() => setStorageError("")}>
+              Dismiss
+            </button>
+          </section>
+        )}
+        {renderError && (
           <section className="error-banner" role="alert">
-            <span title={pedagogicalHint ? `${activeErrorText} — ${pedagogicalHint.hint}` : activeErrorText}>
-              {activeErrorText}
+            <span>
+              {renderError.message}
               {pedagogicalHint ? ` — ${pedagogicalHint.hint}` : ""}
             </span>
-            {renderError?.line && (
+            {renderError.line && (
               <button
                 type="button"
                 onClick={() => {
@@ -2190,7 +2213,7 @@ function App() {
                 {pedagogicalHint.label}
               </button>
             )}
-            <button type="button" aria-label="Dismiss error" onClick={() => { setStorageError(""); setRenderError(undefined); }}>
+            <button type="button" aria-label="Dismiss error" onClick={() => setRenderError(undefined)}>
               <X aria-hidden="true" size={15} />
             </button>
           </section>
@@ -2208,7 +2231,7 @@ function App() {
         role="tabpanel"
         aria-labelledby={`tab-${activeDocument.id}`}
       >
-        <section className="editor-pane" aria-label="Mermaid editor">
+        <section className="editor-pane" aria-label="Diagram source">
           <div className="pane-toolbar editor-toolbar">
             <div className="pane-title">
               <button
@@ -2283,6 +2306,7 @@ function App() {
               <CodeEditor
                 ref={editorRef}
                 value={activeDocument.code}
+                format={codeFormat}
                 readOnly={isReadOnlySnapshot}
                 darkMode={data.settings.theme === "dark"}
                 error={renderError}
@@ -2294,7 +2318,11 @@ function App() {
           </div>
           <div className="editor-footer">
             <span>{activeDocument.code.split(/\r?\n/).length} lines</span>
-            <span>Move a node with drag or arrow keys; Shift moves farther.</span>
+            {renderError ? (
+              <span className="editor-error-line" title={renderError.message}>{renderError.message}</span>
+            ) : (
+              <span>Move a node with drag or arrow keys; Shift moves farther.</span>
+            )}
           </div>
         </section>
 
@@ -2395,16 +2423,18 @@ function App() {
                   </div>
                 )}
               </div>
-              <button
-                className="icon-button compact"
-                type="button"
-                aria-label={aiBarVisible ? "Hide AI assistant bar" : "Show AI assistant bar"}
-                title={aiBarVisible ? "Hide AI assistant bar" : "Show AI assistant bar"}
-                aria-pressed={aiBarVisible}
-                onClick={() => setAiBarVisible((current) => !current)}
-              >
-                <Wand2 aria-hidden="true" size={15} />
-              </button>
+              {!simpleMode && (
+                <button
+                  className="icon-button compact"
+                  type="button"
+                  aria-label={aiBarVisible ? "Hide AI assistant bar" : "Show AI assistant bar"}
+                  title={aiBarVisible ? "Hide AI assistant bar" : "Show AI assistant bar"}
+                  aria-pressed={aiBarVisible}
+                  onClick={() => setAiBarVisible((current) => !current)}
+                >
+                  <Wand2 aria-hidden="true" size={15} />
+                </button>
+              )}
               <button
                 className="icon-button compact"
                 type="button"
@@ -2427,20 +2457,31 @@ function App() {
                 <summary aria-label="Pan and zoom settings" title="Pan and zoom settings"><Settings2 aria-hidden="true" size={15} /></summary>
                 <div className="sensitivity-popover">
                   <strong>Pan and zoom</strong>
-                  <label>Scroll behavior
+                  <label className="sensitivity-field">Scroll behavior
                     <select value={data.settings.scrollMode} onChange={(event) => changeSettings({ scrollMode: event.target.value as "pan" | "zoom" })}>
                       <option value="pan">Scroll to pan</option>
                       <option value="zoom">Scroll to zoom</option>
                     </select>
                   </label>
-                  <label>Zoom speed <input type="range" min="0.5" max="2" step="0.1" value={data.settings.zoomSpeed} onChange={(event) => changeSettings({ zoomSpeed: Number(event.target.value) })} /></label>
-                  <label>Pan speed <input type="range" min="0.4" max="2" step="0.1" value={data.settings.panSpeed} onChange={(event) => changeSettings({ panSpeed: Number(event.target.value) })} /></label>
-                  <label>Drag speed <input type="range" min="0.25" max="1.5" step="0.05" value={data.settings.dragSpeed} onChange={(event) => changeSettings({ dragSpeed: Number(event.target.value) })} /></label>
-                  <label className="check-row"><input type="checkbox" checked={data.settings.invertScroll} onChange={(event) => changeSettings({ invertScroll: event.target.checked })} /> Invert scroll</label>
-                  <label className="check-row"><input type="checkbox" checked={data.settings.smoothZoom} onChange={(event) => changeSettings({ smoothZoom: event.target.checked })} /> Smooth zoom</label>
-                  <label className="check-row"><input type="checkbox" checked={data.settings.snapEnabled} onChange={(event) => changeSettings({ snapEnabled: event.target.checked })} /> Snap nodes to grid</label>
-                  <label>Grid size <input type="number" min={0} max={100} step={1} value={data.settings.snapSize} onChange={(event) => { const raw = Number(event.target.value); changeSettings({ snapSize: Number.isFinite(raw) ? Math.min(100, Math.max(0, Math.round(raw))) : 0 }); }} /></label>
-                  <p>V: move. H: hand. Space+drag: pan. Shift+1: fit. +/-: zoom. Shift: precision. Alt: bypass grid.</p>
+                  <div className="sensitivity-speeds">
+                    <label>
+                      <span className="sensitivity-speed-label"><span>Zoom speed</span><span className="sensitivity-speed-value">{Number(data.settings.zoomSpeed.toFixed(2))}</span></span>
+                      <input type="range" min="0.5" max="2" step="0.1" value={data.settings.zoomSpeed} style={{ ["--speed"]: `${((data.settings.zoomSpeed - 0.5) / 1.5) * 100}%` } as CSSProperties} onChange={(event) => changeSettings({ zoomSpeed: Number(event.target.value) })} />
+                    </label>
+                    <label>
+                      <span className="sensitivity-speed-label"><span>Pan speed</span><span className="sensitivity-speed-value">{Number(data.settings.panSpeed.toFixed(2))}</span></span>
+                      <input type="range" min="0.4" max="2" step="0.1" value={data.settings.panSpeed} style={{ ["--speed"]: `${((data.settings.panSpeed - 0.4) / 1.6) * 100}%` } as CSSProperties} onChange={(event) => changeSettings({ panSpeed: Number(event.target.value) })} />
+                    </label>
+                    <label>
+                      <span className="sensitivity-speed-label"><span>Drag speed</span><span className="sensitivity-speed-value">{Number(data.settings.dragSpeed.toFixed(2))}</span></span>
+                      <input type="range" min="0.25" max="1.5" step="0.05" value={data.settings.dragSpeed} style={{ ["--speed"]: `${((data.settings.dragSpeed - 0.25) / 1.25) * 100}%` } as CSSProperties} onChange={(event) => changeSettings({ dragSpeed: Number(event.target.value) })} />
+                    </label>
+                  </div>
+                  <div className="sensitivity-checks">
+                    <label className="check-row"><input type="checkbox" checked={data.settings.invertScroll} onChange={(event) => changeSettings({ invertScroll: event.target.checked })} /> Invert scroll</label>
+                    <label className="check-row"><input type="checkbox" checked={data.settings.smoothZoom} onChange={(event) => changeSettings({ smoothZoom: event.target.checked })} /> Smooth zoom</label>
+                    <label className="check-row"><input type="checkbox" checked={data.settings.snapEnabled} onChange={(event) => changeSettings({ snapEnabled: event.target.checked })} /> Snap nodes to grid</label>
+                  </div>
                 </div>
               </details>
             </div>
@@ -2474,30 +2515,7 @@ function App() {
                   <X aria-hidden="true" size={11} />
                 </button>
               </span>
-            ) : !isReadOnlySnapshot && !coachmarkDismissed ? (
-              <span className="studio-coachmark" role="region" aria-label="First-run guide">
-                <span className="coachmark-text">
-                  Right-click to edit · Saved in this browser — export PNG or copy link
-                </span>
-                <button
-                  type="button"
-                  className="canvas-status-btn"
-                  title="Open 5-minute first-time code-to-diagram tutorial in /docs"
-                  onClick={() => openDocs()}
-                >
-                  First time? Tutorial (/docs)
-                </button>
-                <button
-                  type="button"
-                  className="canvas-status-dismiss"
-                  aria-label="Dismiss quick start hint"
-                  title="Dismiss first-run hint"
-                  onClick={dismissCoachmark}
-                >
-                  <X aria-hidden="true" size={11} />
-                </button>
-              </span>
-            ) : !isReadOnlySnapshot && hasSuccessfulRender && !storageNudgeDismissed ? (
+            ) : !isReadOnlySnapshot && hasSuccessfulRender && !storageNudgeDismissed && coachmarkDismissed ? (
               <span className="studio-coachmark storage-nudge" role="status" aria-label="Local storage reminder">
                 <span className="coachmark-text">Saved locally — export PNG or copy share link to keep a copy.</span>
                 <button
@@ -2564,6 +2582,38 @@ function App() {
               <button className="icon-button compact" type="button" aria-label="Reset pan and zoom" title="Reset pan and zoom" onClick={() => canvasRef.current?.reset()}><RotateCcw aria-hidden="true" size={15} /></button>
             </div>
             {expandedPane !== "code" && aiFloatingBar}
+            {!isReadOnlySnapshot && !coachmarkDismissed && (
+              <div className="studio-coachmark workbench-tour" role="region" aria-label="First-run guide">
+                <p className="workbench-tour-step">
+                  {tourStep + 1} of {WORKBENCH_TOUR.length}
+                </p>
+                <strong>{WORKBENCH_TOUR[tourStep]?.title}</strong>
+                <p>{WORKBENCH_TOUR[tourStep]?.body}</p>
+                <div className="workbench-tour-actions">
+                  <button
+                    type="button"
+                    className="button text-button"
+                    aria-label="Dismiss quick start hint"
+                    onClick={dismissCoachmark}
+                  >
+                    Skip
+                  </button>
+                  {tourStep < WORKBENCH_TOUR.length - 1 ? (
+                    <button
+                      type="button"
+                      className="button primary"
+                      onClick={() => setTourStep((step) => step + 1)}
+                    >
+                      Next
+                    </button>
+                  ) : (
+                    <button type="button" className="button primary" onClick={dismissCoachmark}>
+                      Start drawing
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </section>
@@ -2967,22 +3017,22 @@ function App() {
             }}
           >
             <div className="confirm-dialog-body">
-              <h2 id="delete-dialog-title">Delete &lsquo;{target?.name ?? "diagram"}&rsquo;?</h2>
+              <h2 id="delete-dialog-title">Delete {target?.name ?? "diagram"}?</h2>
               <p id="delete-dialog-desc">Once deleted, it cannot be restored.</p>
-            </div>
-            <div className="dialog-footer">
-              <button className="button secondary" type="button" onClick={() => setPendingDeleteId("")}>
-                Cancel
-              </button>
-              <button
-                className="button danger"
-                type="button"
-                onClick={() => {
-                  if (target) void removeTab(target.id);
-                }}
-              >
-                Delete
-              </button>
+              <div className="confirm-actions">
+                <button className="button text-button" type="button" onClick={() => setPendingDeleteId("")}>
+                  Cancel
+                </button>
+                <button
+                  className="button danger"
+                  type="button"
+                  onClick={() => {
+                    if (target) void removeTab(target.id);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </dialog>
         );
@@ -3137,12 +3187,13 @@ function App() {
                 <h3>Featured templates</h3>
                 <button
                   type="button"
-                  className="ghost-button"
+                  className="button secondary see-all-btn"
                   onClick={() => {
                     document.getElementById("new-diagram-all-templates")?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
                 >
-                  See all
+                  All templates
+                  <ChevronDown aria-hidden="true" size={14} />
                 </button>
               </div>
               <div className="new-diagram-grid">
@@ -3263,9 +3314,9 @@ function App() {
             </div>
           </div>
         </div>
-        <div className="dialog-footer" style={{ justifyContent: "flex-end" }}>
+        <div className="dialog-footer">
           <button
-            className="button apply-green-btn"
+            className="button primary"
             type="button"
             onClick={() => {
               createTab(newDiagramSelection.title, newDiagramSelection.code);

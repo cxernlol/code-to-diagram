@@ -33,6 +33,8 @@ export const THEME_PRESETS: Record<
   },
 };
 
+export const GRID_SIZE = 20;
+
 export const DEFAULT_SETTINGS: StudioSettings = {
   activeDocumentId: "",
   theme: "default",
