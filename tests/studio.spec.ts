@@ -466,9 +466,9 @@ test("expands preview pane, auto-focuses on grid layout, and enforces readable c
 
   const expandBtn = page.getByRole("button", { name: "Expand preview" });
   await expandBtn.click();
-  await expect(page.getByRole("region", { name: "Mermaid editor" })).toBeHidden();
+  await expect(page.getByRole("region", { name: "Diagram source" })).toBeHidden();
   await page.getByRole("button", { name: "Restore split view" }).click();
-  await expect(page.getByRole("region", { name: "Mermaid editor" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Diagram source" })).toBeVisible();
 
   const viewport = page.locator(".diagram-viewport");
   const vpBox = await viewport.boundingBox();

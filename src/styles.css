@@ -1570,6 +1570,9 @@ html[data-theme="dark"] .diagram-graphic path[data-selected="true"] {
 .room-banner span {
   flex: 1;
   min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .error-banner button,
@@ -4947,8 +4950,8 @@ html[data-theme="dark"] .diagram-capability-badge.is-draggable {
 .workbench-tour {
   position: absolute;
   z-index: 7;
-  inset-inline-start: 16px;
-  inset-block-start: 16px;
+  inset-inline-end: 72px;
+  inset-block-end: 16px;
   display: grid;
   gap: 6px;
   inline-size: min(320px, calc(100% - 88px));
@@ -5359,10 +5362,6 @@ html[data-theme="dark"] .diagram-capability-badge.is-draggable {
     align-items: center;
     min-block-size: 40px;
     padding-block: 4px;
-  }
-
-  .canvas-status-primary {
-    display: none;
   }
 
   .coachmark-text,

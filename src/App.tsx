@@ -2178,7 +2178,7 @@ function App() {
           </section>
         )}
         {storageError && (
-          <section className="conflict-banner" role="status">
+          <section className="conflict-banner" role="alert">
             <span>{storageError}</span>
             <button type="button" onClick={() => setStorageError("")}>
               Dismiss
