@@ -11,6 +11,8 @@ export function AppTooltip() {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const timerRef = useRef<number | undefined>(undefined);
   const activeTargetRef = useRef<HTMLElement | null>(null);
+  const warmUntilRef = useRef(0);
+  const visibleRef = useRef(false);
 
   useEffect(() => {
     const clear = () => {
@@ -18,6 +20,10 @@ export function AppTooltip() {
         window.clearTimeout(timerRef.current);
         timerRef.current = undefined;
       }
+      if (visibleRef.current) {
+        warmUntilRef.current = Date.now() + 450;
+      }
+      visibleRef.current = false;
       activeTargetRef.current = null;
       setTooltip(null);
     };
@@ -71,6 +77,8 @@ export function AppTooltip() {
           Math.min(window.innerWidth - margin - estimatedHalf, centerX),
         );
         const placeTop = rect.bottom + 38 > window.innerHeight;
+        visibleRef.current = true;
+        warmUntilRef.current = Date.now() + 500;
         setTooltip({
           text,
           x: clampedX,
@@ -96,7 +104,8 @@ export function AppTooltip() {
         return;
       }
       if (activeTargetRef.current === target) return;
-      showFor(target, 180);
+      const delay = visibleRef.current || Date.now() < warmUntilRef.current ? 0 : 180;
+      showFor(target, delay);
     };
 
     const onPointerOut = (event: PointerEvent) => {

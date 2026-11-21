@@ -107,7 +107,7 @@ async function main() {
 
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(inputPath);
-    await page.locator(".canvas-stage svg").first().waitFor({ state: "visible", timeout: 15000 });
+    await page.locator(".diagram-graphic svg").first().waitFor({ state: "visible", timeout: 15000 });
 
     if (sidecarPath) {
       await fileInput.setInputFiles(sidecarPath);

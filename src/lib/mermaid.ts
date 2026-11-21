@@ -105,30 +105,44 @@ export function parseMermaidSvg(markup: string): SVGSVGElement {
 
 let renderSequence = 0;
 let renderQueue: Promise<void> = Promise.resolve();
+let mermaidLoadPromise: Promise<void> | null = null;
 
 async function ensureMermaid(): Promise<typeof window.mermaid> {
   if (typeof window.mermaid !== "undefined") return window.mermaid;
-  await new Promise<void>((resolve, reject) => {
-    const script = document.querySelector<HTMLScriptElement>('script[src*="mermaid"]');
-    if (!script) {
-      reject(new Error("Mermaid script tag is missing."));
-      return;
-    }
-    const onLoad = () => {
-      cleanup();
-      resolve();
-    };
-    const onError = () => {
-      cleanup();
-      reject(new Error("Failed to load Mermaid runtime."));
-    };
-    const cleanup = () => {
-      script.removeEventListener("load", onLoad);
-      script.removeEventListener("error", onError);
-    };
-    script.addEventListener("load", onLoad);
-    script.addEventListener("error", onError);
-  });
+  if (!mermaidLoadPromise) {
+    mermaidLoadPromise = new Promise<void>((resolve, reject) => {
+      let script = document.querySelector<HTMLScriptElement>('script[src*="mermaid"]');
+      const created = !script;
+      if (!script) {
+        script = document.createElement("script");
+        script.src = "/mermaid.min.js";
+        script.async = true;
+      }
+      const onLoad = () => {
+        cleanup();
+        if (typeof window.mermaid !== "undefined") {
+          resolve();
+        } else {
+          mermaidLoadPromise = null;
+          reject(new Error("Mermaid runtime failed to initialize."));
+        }
+      };
+      const onError = () => {
+        cleanup();
+        mermaidLoadPromise = null;
+        if (created) script?.remove();
+        reject(new Error("Failed to load Mermaid runtime."));
+      };
+      const cleanup = () => {
+        script?.removeEventListener("load", onLoad);
+        script?.removeEventListener("error", onError);
+      };
+      script.addEventListener("load", onLoad);
+      script.addEventListener("error", onError);
+      if (created) document.head.appendChild(script);
+    });
+  }
+  await mermaidLoadPromise;
   return window.mermaid;
 }
 
