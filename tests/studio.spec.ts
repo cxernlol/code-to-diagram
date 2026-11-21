@@ -1826,3 +1826,55 @@ test("exports PlantUML (.puml) file from More export menu", async ({ page }) => 
   expect(content).toContain("@startuml");
   expect(content).toContain("@enduml");
 });
+
+test("imports StarUML .mdj file into an editable classDiagram tab", async ({ page }) => {
+  await page.goto("/#app");
+  const mdj = JSON.stringify({
+    _type: "Project",
+    ownedElements: [
+      {
+        _type: "UMLModel",
+        ownedElements: [
+          {
+            _type: "UMLClass",
+            _id: "u1",
+            name: "User",
+            attributes: [{ _type: "UMLAttribute", name: "email", type: "string" }],
+            operations: [{ _type: "UMLOperation", name: "login" }],
+          },
+          {
+            _type: "UMLClass",
+            _id: "u2",
+            name: "Customer",
+            ownedElements: [
+              { _type: "UMLGeneralization", source: { $ref: "u2" }, target: { $ref: "u1" } },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "sample.mdj",
+    mimeType: "application/json",
+    buffer: Buffer.from(mdj, "utf8"),
+  });
+  await expect(page.getByRole("tab", { name: "sample", exact: true })).toBeVisible();
+  await expect(page.locator('[data-sgs-node="User"]')).toBeVisible();
+  await expect(page.locator('[data-sgs-node="Customer"]')).toBeVisible();
+});
+
+test("uploads source via editor toolbar button and drag-and-drop onto studio", async ({ page }) => {
+  await page.goto("/#app");
+  await expect(page.getByRole("button", { name: "Upload source file" })).toBeVisible();
+
+  const dataTransfer = await page.evaluateHandle(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(["flowchart LR\n  Alpha --> Beta"], "dropped.mmd", { type: "text/plain" }));
+    return dt;
+  });
+  await page.locator("main.studio").dispatchEvent("drop", { dataTransfer });
+  await expect(page.getByRole("tab", { name: "dropped", exact: true })).toBeVisible();
+  await expect(page.locator('[data-sgs-node="Alpha"]')).toBeVisible();
+  await expect(page.locator('[data-sgs-node="Beta"]')).toBeVisible();
+});

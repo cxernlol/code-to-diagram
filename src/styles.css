@@ -5414,6 +5414,41 @@ html[data-theme="dark"] .diagram-capability-badge.is-draggable {
   }
 }
 
+.studio-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(20 34 38 / 45%);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
+.studio-drop-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  max-inline-size: 420px;
+  padding: 24px 28px;
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-popover);
+  text-align: center;
+}
+
+.studio-drop-card strong {
+  font-size: 16px;
+}
+
+.studio-drop-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .studio:has(.settings-dialog[open], .confirm-dialog[open], .new-diagram-dialog[open]) > :not(dialog) {
     filter: none;
