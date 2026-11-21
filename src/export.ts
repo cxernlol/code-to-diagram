@@ -1,5 +1,6 @@
 import { relativeLuminance, resolveDiagramPalette } from "./lib/mermaid";
 import { parseLayoutRecord } from "./lib/sidecar";
+import { starumlToMermaid } from "./lib/staruml";
 import type { Position, StudioSettings } from "./types";
 
 interface NodeSwatch {
@@ -251,6 +252,9 @@ export function getImportedMermaid(text: string, filename: string): string {
     const match = text.match(/```mermaid\s*\r?\n([\s\S]*?)```/i);
     if (!match?.[1]) throw new Error("No fenced Mermaid diagram was found in that Markdown file.");
     return match[1].trim();
+  }
+  if (/\.mdj$/i.test(filename)) {
+    return starumlToMermaid(text);
   }
   if (!text.trim()) throw new Error("The selected diagram file is empty.");
   return text;

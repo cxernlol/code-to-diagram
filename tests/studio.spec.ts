@@ -1811,3 +1811,40 @@ test("home learner line under CTAs links to /docs (I5)", async ({ page }) => {
   await subline.getByRole("button", { name: /5‑min guide/i }).click();
   await expect(page).toHaveURL(/\/docs\/?$/);
 });
+
+test("imports StarUML .mdj file into an editable classDiagram tab", async ({ page }) => {
+  await page.goto("/#app");
+  const mdj = JSON.stringify({
+    _type: "Project",
+    ownedElements: [
+      {
+        _type: "UMLModel",
+        ownedElements: [
+          {
+            _type: "UMLClass",
+            _id: "u1",
+            name: "User",
+            attributes: [{ _type: "UMLAttribute", name: "email", type: "string" }],
+            operations: [{ _type: "UMLOperation", name: "login" }],
+          },
+          {
+            _type: "UMLClass",
+            _id: "u2",
+            name: "Customer",
+            ownedElements: [
+              { _type: "UMLGeneralization", source: { $ref: "u2" }, target: { $ref: "u1" } },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "sample.mdj",
+    mimeType: "application/json",
+    buffer: Buffer.from(mdj, "utf8"),
+  });
+  await expect(page.getByRole("tab", { name: "sample", exact: true })).toBeVisible();
+  await expect(page.locator('[data-sgs-node="User"]')).toBeVisible();
+  await expect(page.locator('[data-sgs-node="Customer"]')).toBeVisible();
+});

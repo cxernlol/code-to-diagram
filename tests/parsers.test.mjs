@@ -5,6 +5,7 @@ import { createServer } from "vite";
 let viteServer;
 let formats;
 let translate;
+let staruml;
 
 before(async () => {
   viteServer = await createServer({
@@ -17,6 +18,7 @@ before(async () => {
   polyfill.ensureNodeDomPolyfills();
   formats = await viteServer.ssrLoadModule("/src/lib/formats.ts");
   translate = await viteServer.ssrLoadModule("/src/lib/translate.ts");
+  staruml = await viteServer.ssrLoadModule("/src/lib/staruml.ts");
 });
 
 after(async () => {
@@ -228,4 +230,45 @@ test("enforces 512 KB source limit and XML DOCTYPE/ENTITY/depth/element caps", (
 
   const tooManyNodes = `<root>${"<item/>".repeat(1501)}</root>`;
   assert.throws(() => translate.parseXmlToIR(tooManyNodes), /maximum supported element count \(1500\)/);
+});
+
+test("StarUML .mdj JSON converts to Mermaid classDiagram", () => {
+  const mdj = JSON.stringify({
+    _type: "Project",
+    ownedElements: [
+      {
+        _type: "UMLModel",
+        ownedElements: [
+          {
+            _type: "UMLClass",
+            _id: "c1",
+            name: "User",
+            attributes: [{ _type: "UMLAttribute", name: "id", type: "int", visibility: "private" }],
+            operations: [{ _type: "UMLOperation", name: "login" }],
+          },
+          {
+            _type: "UMLClass",
+            _id: "c2",
+            name: "Admin",
+            ownedElements: [
+              { _type: "UMLGeneralization", source: { $ref: "c2" }, target: { $ref: "c1" } },
+            ],
+          },
+          {
+            _type: "UMLAssociation",
+            name: "owns",
+            end1: { reference: { $ref: "c1" }, multiplicity: "1" },
+            end2: { reference: { $ref: "c2" }, multiplicity: "0..*", navigable: "navigable" },
+          },
+        ],
+      },
+    ],
+  });
+  const mermaid = staruml.starumlToMermaid(mdj);
+  assert.match(mermaid, /^classDiagram/m);
+  assert.match(mermaid, /class User \{/);
+  assert.match(mermaid, /-int id/);
+  assert.match(mermaid, /\+login\(\)/);
+  assert.match(mermaid, /User <\|-- Admin/);
+  assert.match(mermaid, /User "1" --> "0\.\.\*" Admin : owns/);
 });

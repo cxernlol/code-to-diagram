@@ -1392,7 +1392,7 @@ function App() {
         return;
       }
       const code = getImportedMermaid(await file.text(), file.name);
-      const name = file.name.replace(/\.(mmd|mermaid|md)$/i, "") || "Imported diagram";
+      const name = file.name.replace(/\.(mmd|mermaid|md|mdj)$/i, "") || "Imported diagram";
       createTab(name, code);
       setNotice(`${file.name} opened.`);
     } catch (error) {
@@ -1806,7 +1806,7 @@ function App() {
           <span className={`save-status ${saveState}`} role="status">
             {saveState === "saving" ? "Saving" : saveState === "error" ? "Not saved" : `Saved ${timeLabel(lastSavedAt)}`}
           </span>
-          <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,.ctd.json,.json,text/plain,text/markdown,application/xml,application/json" onChange={(event) => void importFile(event)} />
+          <input ref={fileInput} className="visually-hidden" type="file" accept=".mmd,.mermaid,.md,.mdj,.dot,.gv,.puml,.plantuml,.d2,.sql,.ts,.xml,.ctd.json,.json,text/plain,text/markdown,application/xml,application/json" onChange={(event) => void importFile(event)} />
           {!simpleMode && (
             <button
               className={`live-share-button${roomMode !== "none" ? " room-active" : ""}`}
