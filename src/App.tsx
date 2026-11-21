@@ -743,9 +743,22 @@ function App() {
     applyPageSeo(view, customTitle);
   }, [view, activeDocument?.name]);
 
+  const prevThemeRef = useRef<string | null>(null);
   useEffect(() => {
-    document.documentElement.dataset.theme =
-      view === "studio" && data?.settings.theme === "dark" ? "dark" : "light";
+    const nextTheme = view === "studio" && data?.settings.theme === "dark" ? "dark" : "light";
+    const root = document.documentElement;
+    if (prevThemeRef.current !== null && prevThemeRef.current !== nextTheme) {
+      root.classList.add("theme-switching");
+      root.dataset.theme = nextTheme;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          root.classList.remove("theme-switching");
+        });
+      });
+    } else {
+      root.dataset.theme = nextTheme;
+    }
+    prevThemeRef.current = nextTheme;
   }, [view, data?.settings.theme]);
 
   useEffect(() => {
@@ -2250,39 +2263,50 @@ function App() {
             </button>
           </section>
         )}
-        {renderError && (
-          <section className="error-banner" role="alert">
-            <span>
-              {renderError.message}
-              {pedagogicalHint ? ` — ${pedagogicalHint.hint}` : ""}
-            </span>
-            {renderError.line && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobilePane("code");
-                  setExpandedPane((current) => (current === "preview" ? "none" : current));
-                  editorRef.current?.focusLine(renderError.line!);
-                }}
-              >
-                Line {renderError.line}
+        <AnimatePresence initial={false}>
+          {renderError && (
+            <motion.section
+              key={renderError.message}
+              className="error-banner"
+              role="alert"
+              initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+              transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 460, damping: 36 }}
+              style={{ overflow: "hidden" }}
+            >
+              <span>
+                {renderError.message}
+                {pedagogicalHint ? ` — ${pedagogicalHint.hint}` : ""}
+              </span>
+              {renderError.line && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobilePane("code");
+                    setExpandedPane((current) => (current === "preview" ? "none" : current));
+                    editorRef.current?.focusLine(renderError.line!);
+                  }}
+                >
+                  Line {renderError.line}
+                </button>
+              )}
+              {pedagogicalHint && (
+                <button
+                  type="button"
+                  className="error-docs-link"
+                  title={`${pedagogicalHint.hint} Open /docs#${pedagogicalHint.anchor}`}
+                  onClick={() => openDocs(pedagogicalHint.anchor)}
+                >
+                  {pedagogicalHint.label}
+                </button>
+              )}
+              <button type="button" aria-label="Dismiss error" onClick={() => setRenderError(undefined)}>
+                <X aria-hidden="true" size={15} />
               </button>
-            )}
-            {pedagogicalHint && (
-              <button
-                type="button"
-                className="error-docs-link"
-                title={`${pedagogicalHint.hint} Open /docs#${pedagogicalHint.anchor}`}
-                onClick={() => openDocs(pedagogicalHint.anchor)}
-              >
-                {pedagogicalHint.label}
-              </button>
-            )}
-            <button type="button" aria-label="Dismiss error" onClick={() => setRenderError(undefined)}>
-              <X aria-hidden="true" size={15} />
-            </button>
-          </section>
-        )}
+            </motion.section>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="mobile-pane-switch" role="group" aria-label="Editor and preview">
@@ -2653,8 +2677,18 @@ function App() {
                 <p className="workbench-tour-step">
                   {tourStep + 1} of {WORKBENCH_TOUR.length}
                 </p>
-                <strong>{WORKBENCH_TOUR[tourStep]?.title}</strong>
-                <p>{WORKBENCH_TOUR[tourStep]?.body}</p>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={tourStep}
+                    initial={reduceMotion ? false : { opacity: 0, x: 14 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, x: -14 }}
+                    transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 460, damping: 36 }}
+                  >
+                    <strong>{WORKBENCH_TOUR[tourStep]?.title}</strong>
+                    <p>{WORKBENCH_TOUR[tourStep]?.body}</p>
+                  </motion.div>
+                </AnimatePresence>
                 <div className="workbench-tour-actions">
                   <button
                     type="button"
@@ -2688,10 +2722,10 @@ function App() {
         {(aiPanel || aiError || (aiBusy && aiStream && aiMode !== "explain")) && (
           <motion.aside
             className="ai-result-panel"
-            initial={reduceMotion ? false : { opacity: 0, x: 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, x: 16 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18 }}
+            initial={reduceMotion ? false : { opacity: 0, x: 18, scale: 0.97 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={reduceMotion ? undefined : { opacity: 0, x: 18, scale: 0.97 }}
+            transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 460, damping: 36, mass: 0.8 }}
             aria-label="AI result"
           >
             <div className="result-heading">
@@ -3126,12 +3160,21 @@ function App() {
           ))}
         </div>
       )}
-      {notice && (
-        <div className="toast" role="status">
-          <Check aria-hidden="true" size={15} /> {notice}
-          <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}><X aria-hidden="true" size={14} /></button>
-        </div>
-      )}
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            className="toast"
+            role="status"
+            initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reduceMotion ? undefined : { opacity: 0, y: 10, scale: 0.97 }}
+            transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 480, damping: 34 }}
+          >
+            <Check aria-hidden="true" size={15} /> {notice}
+            <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}><X aria-hidden="true" size={14} /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {fileDragOver && (
         <div className="studio-drop-overlay" aria-live="polite">
           <div className="studio-drop-card">
