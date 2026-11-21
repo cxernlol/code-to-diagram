@@ -285,13 +285,48 @@ summary:focus-visible,
 
 @keyframes popover-enter {
   from {
-    opacity: 0.25;
-    transform: scale(0.96);
+    opacity: 0;
+    transform: scale(0.97);
   }
   to {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+@keyframes dialog-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes shake-error {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
 }
 
 .studio {
@@ -1774,6 +1809,11 @@ html[data-theme="dark"] .ai-error .button:hover {
 .settings-dialog[open] {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+  animation: dialog-enter 160ms var(--ease-out-strong);
+}
+
+.confirm-dialog[open] {
+  animation: dialog-enter 150ms var(--ease-out-strong);
 }
 
 .settings-dialog::backdrop,
@@ -1814,6 +1854,7 @@ html[data-theme="dark"] .ai-error .button:hover {
 .new-diagram-dialog[open] {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  animation: dialog-enter 160ms var(--ease-out-strong);
 }
 
 .new-diagram-body {
@@ -2458,14 +2499,18 @@ html[data-theme="dark"] .explain-pop {
 
 @keyframes tooltip-enter {
   from {
-    opacity: 0.2;
+    opacity: 0;
+    transform: translate(var(--tt-tx, -50%), var(--tt-ty, 0%)) scale(0.97);
   }
   to {
     opacity: 1;
+    transform: translate(var(--tt-tx, -50%), var(--tt-ty, 0%)) scale(1);
   }
 }
 
 .app-tooltip {
+  --tt-tx: -50%;
+  --tt-ty: 0%;
   position: fixed;
   z-index: 60;
   max-inline-size: min(280px, calc(100vw - 20px));
@@ -2480,19 +2525,21 @@ html[data-theme="dark"] .explain-pop {
   line-height: 1.35;
   text-align: center;
   pointer-events: none;
-  transform: translateX(-50%);
+  transform: translate(var(--tt-tx), var(--tt-ty));
   transform-origin: top center;
   animation: tooltip-enter 110ms var(--ease-out-strong);
 }
 
 .app-tooltip.top {
-  transform: translate(-50%, -100%);
+  --tt-tx: -50%;
+  --tt-ty: -100%;
   transform-origin: bottom center;
 }
 
 .app-tooltip.left {
+  --tt-tx: -100%;
+  --tt-ty: -50%;
   white-space: nowrap;
-  transform: translate(-100%, -50%);
   transform-origin: center right;
 }
 
@@ -5449,6 +5496,66 @@ html[data-theme="dark"] .diagram-capability-badge.is-draggable {
   font-size: 12px;
 }
 
+.studio-drop-card {
+  animation: popover-enter 140ms var(--ease-out-strong);
+}
+
+.error-banner > span:first-child,
+.ai-status.is-error,
+.room-error {
+  animation: shake-error 320ms var(--ease-out-strong);
+}
+
+.studio-menu-popover,
+.history-popover,
+.sensitivity-popover {
+  transform-origin: top right;
+}
+
+.tab-actions-popover,
+.direction-popover,
+.canvas-context-menu,
+.tab-context-menu {
+  transform-origin: top left;
+}
+
+.ai-actions-popover {
+  transform-origin: bottom left;
+}
+
+.document-tab,
+.settings-tab,
+.error-banner button,
+.conflict-banner button,
+.room-banner button,
+.toast button,
+.mobile-pane-switch button {
+  transition:
+    transform 90ms var(--ease-out-strong),
+    background-color 140ms var(--ease-out-strong),
+    border-color 140ms var(--ease-out-strong),
+    color 140ms var(--ease-out-strong);
+}
+
+.document-tab:active:not(:disabled),
+.settings-tab:active:not(:disabled),
+.error-banner button:active:not(:disabled),
+.conflict-banner button:active:not(:disabled),
+.room-banner button:active:not(:disabled),
+.toast button:active:not(:disabled),
+.mobile-pane-switch button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@media (pointer: coarse) {
+  .icon-button,
+  .new-tab-button,
+  .canvas-vertical-dock button {
+    min-inline-size: 40px;
+    min-block-size: 40px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .studio:has(.settings-dialog[open], .confirm-dialog[open], .new-diagram-dialog[open]) > :not(dialog) {
     filter: none;
@@ -5462,7 +5569,14 @@ html[data-theme="dark"] .diagram-capability-badge.is-draggable {
   .history-popover,
   .sensitivity-popover,
   .ai-actions-popover,
-  .canvas-context-menu {
+  .canvas-context-menu,
+  .settings-dialog[open],
+  .confirm-dialog[open],
+  .new-diagram-dialog[open],
+  .studio-drop-card,
+  .error-banner > span:first-child,
+  .ai-status.is-error,
+  .room-error {
     animation: none !important;
   }
 }

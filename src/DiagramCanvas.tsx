@@ -1622,8 +1622,17 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
+    let rubberBandTimer: number | undefined;
+    const snapZoomIfOutOfBounds = () => {
+      const current = transformRef.current;
+      if (current.k >= 0.1 && current.k <= 5) return;
+      const clamped = Math.max(0.1, Math.min(5, current.k));
+      const bounds = viewport.getBoundingClientRect();
+      const center: [number, number] = [bounds.width / 2, bounds.height / 2];
+      commitTransform(viewAtScale(current, clamped, center), true);
+    };
     const behavior = zoom<HTMLDivElement, unknown>()
-      .scaleExtent([0.1, 5])
+      .scaleExtent([0.085, 5.4])
       .filter((event) => {
         if (event.type === "wheel") return false;
         if (event.type === "mousedown") {
@@ -1636,6 +1645,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         return false;
       })
       .on("start", (event) => {
+        if (rubberBandTimer !== undefined) {
+          window.clearTimeout(rubberBandTimer);
+          rubberBandTimer = undefined;
+        }
         const source = event.sourceEvent as Event | null;
         if (source && (source.type === "mousedown" || source.type === "touchstart")) {
           viewport.dataset.panning = "true";
@@ -1644,12 +1657,14 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       .on("zoom", (event) => applyTransform(event.transform))
       .on("end", () => {
         if (!spaceDown.current) delete viewport.dataset.panning;
+        snapZoomIfOutOfBounds();
       });
     zoomRef.current = behavior;
     select(viewport).call(behavior).on("dblclick.zoom", null);
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
+      if (rubberBandTimer !== undefined) window.clearTimeout(rubberBandTimer);
       if (zoomFrameRef.current) cancelAnimationFrame(zoomFrameRef.current);
       zoomFrameRef.current = undefined;
       const currentSettings = settingsRef.current;
@@ -1671,6 +1686,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           [event.clientX - bounds.left, event.clientY - bounds.top],
         );
         select(viewport).call(behavior.transform, target);
+        if (rubberBandTimer !== undefined) window.clearTimeout(rubberBandTimer);
+        if (target.k < 0.1 || target.k > 5) {
+          rubberBandTimer = window.setTimeout(snapZoomIfOutOfBounds, 140);
+        }
         return;
       }
       const deltaX = event.deltaX * unit * currentSettings.panSpeed;
@@ -1751,6 +1770,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onWindowBlur);
+      if (rubberBandTimer !== undefined) window.clearTimeout(rubberBandTimer);
       if (zoomFrameRef.current) cancelAnimationFrame(zoomFrameRef.current);
       select(viewport).on(".zoom", null);
       zoomRef.current = null;
