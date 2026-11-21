@@ -1553,6 +1553,18 @@ function App() {
     setNotice(`${FORMAT_LABELS[format]} file downloaded.`);
   };
 
+  const savePlantUml = () => {
+    if (!activeDocument) return;
+    try {
+      const puml = translateCodeFormat(activeDocument.code, "plantuml");
+      const safeBase = activeDocument.name.replace(/[\\/:*?"<>|]/g, "-").trim() || "diagram";
+      downloadText(`${safeBase}.${FORMAT_EXTENSIONS.plantuml}`, puml);
+      setNotice("PlantUML (.puml) file downloaded.");
+    } catch (error) {
+      setStorageError(errorText(error));
+    }
+  };
+
   const saveSidecar = () => {
     if (!activeDocument) return;
     const format = detectCodeFormat(activeDocument.code);
@@ -1909,6 +1921,9 @@ function App() {
               <div className="studio-menu-popover export-menu-popover" role="menu">
                 <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); saveSvg(); }}>
                   <FileCode2 aria-hidden="true" size={15} /> Export SVG
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); savePlantUml(); }}>
+                  <FileCode2 aria-hidden="true" size={15} /> Export PlantUML (.puml)
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); void copyCode(); }}>
                   <Copy aria-hidden="true" size={15} /> Copy source

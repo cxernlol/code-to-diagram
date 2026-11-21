@@ -1812,6 +1812,21 @@ test("home learner line under CTAs links to /docs (I5)", async ({ page }) => {
   await expect(page).toHaveURL(/\/docs\/?$/);
 });
 
+test("exports PlantUML (.puml) file from More export menu", async ({ page }) => {
+  await page.goto("/#app");
+  await expect(page.locator('[data-sgs-node="Process"]')).toBeVisible();
+  await page.getByRole("button", { name: "More export…" }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Export PlantUML (.puml)" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("Flowchart.puml");
+  const downloadedPath = await download.path();
+  expect(downloadedPath).not.toBeNull();
+  const content = await readFile(downloadedPath!, "utf8");
+  expect(content).toContain("@startuml");
+  expect(content).toContain("@enduml");
+});
+
 test("imports StarUML .mdj file into an editable classDiagram tab", async ({ page }) => {
   await page.goto("/#app");
   const mdj = JSON.stringify({

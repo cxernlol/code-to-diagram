@@ -6,7 +6,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Elastic%202.0-blue" alt="Elastic License 2.0" /></a>
 </p>
 <p align="center">
-  <a href="https://ctdstudio.dev/"><img src="https://img.shields.io/badge/Open-ctdstudio.dev-6366f1?style=for-the-badge" alt="Open ctdstudio.dev" /></a>
+  <a href="https://code-to-diagram.vercel.app/"><img src="https://img.shields.io/badge/Open-ctdstudio.dev-6366f1?style=for-the-badge" alt="Open ctdstudio.dev" /></a>
   <a href="https://code-to-diagram.vercel.app/?mode=quick"><img src="https://img.shields.io/badge/Quick_start-22c55e?style=for-the-badge" alt="Quick start" /></a>
   <a href="https://code-to-diagram.vercel.app/docs"><img src="https://img.shields.io/badge/Docs-5_min_tutorial-0ea5e9?style=for-the-badge" alt="5-min tutorial" /></a>
 </p>
