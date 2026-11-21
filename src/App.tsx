@@ -41,6 +41,7 @@ import {
   Sun,
   Trash2,
   Undo2,
+  Upload,
   Users,
   Wand2,
   X,
@@ -58,6 +59,7 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -315,7 +317,9 @@ function App() {
   const deleteDialog = useRef<HTMLDialogElement>(null);
   const newDiagramDialog = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
   const splitRef = useRef<HTMLDivElement>(null);
+  const [fileDragOver, setFileDragOver] = useState(false);
   const [bootError, setBootError] = useState<unknown>();
   const [legacyError, setLegacyError] = useState<LegacyDataError>();
   const [storageError, setStorageError] = useState("");
@@ -1371,9 +1375,7 @@ function App() {
     }
   };
 
-  const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const importSingleFile = async (file: File) => {
     setStorageError("");
     try {
       const lowerName = file.name.toLowerCase();
@@ -1392,14 +1394,55 @@ function App() {
         return;
       }
       const code = getImportedMermaid(await file.text(), file.name);
-      const name = file.name.replace(/\.(mmd|mermaid|md|mdj)$/i, "") || "Imported diagram";
+      const name =
+        file.name.replace(/\.(mmd|mermaid|md|mdj|dot|gv|puml|plantuml|d2|sql|ts|xml)$/i, "") ||
+        "Imported diagram";
       createTab(name, code);
       setNotice(`${file.name} opened.`);
     } catch (error) {
       setStorageError(errorText(error));
+    }
+  };
+
+  const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      await importSingleFile(file);
     } finally {
       event.target.value = "";
     }
+  };
+
+  const hasDraggedFiles = (event: ReactDragEvent<HTMLElement>) =>
+    Array.from(event.dataTransfer?.types ?? []).includes("Files");
+
+  const handleStudioDragEnter = (event: ReactDragEvent<HTMLElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    dragDepth.current += 1;
+    setFileDragOver(true);
+  };
+
+  const handleStudioDragOver = (event: ReactDragEvent<HTMLElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleStudioDragLeave = (event: ReactDragEvent<HTMLElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setFileDragOver(false);
+  };
+
+  const handleStudioDrop = (event: ReactDragEvent<HTMLElement>) => {
+    dragDepth.current = 0;
+    setFileDragOver(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    event.preventDefault();
+    void importSingleFile(file);
   };
 
   useEffect(() => {
@@ -1786,7 +1829,14 @@ function App() {
   ) : null;
 
   return (
-    <main className="studio" style={{ "--split": `${clampedSplitPercent}%` } as CSSProperties}>
+    <main
+      className="studio"
+      style={{ "--split": `${clampedSplitPercent}%` } as CSSProperties}
+      onDragEnter={handleStudioDragEnter}
+      onDragOver={handleStudioDragOver}
+      onDragLeave={handleStudioDragLeave}
+      onDrop={handleStudioDrop}
+    >
       <header className="topbar">
         <div className="brand-lockup">
           <button
@@ -2280,6 +2330,7 @@ function App() {
               </select>
             </div>
             <div className="pane-actions">
+              <button className="icon-button compact" type="button" aria-label="Upload source file" title="Upload source file" onClick={() => fileInput.current?.click()}><Upload aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Download source file" title="Download source file (Ctrl/Cmd+S)" onClick={saveMmd}><Download aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={isReadOnlySnapshot} onClick={undo}><Undo2 aria-hidden="true" size={15} /></button>
               <button className="icon-button compact" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={isReadOnlySnapshot} onClick={redo}><Redo2 aria-hidden="true" size={15} /></button>
@@ -3064,6 +3115,15 @@ function App() {
         <div className="toast" role="status">
           <Check aria-hidden="true" size={15} /> {notice}
           <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}><X aria-hidden="true" size={14} /></button>
+        </div>
+      )}
+      {fileDragOver && (
+        <div className="studio-drop-overlay" aria-live="polite">
+          <div className="studio-drop-card">
+            <Upload aria-hidden="true" size={24} />
+            <strong>Drop file to open</strong>
+            <span>Supports .mmd, .md, .mdj, .puml, .dot, .d2, .sql, .ts, .xml, or .ctd.json</span>
+          </div>
         </div>
       )}
       {expandedPane === "code" && aiFloatingBar}

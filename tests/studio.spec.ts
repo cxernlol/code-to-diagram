@@ -1848,3 +1848,18 @@ test("imports StarUML .mdj file into an editable classDiagram tab", async ({ pag
   await expect(page.locator('[data-sgs-node="User"]')).toBeVisible();
   await expect(page.locator('[data-sgs-node="Customer"]')).toBeVisible();
 });
+
+test("uploads source via editor toolbar button and drag-and-drop onto studio", async ({ page }) => {
+  await page.goto("/#app");
+  await expect(page.getByRole("button", { name: "Upload source file" })).toBeVisible();
+
+  const dataTransfer = await page.evaluateHandle(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(["flowchart LR\n  Alpha --> Beta"], "dropped.mmd", { type: "text/plain" }));
+    return dt;
+  });
+  await page.locator("main.studio").dispatchEvent("drop", { dataTransfer });
+  await expect(page.getByRole("tab", { name: "dropped", exact: true })).toBeVisible();
+  await expect(page.locator('[data-sgs-node="Alpha"]')).toBeVisible();
+  await expect(page.locator('[data-sgs-node="Beta"]')).toBeVisible();
+});
