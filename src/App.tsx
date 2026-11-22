@@ -208,7 +208,7 @@ const SYNTAX_GUIDANCE: Record<DiagramType, string> = {
 };
 
 function snapshot(document: DiagramDocument): Snapshot {
-  return { code: document.code, layout: document.layout };
+  return { code: document.code, layout: { ...document.layout } };
 }
 
 function sameLayout(a: Record<string, Position>, b: Record<string, Position>): boolean {
@@ -496,7 +496,7 @@ function App() {
   );
 
   const writeLayout = useCallback(
-    (layout: Record<string, Position>, commitUi: boolean) => {
+    (layout: Record<string, Position>) => {
       const current = dataRef.current;
       const document =
         current?.documents.find((item) => item.id === current.settings.activeDocumentId) ??
@@ -511,15 +511,12 @@ function App() {
       };
       dataRef.current = next;
       markDirty(document.id);
-      if (commitUi || hostRoomRef.current || guestRoomRef.current) updateData(next);
+      updateData(next);
     },
     [endedRoomDocIds, markDirty, rememberEdit, updateData],
   );
 
-  const changeLayout = useCallback(
-    (layout: Record<string, Position>) => writeLayout(layout, true),
-    [writeLayout],
-  );
+  const changeLayout = writeLayout;
 
   const liveDocument = () => {
     const current = dataRef.current;
@@ -2678,7 +2675,7 @@ function App() {
                 document={activeDocument}
                 settings={data.settings}
                 readOnly={isReadOnlySnapshot}
-                onLayoutChange={(layout) => writeLayout(layout, false)}
+                onLayoutChange={changeLayout}
                 onCodeChange={changeCode}
                 onNodeMoved={announceNodeMoved}
                 onNodeSelect={(id) => {
