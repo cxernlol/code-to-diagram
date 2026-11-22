@@ -471,7 +471,8 @@ function App() {
       const history = historyRef.current.get(id) ?? newEditStack();
       const previous = history.undo.at(-1);
       const now = Date.now();
-      if (kind === "code" && previous?.kind === "code" && now - previous.at < 750) {
+      const coalesceMs = kind === "code" ? 750 : 350;
+      if (previous?.kind === kind && now - previous.at < coalesceMs) {
         previous.after = after;
         previous.at = now;
       } else {
