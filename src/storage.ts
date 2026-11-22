@@ -57,17 +57,51 @@ export class DocumentConflictError extends Error {
 
 let databasePromise: Promise<IDBPDatabase<StudioDatabase>> | undefined;
 
+export function isTransientIndexedDbError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const name = error instanceof DOMException ? error.name : error instanceof Error ? error.name : "";
+  return (
+    name === "InvalidStateError" ||
+    name === "AbortError" ||
+    /database connection is closing|connection is closing|InvalidStateError/i.test(message)
+  );
+}
+
+function forgetDatabase(handle?: Promise<IDBPDatabase<StudioDatabase>>): void {
+  if (!handle || databasePromise === handle) databasePromise = undefined;
+}
+
 function database(): Promise<IDBPDatabase<StudioDatabase>> {
-  databasePromise ??= openDB<StudioDatabase>(DATABASE_NAME, DATABASE_VERSION, {
-    upgrade(db) {
-      const documents = db.createObjectStore("documents", { keyPath: "id" });
-      documents.createIndex("by-order", "sortOrder");
-      db.createObjectStore("settings");
-      db.createObjectStore("credentials");
-      db.createObjectStore("metadata");
-    },
-  });
+  if (!databasePromise) {
+    const opened = openDB<StudioDatabase>(DATABASE_NAME, DATABASE_VERSION, {
+      upgrade(db) {
+        const documents = db.createObjectStore("documents", { keyPath: "id" });
+        documents.createIndex("by-order", "sortOrder");
+        db.createObjectStore("settings");
+        db.createObjectStore("credentials");
+        db.createObjectStore("metadata");
+      },
+      terminated() {
+        forgetDatabase(opened);
+      },
+    }).then((db) => {
+      db.addEventListener("close", () => forgetDatabase(opened));
+      return db;
+    });
+    opened.catch(() => forgetDatabase(opened));
+    databasePromise = opened;
+  }
   return databasePromise;
+}
+
+async function withDatabase<T>(run: (db: IDBPDatabase<StudioDatabase>) => Promise<T>): Promise<T> {
+  try {
+    return await run(await database());
+  } catch (error) {
+    if (!isTransientIndexedDbError(error)) throw error;
+    forgetDatabase();
+    return run(await database());
+  }
 }
 
 function normalizeHistory(value: unknown): VersionEntry[] {
@@ -216,43 +250,44 @@ async function writeInitialData(
 }
 
 export async function initializeStudio(ignoreLegacy = false): Promise<StudioData> {
-  const db = await database();
-  const initialized = await db.get("metadata", INITIALIZED_KEY);
-  if (initialized) {
-    const data = await readStudioData(db, initialized as StudioData["migration"]);
-    if (!(await db.get("metadata", GRID_SNAP_MIGRATION_KEY))) {
-      data.settings = { ...data.settings, snapEnabled: true };
-      await db.put("settings", data.settings, SETTINGS_KEY);
-      await db.put("metadata", "done", GRID_SNAP_MIGRATION_KEY);
-    }
-    if (!(await db.get("metadata", THEME_PALETTE_MIGRATION_KEY))) {
-      const preset = THEME_PRESETS[data.settings.theme];
-      if (preset) {
-        data.settings = { ...data.settings, ...preset };
+  return withDatabase(async (db) => {
+    const initialized = await db.get("metadata", INITIALIZED_KEY);
+    if (initialized) {
+      const data = await readStudioData(db, initialized as StudioData["migration"]);
+      if (!(await db.get("metadata", GRID_SNAP_MIGRATION_KEY))) {
+        data.settings = { ...data.settings, snapEnabled: true };
         await db.put("settings", data.settings, SETTINGS_KEY);
+        await db.put("metadata", "done", GRID_SNAP_MIGRATION_KEY);
       }
-      await db.put("metadata", "done", THEME_PALETTE_MIGRATION_KEY);
+      if (!(await db.get("metadata", THEME_PALETTE_MIGRATION_KEY))) {
+        const preset = THEME_PRESETS[data.settings.theme];
+        if (preset) {
+          data.settings = { ...data.settings, ...preset };
+          await db.put("settings", data.settings, SETTINGS_KEY);
+        }
+        await db.put("metadata", "done", THEME_PALETTE_MIGRATION_KEY);
+      }
+      return data;
     }
+
+    let data: StudioData;
+    if (!ignoreLegacy) {
+      let raw: string | null;
+      try {
+        raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      } catch (error) {
+        throw new Error("Browser storage is unavailable; CTD Studio could not load saved work.", {
+          cause: error,
+        });
+      }
+      data = raw ? normalizeLegacy(raw) : freshData();
+    } else {
+      data = freshData("skipped");
+    }
+
+    await writeInitialData(db, data);
     return data;
-  }
-
-  let data: StudioData;
-  if (!ignoreLegacy) {
-    let raw: string | null;
-    try {
-      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
-    } catch (error) {
-      throw new Error("Browser storage is unavailable; CTD Studio could not load saved work.", {
-        cause: error,
-      });
-    }
-    data = raw ? normalizeLegacy(raw) : freshData();
-  } else {
-    data = freshData("skipped");
-  }
-
-  await writeInitialData(db, data);
-  return data;
+  });
 }
 
 async function readStudioData(
@@ -283,47 +318,46 @@ async function readStudioData(
 }
 
 export async function reloadStudio(): Promise<StudioData> {
-  const db = await database();
-  const migration = (await db.get("metadata", INITIALIZED_KEY)) as
-    | StudioData["migration"]
-    | undefined;
-  if (!migration) throw new Error("Studio storage has not been initialized.");
-  return readStudioData(db, migration);
+  return withDatabase(async (db) => {
+    const migration = (await db.get("metadata", INITIALIZED_KEY)) as
+      | StudioData["migration"]
+      | undefined;
+    if (!migration) throw new Error("Studio storage has not been initialized.");
+    return readStudioData(db, migration);
+  });
 }
 
 export async function saveSettings(settings: StudioSettings): Promise<void> {
-  const db = await database();
-  await db.put("settings", settings, SETTINGS_KEY);
+  await withDatabase((db) => db.put("settings", settings, SETTINGS_KEY));
 }
 
 export async function saveCredentials(credentials: ProviderCredentials): Promise<void> {
-  const db = await database();
-  await db.put("credentials", credentials, CREDENTIALS_KEY);
+  await withDatabase((db) => db.put("credentials", credentials, CREDENTIALS_KEY));
 }
 
 export async function saveDocument(
   document: DiagramDocument,
   expectedUpdatedAt: number,
 ): Promise<DiagramDocument> {
-  const db = await database();
-  const tx = db.transaction("documents", "readwrite");
-  const store = tx.objectStore("documents");
-  const current = await store.get(document.id);
-  if ((!current && expectedUpdatedAt !== 0) || (current && current.updatedAt !== expectedUpdatedAt)) {
-    tx.abort();
-    await tx.done.catch(() => undefined);
-    if (!current) throw new Error("This diagram was deleted in another browser tab.");
-    throw new DocumentConflictError(current);
-  }
-  const saved = { ...document, updatedAt: Math.max(Date.now(), (current?.updatedAt ?? 0) + 1) };
-  await store.put(saved);
-  await tx.done;
-  return saved;
+  return withDatabase(async (db) => {
+    const tx = db.transaction("documents", "readwrite");
+    const store = tx.objectStore("documents");
+    const current = await store.get(document.id);
+    if ((!current && expectedUpdatedAt !== 0) || (current && current.updatedAt !== expectedUpdatedAt)) {
+      tx.abort();
+      await tx.done.catch(() => undefined);
+      if (!current) throw new Error("This diagram was deleted in another browser tab.");
+      throw new DocumentConflictError(current);
+    }
+    const saved = { ...document, updatedAt: Math.max(Date.now(), (current?.updatedAt ?? 0) + 1) };
+    await store.put(saved);
+    await tx.done;
+    return saved;
+  });
 }
 
 export async function deleteDocument(id: string): Promise<void> {
-  const db = await database();
-  await db.delete("documents", id);
+  await withDatabase((db) => db.delete("documents", id));
 }
 
 export function broadcastDocumentChange(id: string): void {

@@ -8,6 +8,7 @@ let viteServer;
 let sidecar;
 let exportMod;
 let layoutKeys;
+let storage;
 
 before(async () => {
   viteServer = await createServer({
@@ -19,6 +20,7 @@ before(async () => {
   sidecar = await viteServer.ssrLoadModule("/src/lib/sidecar.ts");
   exportMod = await viteServer.ssrLoadModule("/src/export.ts");
   layoutKeys = await viteServer.ssrLoadModule("/src/lib/layoutKeys.ts");
+  storage = await viteServer.ssrLoadModule("/src/storage.ts");
 });
 
 after(async () => {
@@ -235,4 +237,10 @@ test("layoutKeys helpers build valid key sets, trim layouts, and partition orpha
   assert.deepEqual(partitioned.preserved, trimmed);
   assert.deepEqual(partitioned.orphaned, ["GhostNode"]);
   assert.deepEqual(partitioned.orphanedEntries, { GhostNode: { x: 99, y: 99 } });
+});
+
+test("closing IndexedDB connections are treated as retryable", () => {
+  const closing = new Error("Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing.");
+  assert.equal(storage.isTransientIndexedDbError(closing), true);
+  assert.equal(storage.isTransientIndexedDbError(new Error("This diagram was deleted in another browser tab.")), false);
 });
