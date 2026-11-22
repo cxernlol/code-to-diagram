@@ -346,15 +346,25 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || view.state.doc.toString() === value) return;
-    const selection = view.state.selection.main;
+    if (!view) return;
+    const current = view.state.doc.toString();
+    if (current === value) return;
+    let from = 0;
+    const maxEq = Math.min(current.length, value.length);
+    while (from < maxEq && current.charCodeAt(from) === value.charCodeAt(from)) from += 1;
+    let endOld = current.length;
+    let endNew = value.length;
+    while (
+      endOld > from &&
+      endNew > from &&
+      current.charCodeAt(endOld - 1) === value.charCodeAt(endNew - 1)
+    ) {
+      endOld -= 1;
+      endNew -= 1;
+    }
     suppressChange.current = true;
     view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: value },
-      selection: {
-        anchor: Math.min(selection.anchor, value.length),
-        head: Math.min(selection.head, value.length),
-      },
+      changes: { from, to: endOld, insert: value.slice(from, endNew) },
     });
     suppressChange.current = false;
   }, [value]);

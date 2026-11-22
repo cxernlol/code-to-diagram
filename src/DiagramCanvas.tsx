@@ -945,7 +945,9 @@ function routeEdge(
   path: SVGPathElement,
   source: SVGGElement,
   target: SVGGElement,
-  allNodes: { wrapper: SVGGElement; id: string }[],
+  sourceBounds: ReturnType<typeof boundsInRoot>,
+  targetBounds: ReturnType<typeof boundsInRoot>,
+  obstacles: ReturnType<typeof boundsInRoot>[],
   sourceFace: Face,
   sourceOffset: number,
   targetFace: Face,
@@ -963,8 +965,6 @@ function routeEdge(
   end: Position;
   endNormal: Position;
 } {
-  const sourceBounds = boundsInRoot(svg, source);
-  const targetBounds = boundsInRoot(svg, target);
   const sourceDiamond = isDiamondNode(source);
   const targetDiamond = isDiamondNode(target);
   const { point: start, normal: startNormal } = startOverride
@@ -1028,9 +1028,6 @@ function routeEdge(
     y: end.y + endNormal.y * stub,
   };
 
-  const obstacles = allNodes
-    .filter((node) => node.id !== source.dataset.sgsNode && node.id !== target.dataset.sgsNode)
-    .map((node) => boundsInRoot(svg, node.wrapper));
   const endpointBoxes = [sourceBounds, targetBounds];
   const midX = (startStub.x + endStub.x) / 2 + channelOffset;
   const midY = (startStub.y + endStub.y) / 2 + channelOffset;
@@ -1273,6 +1270,16 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
   const spaceDown = useRef(false);
   const toolModeRef = useRef<"move" | "hand">("move");
   const pendingFitRef = useRef(false);
+  const interactRef = useRef<{
+    nodes: Array<{ id: string; base: Position; position: Position; wrapper: SVGGElement }>;
+    edges: Array<{
+      id: string;
+      manualOffset: Position;
+      startAnchor?: Position;
+      endAnchor?: Position;
+    }>;
+    routeEdges: () => void;
+  } | null>(null);
   const lastValidByDocRef = useRef(new Map<string, { svg: string; type: DiagramType }>());
   const zoomReadoutRef = useRef<HTMLButtonElement>(null);
   const [rendered, setRendered] = useState<{ id: string; svg: string }>({ id: "", svg: "" });
@@ -2014,7 +2021,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const id = element.dataset.id || stableNodeId(element.id);
       const base = readTranslation(element.getAttribute("transform"));
       const initialBounds = boundsInRoot(svg, element);
-      const position = document.layout[id] ?? base;
+      const position = { ...(documentRef.current.layout[id] ?? base) };
       const wrapper = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
       wrapper.dataset.sgsNode = id;
       if (hiddenNodeIds.has(id)) wrapper.style.display = "none";
@@ -2100,10 +2107,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const count = pairCounts.get(key) ?? 1;
       const index = pairIndices.get(edge.path) ?? 0;
       const id = `edge::${edge.source.id}->${edge.target.id}::${index}`;
-      const manualOffset: Position = { ...(document.layout[id] ?? { x: 0, y: 0 }) };
-      const savedStart = document.layout[`${id}::start`];
+      const savedLayout = documentRef.current.layout;
+      const manualOffset: Position = { ...(savedLayout[id] ?? { x: 0, y: 0 }) };
+      const savedStart = savedLayout[`${id}::start`];
       const startAnchor: Position | undefined = savedStart ? { ...savedStart } : undefined;
-      const savedEnd = document.layout[`${id}::end`];
+      const savedEnd = savedLayout[`${id}::end`];
       const endAnchor: Position | undefined = savedEnd ? { ...savedEnd } : undefined;
       const control = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "g");
       control.dataset.sgsEdge = id;
@@ -2200,30 +2208,48 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       return [{ term, origTransform, edge: bestEdge, which: bestEnd }];
     });
 
-    const routeEdges = () => {
-      const nodeBounds = new Map(nodes.map((n) => [n.id, boundsInRoot(svg, n.wrapper)]));
-      const edgeFaces = edges.map((edge) => {
+    const boundsCache = new Map<string, ReturnType<typeof boundsInRoot>>();
+    const measureBounds = (dirtyIds?: Set<string>) => {
+      nodes.forEach((n) => {
+        if (!dirtyIds || dirtyIds.has(n.id) || !boundsCache.has(n.id)) {
+          boundsCache.set(n.id, boundsInRoot(svg, n.wrapper));
+        }
+      });
+      return boundsCache;
+    };
+    const routeEdges = (dirtyIds?: Set<string>) => {
+      const live = Boolean(dirtyIds?.size);
+      const nodeBounds = measureBounds(dirtyIds);
+      const activeEdges = live
+        ? edges.filter((edge) => dirtyIds!.has(edge.source.id) || dirtyIds!.has(edge.target.id))
+        : edges;
+      const edgeFaces = activeEdges.map((edge) => {
         const sBox = nodeBounds.get(edge.source.id)!;
         const tBox = nodeBounds.get(edge.target.id)!;
-        const otherBoxes = nodes
-          .filter((n) => n.id !== edge.source.id && n.id !== edge.target.id)
-          .map((n) => nodeBounds.get(n.id)!);
+        const otherBoxes: ReturnType<typeof boundsInRoot>[] = [];
+        if (!live) {
+          for (const n of nodes) {
+            if (n.id === edge.source.id || n.id === edge.target.id) continue;
+            otherBoxes.push(nodeBounds.get(n.id)!);
+          }
+        }
         const sourceFace = chooseFace(sBox, tBox, otherBoxes);
         const targetFace = chooseFace(tBox, sBox, otherBoxes);
         return { sourceFace, targetFace, sourceOffset: 0, targetOffset: 0 };
       });
       nodes.forEach((node) => {
+        if (live && dirtyIds && !dirtyIds.has(node.id)) return;
         if (!isDiamondNode(node.wrapper)) return;
         const nBox = nodeBounds.get(node.id)!;
         const nCenter = { x: nBox.x + nBox.width / 2, y: nBox.y + nBox.height / 2 };
         const usedFaces = new Set<Face>();
-        edges.forEach((edge, idx) => {
+        activeEdges.forEach((edge, idx) => {
           if (edge.source.id === node.id) usedFaces.add(edgeFaces[idx]!.sourceFace);
           if (edge.target.id === node.id) usedFaces.add(edgeFaces[idx]!.targetFace);
         });
         (["bottom", "top"] as Face[]).forEach((vFace) => {
           const attached: { idx: number; end: "source" | "target"; dx: number }[] = [];
-          edges.forEach((edge, idx) => {
+          activeEdges.forEach((edge, idx) => {
             if (edge.source.id === node.id && edgeFaces[idx]!.sourceFace === vFace) {
               const oBox = nodeBounds.get(edge.target.id)!;
               attached.push({ idx, end: "source", dx: oBox.x + oBox.width / 2 - nCenter.x });
@@ -2257,7 +2283,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         string,
         { edgeIndex: number; end: "source" | "target"; face: Face; otherCoord: number }[]
       >();
-      edges.forEach((edge, edgeIndex) => {
+      activeEdges.forEach((edge, edgeIndex) => {
         const sBox = nodeBounds.get(edge.source.id)!;
         const tBox = nodeBounds.get(edge.target.id)!;
         const sCenter = { x: sBox.x + sBox.width / 2, y: sBox.y + sBox.height / 2 };
@@ -2298,18 +2324,27 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         ReturnType<typeof routeEdge>
       >();
       const usedSegments: { a: Position; b: Position }[] = [];
-      edges.forEach((edge, idx) => {
+      activeEdges.forEach((edge, idx) => {
         const { sourceFace, targetFace, sourceOffset, targetOffset } = edgeFaces[idx]!;
         const sBox = nodeBounds.get(edge.source.id);
         const tBox = nodeBounds.get(edge.target.id);
         const startOverride = edge.startAnchor && sBox ? resolveAnchorOnBox(sBox, edge.startAnchor) : undefined;
         const endOverride = edge.endAnchor && tBox ? resolveAnchorOnBox(tBox, edge.endAnchor) : undefined;
+        const obstacles: ReturnType<typeof boundsInRoot>[] = [];
+        if (!live) {
+          for (const n of nodes) {
+            if (n.id === edge.source.id || n.id === edge.target.id) continue;
+            obstacles.push(nodeBounds.get(n.id)!);
+          }
+        }
         const routed = routeEdge(
           svg,
           edge.path,
           edge.source.wrapper,
           edge.target.wrapper,
-          nodes,
+          sBox!,
+          tBox!,
+          obstacles,
           sourceFace,
           sourceOffset,
           targetFace,
@@ -2345,6 +2380,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
       });
       selfLoops.forEach(({ wrapper, node }) => {
+        if (live && dirtyIds && !dirtyIds.has(node.id)) return;
         wrapper.setAttribute(
           "transform",
           `translate(${node.position.x - node.base.x},${node.position.y - node.base.y})`,
@@ -2464,13 +2500,36 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       });
     };
     routeEdges();
+    let routeFrame = 0;
+    let pendingLiveIds: Set<string> | undefined;
+    const scheduleRoute = (ids: Iterable<string>) => {
+      pendingLiveIds ??= new Set();
+      for (const id of ids) pendingLiveIds.add(id);
+      if (routeFrame) return;
+      routeFrame = requestAnimationFrame(() => {
+        routeFrame = 0;
+        const liveIds = pendingLiveIds;
+        pendingLiveIds = undefined;
+        routeEdges(liveIds);
+      });
+    };
+    const flushRoute = () => {
+      if (routeFrame) {
+        cancelAnimationFrame(routeFrame);
+        routeFrame = 0;
+      }
+      pendingLiveIds = undefined;
+      routeEdges();
+    };
+    interactRef.current = { nodes, edges, routeEdges };
 
     const validLayoutKeys = validLayoutKeySet(
       nodes.map((node) => node.id),
       edges.map((edge) => edge.id),
     );
-    const trimmedLayout = trimLayoutToValidKeys(document.layout, validLayoutKeys);
-    if (Object.keys(trimmedLayout).length !== Object.keys(document.layout).length) {
+    const currentLayout = documentRef.current.layout;
+    const trimmedLayout = trimLayoutToValidKeys(currentLayout, validLayoutKeys);
+    if (Object.keys(trimmedLayout).length !== Object.keys(currentLayout).length) {
       onLayoutChangeRef.current(trimmedLayout);
     }
     let moved = false;
@@ -2479,7 +2538,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       const next: Record<string, Position> = {};
       nodes.forEach(({ id: nodeId, position, base }) => {
         if (Math.abs(position.x - base.x) > 0.01 || Math.abs(position.y - base.y) > 0.01) {
-          next[nodeId] = position;
+          next[nodeId] = { ...position };
         }
       });
       edges.forEach(({ id: edgeId, manualOffset, startAnchor, endAnchor }) => {
@@ -2503,6 +2562,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     svg.appendChild(guideGroup);
 
     const drawGuides = (activeNode: (typeof nodes)[number], x: number, y: number) => {
+      if (nodes.length > 40) return;
       guideGroup.replaceChildren();
       nodes.forEach((other) => {
         if (other.id === activeNode.id) return;
@@ -2570,7 +2630,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
             y: pointerStart.offset.y + dy,
           };
           moved = true;
-          routeEdges();
+          scheduleRoute([edge.source.id, edge.target.id]);
         }
       };
       const onPointerUp = (event: PointerEvent) => {
@@ -2579,6 +2639,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         if (edge.control.hasPointerCapture(event.pointerId)) {
           edge.control.releasePointerCapture(event.pointerId);
         }
+        flushRoute();
         finishDrag(edge.id);
       };
       const onDoubleClick = (event: MouseEvent) => {
@@ -2633,7 +2694,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           const rootPt = toRootPoint(svg, event.clientX, event.clientY);
           onSetAnchor(projectToBoxAnchor(rootPt, box));
           moved = true;
-          routeEdges();
+          scheduleRoute([edge.source.id, edge.target.id]);
         };
         const onEndpointUp = (event: PointerEvent) => {
           if (dragId !== event.pointerId) return;
@@ -2641,6 +2702,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           if (handleEl.hasPointerCapture(event.pointerId)) {
             handleEl.releasePointerCapture(event.pointerId);
           }
+          flushRoute();
           finishDrag(edge.id);
         };
         const onEndpointDblClick = (event: MouseEvent) => {
@@ -2745,7 +2807,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
             );
           });
           moved = true;
-          routeEdges();
+          scheduleRoute(pointerStart.group.map(({ node: item }) => item.id));
           drawGuides(node, x, y);
         }
       };
@@ -2756,6 +2818,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         if (node.wrapper.hasPointerCapture(event.pointerId)) {
           node.wrapper.releasePointerCapture(event.pointerId);
         }
+        flushRoute();
         finishDrag(node.id);
       };
       const onDoubleClick = (event: MouseEvent) => {
@@ -2812,6 +2875,8 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     }
 
     return () => {
+      if (routeFrame) cancelAnimationFrame(routeFrame);
+      interactRef.current = null;
       guideGroup.remove();
       edgeControlsGroup.remove();
       nodes.forEach(({ wrapper }) => {
@@ -2829,7 +2894,52 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         else term.setAttribute("transform", origTransform);
       });
     };
-  }, [rendered, document.id, document.code, document.layout, fit, settings.colorizeBoxes]);
+  }, [rendered, document.id, document.code, fit, settings.colorizeBoxes]);
+
+  useEffect(() => {
+    const live = interactRef.current;
+    if (!live) return;
+    const layout = document.layout;
+    let changed = false;
+    live.nodes.forEach((node) => {
+      const saved = layout[node.id] ?? node.base;
+      if (Math.abs(saved.x - node.position.x) <= 0.01 && Math.abs(saved.y - node.position.y) <= 0.01) {
+        return;
+      }
+      node.position.x = saved.x;
+      node.position.y = saved.y;
+      node.wrapper.setAttribute(
+        "transform",
+        `translate(${node.position.x - node.base.x},${node.position.y - node.base.y})`,
+      );
+      changed = true;
+    });
+    live.edges.forEach((edge) => {
+      const offset = layout[edge.id] ?? { x: 0, y: 0 };
+      const start = layout[`${edge.id}::start`];
+      const end = layout[`${edge.id}::end`];
+      const startSame =
+        (start?.x ?? null) === (edge.startAnchor?.x ?? null) &&
+        (start?.y ?? null) === (edge.startAnchor?.y ?? null);
+      const endSame =
+        (end?.x ?? null) === (edge.endAnchor?.x ?? null) &&
+        (end?.y ?? null) === (edge.endAnchor?.y ?? null);
+      if (
+        Math.abs(offset.x - edge.manualOffset.x) <= 0.01 &&
+        Math.abs(offset.y - edge.manualOffset.y) <= 0.01 &&
+        startSame &&
+        endSame
+      ) {
+        return;
+      }
+      edge.manualOffset.x = offset.x;
+      edge.manualOffset.y = offset.y;
+      edge.startAnchor = start ? { ...start } : undefined;
+      edge.endAnchor = end ? { ...end } : undefined;
+      changed = true;
+    });
+    if (changed) live.routeEdges();
+  }, [document.layout]);
 
   const resolvedPalette = resolveDiagramPalette(settings);
 

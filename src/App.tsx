@@ -148,6 +148,7 @@ import {
   LegacyDataError,
   listenForDocumentChanges,
   reloadStudio,
+  isTransientIndexedDbError,
   saveCredentials,
   saveDocument,
   saveSettings,
@@ -207,7 +208,18 @@ const SYNTAX_GUIDANCE: Record<DiagramType, string> = {
 };
 
 function snapshot(document: DiagramDocument): Snapshot {
-  return { code: document.code, layout: document.layout };
+  return { code: document.code, layout: { ...document.layout } };
+}
+
+function sameLayout(a: Record<string, Position>, b: Record<string, Position>): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const key of keys) {
+    const left = a[key];
+    const right = b[key];
+    if (!left || !right || left.x !== right.x || left.y !== right.y) return false;
+  }
+  return true;
 }
 
 function newEditStack(): EditStack {
@@ -435,8 +447,8 @@ function App() {
   }, []);
 
   const markDirty = useCallback((id: string) => {
-    setDirtyIds((current) => new Set(current).add(id));
-    setSaveState("saving");
+    setDirtyIds((current) => (current.has(id) ? current : new Set(current).add(id)));
+    setSaveState((state) => (state === "saving" ? state : "saving"));
   }, []);
 
   const updateDocument = useCallback(
@@ -459,7 +471,8 @@ function App() {
       const history = historyRef.current.get(id) ?? newEditStack();
       const previous = history.undo.at(-1);
       const now = Date.now();
-      if (kind === "code" && previous?.kind === "code" && now - previous.at < 750) {
+      const coalesceMs = kind === "code" ? 750 : 350;
+      if (previous?.kind === kind && now - previous.at < coalesceMs) {
         previous.after = after;
         previous.at = now;
       } else {
@@ -483,17 +496,37 @@ function App() {
     [activeDocument, endedRoomDocIds, rememberEdit, updateDocument],
   );
 
-  const changeLayout = useCallback(
+  const writeLayout = useCallback(
     (layout: Record<string, Position>) => {
-      if (!activeDocument || endedRoomDocIds.has(activeDocument.id)) return;
-      const before = snapshot(activeDocument);
-      if (JSON.stringify(before.layout) === JSON.stringify(layout)) return;
-      const after = { ...before, layout };
-      rememberEdit(activeDocument.id, before, after, "layout");
-      updateDocument(activeDocument.id, (document) => ({ ...document, layout }));
+      const current = dataRef.current;
+      const document =
+        current?.documents.find((item) => item.id === current.settings.activeDocumentId) ??
+        current?.documents[0];
+      if (!current || !document || endedRoomDocIds.has(document.id)) return;
+      if (sameLayout(document.layout, layout)) return;
+      const before = snapshot(document);
+      rememberEdit(document.id, before, { ...before, layout }, "layout");
+      const next = {
+        ...current,
+        documents: current.documents.map((item) => (item.id === document.id ? { ...item, layout } : item)),
+      };
+      dataRef.current = next;
+      markDirty(document.id);
+      updateData(next);
     },
-    [activeDocument, endedRoomDocIds, rememberEdit, updateDocument],
+    [endedRoomDocIds, markDirty, rememberEdit, updateData],
   );
+
+  const changeLayout = writeLayout;
+
+  const liveDocument = () => {
+    const current = dataRef.current;
+    if (!current) return undefined;
+    return (
+      current.documents.find((item) => item.id === current.settings.activeDocumentId) ??
+      current.documents[0]
+    );
+  };
 
   const dismissFirstDragExplainer = useCallback(() => {
     setFirstDragDismissed(true);
@@ -930,6 +963,7 @@ function App() {
         saveSettings(data.settings),
         saveCredentials(data.credentials),
       ]).catch((error: unknown) => {
+        if (isTransientIndexedDbError(error)) return;
         setStorageError(errorText(error));
         setSaveState("error");
       });
@@ -944,18 +978,18 @@ function App() {
       if (!current) return;
       dirtyIds.forEach((id) => {
         if (inFlight.current.has(id)) return;
-        const document = current.documents.find((item) => item.id === id);
-        if (!document) return;
+        const diagram = current.documents.find((item) => item.id === id);
+        if (!diagram) return;
         inFlight.current.add(id);
         const expected = expectedUpdatedAt.current.has(id)
           ? expectedUpdatedAt.current.get(id) ?? 0
-          : document.updatedAt;
-        void saveDocument(document, expected)
+          : diagram.updatedAt;
+        void saveDocument(diagram, expected)
           .then((saved) => {
             expectedUpdatedAt.current.set(id, saved.updatedAt);
             broadcastDocumentChange(id);
             const latest = dataRef.current?.documents.find((item) => item.id === id);
-            if (latest === document) {
+            if (latest === diagram) {
               setDirtyIds((items) => {
                 const next = new Set(items);
                 next.delete(id);
@@ -974,6 +1008,16 @@ function App() {
             if (error instanceof DocumentConflictError) {
               setExternalConflict(error.remote);
             }
+            if (isTransientIndexedDbError(error)) {
+              const retry = () =>
+                setDirtyIds((items) => new Set(items).add(id));
+              if (document.visibilityState === "hidden") {
+                document.addEventListener("visibilitychange", retry, { once: true });
+              } else {
+                window.setTimeout(retry, 400);
+              }
+              return;
+            }
             setDirtyIds((items) => {
               const next = new Set(items);
               next.delete(id);
@@ -984,7 +1028,7 @@ function App() {
           })
           .finally(() => inFlight.current.delete(id));
       });
-    }, 450);
+    }, 1400);
     return () => window.clearTimeout(timer);
   }, [data?.documents, dirtyIds]);
 
@@ -1585,7 +1629,7 @@ function App() {
     const safeBase = activeDocument.name.replace(/[\\/:*?"<>|]/g, "-").trim() || "diagram";
     const filename = sidecarFilename(safeBase);
     const generatedFrom = safeBase.toLowerCase().endsWith(`.${ext}`) ? safeBase : `${safeBase}.${ext}`;
-    const content = serializeSidecar(activeDocument.layout, {
+    const content = serializeSidecar(liveDocument()?.layout ?? activeDocument.layout, {
       generatedFrom,
       updatedAt: new Date().toISOString(),
     });
@@ -1625,7 +1669,8 @@ function App() {
     const format = detectCodeFormat(activeDocument.code);
     const ext = FORMAT_EXTENSIONS[format];
     const safeBase = activeDocument.name.replace(/[\\/:*?"<>|]/g, "-").trim() || "diagram";
-    const hasLayout = Object.keys(activeDocument.layout).length > 0;
+    const layout = liveDocument()?.layout ?? activeDocument.layout;
+    const hasLayout = Object.keys(layout).length > 0;
     setSaveBusy(true);
     try {
       await exportPng(`${safeBase}.png`, data.settings);
@@ -1633,7 +1678,7 @@ function App() {
       if (hasLayout) {
         const filename = sidecarFilename(safeBase);
         const generatedFrom = safeBase.toLowerCase().endsWith(`.${ext}`) ? safeBase : `${safeBase}.${ext}`;
-        const content = serializeSidecar(activeDocument.layout, {
+        const content = serializeSidecar(layout, {
           generatedFrom,
           updatedAt: new Date().toISOString(),
         });
@@ -1651,7 +1696,7 @@ function App() {
 
   const copyShareLink = async () => {
     if (!activeDocument) return;
-    const hash = createShareHash(activeDocument.code, activeDocument.layout);
+    const hash = createShareHash(activeDocument.code, liveDocument()?.layout ?? activeDocument.layout);
     const url = `${window.location.origin}/${hash}`;
     try {
       await navigator.clipboard.writeText(url);
@@ -1777,7 +1822,7 @@ function App() {
   const currentDirection = detectDirectionFromCode(activeDocument.code);
   const codeFormat = detectCodeFormat(activeDocument.code);
   const isReadOnlySnapshot = endedRoomDocIds.has(activeDocument.id);
-  const hasCustomLayout = Object.keys(activeDocument.layout).length > 0;
+  const hasCustomLayout = Object.keys((liveDocument() ?? activeDocument).layout).length > 0;
   const pedagogicalHint = renderError?.message
     ? getPedagogicalErrorHint(activeDocument.code, renderError.message)
     : null;
@@ -2530,7 +2575,7 @@ function App() {
                 type="button"
                 aria-label="Reset node positions to automatic layout"
                 title="Reset node positions"
-                disabled={!Object.keys(activeDocument.layout).length || isReadOnlySnapshot}
+                disabled={!hasCustomLayout || isReadOnlySnapshot}
                 onClick={() => {
                   changeLayout({});
                   requestAnimationFrame(() => canvasRef.current?.fit());
