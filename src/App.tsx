@@ -90,9 +90,11 @@ import {
   detectCodeFormat,
   FORMAT_EXTENSIONS,
   FORMAT_LABELS,
+  toMermaidSource,
   translateCodeFormat,
   type CodeFormat,
 } from "./lib/formats";
+import { mermaidToStaruml } from "./lib/staruml";
 import {
   detectDiagramType,
   getPedagogicalErrorHint,
@@ -1622,6 +1624,19 @@ function App() {
     }
   };
 
+  const saveMdj = () => {
+    if (!activeDocument) return;
+    try {
+      const mermaid = toMermaidSource(activeDocument.code).mermaid;
+      const safeBase = activeDocument.name.replace(/[\\/:*?"<>|]/g, "-").trim() || "diagram";
+      const mdj = mermaidToStaruml(mermaid, safeBase, liveDocument()?.layout ?? activeDocument.layout);
+      downloadText(`${safeBase}.mdj`, mdj, "application/json");
+      setNotice("StarUML (.mdj) file downloaded.");
+    } catch (error) {
+      setStorageError(errorText(error));
+    }
+  };
+
   const saveSidecar = () => {
     if (!activeDocument) return;
     const format = detectCodeFormat(activeDocument.code);
@@ -1982,6 +1997,9 @@ function App() {
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); savePlantUml(); }}>
                   <FileCode2 aria-hidden="true" size={15} /> Export PlantUML (.puml)
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); saveMdj(); }}>
+                  <FileCode2 aria-hidden="true" size={15} /> Export StarUML (.mdj)
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); void copyCode(); }}>
                   <Copy aria-hidden="true" size={15} /> Copy source

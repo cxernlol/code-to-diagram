@@ -272,3 +272,26 @@ test("StarUML .mdj JSON converts to Mermaid classDiagram", () => {
   assert.match(mermaid, /User <\|-- Admin/);
   assert.match(mermaid, /User "1" --> "0\.\.\*" Admin : owns/);
 });
+
+test("mermaidToStaruml exports classDiagram to StarUML .mdj JSON and round-trips", () => {
+  const source = [
+    "classDiagram",
+    "  class User {",
+    "    -int id",
+    "    +login(name string) bool",
+    "  }",
+    "  class Admin",
+    "  User <|-- Admin",
+    '  User "1" --> "0..*" Admin : manages',
+  ].join("\n");
+  const mdj = staruml.mermaidToStaruml(source, "Users", { User: { x: 120, y: 90 } });
+  const parsed = JSON.parse(mdj);
+  assert.equal(parsed._type, "Project");
+  assert.equal(parsed.name, "Users");
+  const roundTrip = staruml.starumlToMermaid(mdj);
+  assert.match(roundTrip, /^classDiagram/m);
+  assert.match(roundTrip, /-int id/);
+  assert.match(roundTrip, /\+login\(name string\) bool/);
+  assert.match(roundTrip, /User <\|-- Admin/);
+  assert.match(roundTrip, /User "1" --> "0\.\.\*" Admin : manages/);
+});

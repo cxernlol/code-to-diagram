@@ -1878,3 +1878,18 @@ test("uploads source via editor toolbar button and drag-and-drop onto studio", a
   await expect(page.locator('[data-sgs-node="Alpha"]')).toBeVisible();
   await expect(page.locator('[data-sgs-node="Beta"]')).toBeVisible();
 });
+
+test("exports StarUML (.mdj) file from More export menu", async ({ page }) => {
+  await page.goto("/#app");
+  await expect(page.locator('[data-sgs-node="Process"]')).toBeVisible();
+  await page.getByRole("button", { name: "More export…" }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Export StarUML (.mdj)" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("Flowchart.mdj");
+  const downloadedPath = await download.path();
+  expect(downloadedPath).not.toBeNull();
+  const parsed = JSON.parse(await readFile(downloadedPath!, "utf8"));
+  expect(parsed._type).toBe("Project");
+  expect(parsed.ownedElements?.[0]?._type).toBe("UMLModel");
+});
